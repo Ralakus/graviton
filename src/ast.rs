@@ -23,12 +23,12 @@ pub enum UnaryOperation {
 }
 
 #[derive(Debug, Clone)]
-pub enum AST {
+pub enum Ast {
     Identifier(String),
     Number(f64),
     String(String),
-    Binary(BinaryOperation, Box<AST>, Box<AST>),
-    Unary(UnaryOperation, Box<AST>),
-    Grouping(Box<AST>),
-    List(Vec<Box<AST>>)
+    Binary(BinaryOperation, Box<Ast>, Box<Ast>),
+    Unary(UnaryOperation, Box<Ast>),
+    Grouping(Box<Ast>),
+    List(Vec<Box<Ast>>)
 }

@@ -1,7 +1,7 @@
 
 use super::lexer::Lexer;
 use super::tokens::{TokenType, Token, TokenData, Position};
-use super::ast::{AST, UnaryOperation, BinaryOperation};
+use super::ast::{Ast, UnaryOperation, BinaryOperation};
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -19,7 +19,7 @@ enum Prec {
 	Primary
 }
 
-type ParseFn = fn(&mut Parser) -> Result<AST, String>;
+type ParseFn = fn(&mut Parser) -> Result<Ast, String>;
 
 #[derive(Clone)]
 struct ParseRule {
@@ -84,7 +84,7 @@ pub struct Parser<'a> {
     current: Token,
     previous: Token,
 
-    infix_node: AST,
+    infix_node: Ast,
 }
 
 impl<'a> Parser<'a> {
@@ -107,13 +107,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(source: &'a str) -> Result<AST, String> {
+    pub fn parse(source: &'a str) -> Result<Ast, String> {
         let mut p = Parser {
             lex: Lexer::new(source),
             current: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
             previous: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
 
-            infix_node: AST::List(Vec::new())
+            infix_node: Ast::List(Vec::new())
         };
 
         p.advance();
@@ -125,11 +125,11 @@ impl<'a> Parser<'a> {
 
 }
 
-fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<AST, String> {
+fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<Ast, String> {
     Err("Invalid parser function call!".to_string())
 }
 
-fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<AST, String> {
+fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, String> {
     p.advance();
 
     let prefix_rule = get_rule(p.previous.token_type.clone()).prefix;
@@ -153,35 +153,35 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<AST, Str
     Ok(p.infix_node.clone())
 }
 
-fn expression<'a>(p: &mut Parser<'a>)  -> Result<AST, String> {
+fn expression<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     parse_precedence(p, Prec::Assignment)
 }
 
-fn literal<'a>(p: &mut Parser<'a>)  -> Result<AST, String> {
+fn literal<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     match p.previous.token_type {
-        TokenType::Number => Ok(AST::Number(if let TokenData::Number(n) = &p.previous.data { n.clone() } else { 0.0 })),
-        TokenType::String => Ok(AST::String(if let TokenData::String(s) = &p.previous.data { s.clone() } else { "Error".to_string() })),
+        TokenType::Number => Ok(Ast::Number(if let TokenData::Number(n) = &p.previous.data { n.clone() } else { 0.0 })),
+        TokenType::String => Ok(Ast::String(if let TokenData::String(s) = &p.previous.data { s.clone() } else { "Error".to_string() })),
         _ => Err("Unreachable error for literal()".to_string())
     }
 }
 
-fn unary<'a>(p: &mut Parser<'a>)  -> Result<AST, String> {
+fn unary<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     let op = p.previous.token_type.clone();
 
     let expr = parse_precedence(p, Prec::Unary)?;
 
-    Ok(AST::Unary(match op {
+    Ok(Ast::Unary(match op {
         TokenType::Minus => UnaryOperation::Negate,
         TokenType::Bang => UnaryOperation::Not,
         _ => return Err("Invalid unary operator".to_string())
     }, Box::new(expr)))
 }
 
-fn binary<'a>(p: &mut Parser<'a>)  -> Result<AST, String> {
+fn binary<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     let left = p.infix_node.clone();
     let op = p.previous.token_type.clone();
     let right = parse_precedence(p, get_rule(op.clone()).precedence)?;
-    Ok(AST::Binary(match op {
+    Ok(Ast::Binary(match op {
         TokenType::Plus => BinaryOperation::Add,
         TokenType::Minus => BinaryOperation::Subtract, 
         TokenType::Star => BinaryOperation::Multiply,
@@ -198,8 +198,8 @@ fn binary<'a>(p: &mut Parser<'a>)  -> Result<AST, String> {
     }, Box::new(left), Box::new(right)))
 }
 
-fn grouping<'a>(p: &mut Parser<'a>)  -> Result<AST, String> {
+fn grouping<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     let expr = expression(p)?;
     p.consume(TokenType::RParen, "Expected right parenthesis".to_string())?;
-    Ok(AST::Grouping(Box::new(expr)))
+    Ok(Ast::Grouping(Box::new(expr)))
 }
