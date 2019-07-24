@@ -84,7 +84,7 @@ pub struct Parser<'a> {
     current: Token,
     previous: Token,
 
-    infix_node: Ast,
+    prefix_node: Ast,
 }
 
 impl<'a> Parser<'a> {
@@ -99,11 +99,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume(&mut self, token_type: TokenType, err_msg: String) -> Result<(), String> {
+    fn consume(&mut self, token_type: TokenType, err_msg: &'static str) -> Result<(), String> {
         if self.current.token_type == token_type {
             Ok(self.advance())
         } else {
-            Err(err_msg)
+            Err(self.make_error(err_msg))
         }
     }
 
@@ -113,20 +113,24 @@ impl<'a> Parser<'a> {
             current: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
             previous: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
 
-            infix_node: Ast::List(Vec::new())
+            prefix_node: Ast::List(Vec::new())
         };
 
         p.advance();
         let ast = expression(&mut p)?;
-        p.consume(TokenType::Eof, "Expected EOF".to_string())?;
+        p.consume(TokenType::Eof, "Expected EOF")?;
 
         Ok(ast)
     }
 
+    fn make_error(&mut self, msg: &'static str) -> String {
+        format!("Line: {}, Col: {}, {}", self.previous.pos.line, self.previous.pos.col, msg)
+    }
+
 }
 
-fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<Ast, String> {
-    Err("Invalid parser function call!".to_string())
+fn nil_func<'a>(p: &mut Parser<'a>) -> Result<Ast, String> {
+    Err(p.make_error("Invalid parser function call!"))
 }
 
 fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, String> {
@@ -134,23 +138,23 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, Str
 
     let prefix_rule = get_rule(p.previous.token_type.clone()).prefix;
     if prefix_rule as usize == nil_func as usize {
-        return Err("Expected prefix expression".to_string());
+        return Err(p.make_error("Expected prefix expression"));
     }
 
-    p.infix_node = prefix_rule(p)?;
+    p.prefix_node = prefix_rule(p)?;
 
     while precedence as u8 <= get_rule(p.current.token_type.clone()).precedence as u8 {
         p.advance();
         let infix_rule = get_rule(p.previous.token_type.clone()).infix;
         if infix_rule as usize == nil_func as usize {
-            return Err("Expected infix expression".to_string());
+            return Err(p.make_error("Expected infix expression"));
         }
 
-        p.infix_node = infix_rule(p)?;
+        p.prefix_node = infix_rule(p)?;
     }
     
 
-    Ok(p.infix_node.clone())
+    Ok(p.prefix_node.clone())
 }
 
 fn expression<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
@@ -161,7 +165,7 @@ fn literal<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     match p.previous.token_type {
         TokenType::Number => Ok(Ast::Number(if let TokenData::Number(n) = &p.previous.data { n.clone() } else { 0.0 })),
         TokenType::String => Ok(Ast::String(if let TokenData::String(s) = &p.previous.data { s.clone() } else { "Error".to_string() })),
-        _ => Err("Unreachable error for literal()".to_string())
+        _ => Err(p.make_error("Unreachable error for literal()"))
     }
 }
 
@@ -173,12 +177,12 @@ fn unary<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     Ok(Ast::Unary(match op {
         TokenType::Minus => UnaryOperation::Negate,
         TokenType::Bang => UnaryOperation::Not,
-        _ => return Err("Invalid unary operator".to_string())
+        _ => return Err(p.make_error("Invalid unary operator"))
     }, Box::new(expr)))
 }
 
 fn binary<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
-    let left = p.infix_node.clone();
+    let left = p.prefix_node.clone();
     let op = p.previous.token_type.clone();
     let right = parse_precedence(p, get_rule(op.clone()).precedence)?;
     Ok(Ast::Binary(match op {
@@ -194,12 +198,12 @@ fn binary<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
         TokenType::EqualEqual => BinaryOperation::Equals,
         TokenType::Equal => BinaryOperation::Assign,
 
-        _ => return Err("Invalid binary operator".to_string())
+        _ => return Err(p.make_error("Invalid binary operator"))
     }, Box::new(left), Box::new(right)))
 }
 
 fn grouping<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     let expr = expression(p)?;
-    p.consume(TokenType::RParen, "Expected right parenthesis".to_string())?;
+    p.consume(TokenType::RParen, "Expected right parenthesis")?;
     Ok(Ast::Grouping(Box::new(expr)))
 }
