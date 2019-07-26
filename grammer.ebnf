@@ -5,12 +5,15 @@ program = {expression} EOF ;
 (* Precedence is handled by the Pratt parser *)
 expression = literal
            | "(" expression ")"
+           | block_expr
            | unary_expr
            | binary_expr
            | if_expr
            | while_expr
            | let_expr 
            | statement ;
+
+block_expr = "{" {expression} "}" ;
 
 literal = NUMBER
         | STRING
