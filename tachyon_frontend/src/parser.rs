@@ -152,7 +152,6 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, Str
 
         p.prefix_node = infix_rule(p)?;
     }
-    
 
     Ok(p.prefix_node.clone())
 }

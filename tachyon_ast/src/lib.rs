@@ -1,4 +1,5 @@
 
+
 #[derive(Copy, Clone, Debug)]
 pub enum BinaryOperation {
     Add,
@@ -30,5 +31,5 @@ pub enum Ast {
     Binary(BinaryOperation, Box<Ast>, Box<Ast>),
     Unary(UnaryOperation, Box<Ast>),
     Grouping(Box<Ast>),
-    List(Vec<Box<Ast>>)
+    List(Vec<Ast>)
 }
