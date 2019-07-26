@@ -19,3 +19,4 @@ tachyon_frontend = { path = "tachyon_frontend", version = "*" }
 tachyon_backend  = { path = "tachyon_backend",  version = "*" }
 
 memmap = "*"
+colored = "*"

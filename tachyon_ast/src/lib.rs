@@ -30,6 +30,5 @@ pub enum Ast {
     String(String),
     Binary(BinaryOperation, Box<Ast>, Box<Ast>),
     Unary(UnaryOperation, Box<Ast>),
-    Grouping(Box<Ast>),
     List(Vec<Ast>)
 }

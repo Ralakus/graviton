@@ -204,5 +204,5 @@ fn binary<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
 fn grouping<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     let expr = expression(p)?;
     p.consume(TokenType::RParen, "Expected right parenthesis")?;
-    Ok(Ast::Grouping(Box::new(expr)))
+    Ok(expr)
 }
