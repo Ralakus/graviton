@@ -37,11 +37,11 @@ binary_op = "+"
           | "=="
           | "=" ;
 
-if_expr = "if" expression expression {"else" "if" expression expression} ("else" expression) ;
+if_expr = "if" expression expression {"else" "if" expression expression} ["else" expression] ;
 
 while_expr = "while" expression expression ;
 
-let_expr = "let" ("mut") IDENTIFIER {"=" expression} ;
+let_expr = "let" ["mut"] IDENTIFIER ["=" expression] ;
 
 (* Statements are like expressions but have no return value *)
 statement = let_stmt ;
