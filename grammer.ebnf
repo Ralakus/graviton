@@ -1,7 +1,8 @@
 
 (* Entry point for program *)
-program = {expression} EOF;
+program = {expression} EOF ;
 
+(* Precedence is handled by the Pratt parser *)
 expression = literal
            | "(" expression ")"
            | unary_expr
@@ -37,8 +38,9 @@ if_expr = "if" expression expression {"else" "if" expression expression} {"else"
 
 while_expr = "while" expression expression ;
 
-let_expr = "let" ("mut") IDENTIFIER {"=" expression};
+let_expr = "let" ("mut") IDENTIFIER {"=" expression} ;
 
+(* Statements are like expressions but have no return value *)
 statement = let_stmt ;
 
 let_stmt = let_expr ";" ;
