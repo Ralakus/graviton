@@ -51,12 +51,14 @@ impl<'a> Lexer<'a> {
         match ident.as_str() {
             "and" => TokenType::KwAnd,
             "or" => TokenType::KwOr,
+
             "self" => TokenType::KwSelf,
             "struct" => TokenType::KwStruct,
             "return" => TokenType::KwReturn,
             "import" => TokenType::KwImport,
             "let" => TokenType::KwLet,
             "def" => TokenType::KwDef,
+            "mut" => TokenType::KwMut,
 
             "if" => TokenType::KwIf,
             "else" => TokenType::KwElse,

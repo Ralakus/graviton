@@ -1,0 +1,44 @@
+
+(* Entry point for program *)
+program = {expression} EOF;
+
+expression = literal
+           | "(" expression ")"
+           | unary_expr
+           | binary_expr
+           | if_expr
+           | while_expr
+           | let_expr 
+           | statement ;
+
+literal = NUMBER
+        | STRING
+        | BOOLEAN ;
+
+unary_expr = unary_op expression;
+
+unary_op = "-"
+         | "!" ;
+
+binary_expr = expression binary_op expression ;
+
+binary_op = "+"
+          | "-"
+          | "*"
+          | "/"
+          | "<"
+          | "<="
+          | ">"
+          | ">="
+          | "=="
+          | "=" ;
+
+if_expr = "if" expression expression {"else" "if" expression expression} {"else" expression} ;
+
+while_expr = "while" expression expression ;
+
+let_expr = "let" IDENTIFIER {"=" expression};
+
+statement = let_stmt ;
+
+let_stmt = let_expr ";" ;

@@ -22,7 +22,7 @@ fn main() {
         let mapped_file = unsafe { Mmap::map(&file).expect("failed to map file") };
 
         let source = std::str::from_utf8(&mapped_file[..]).unwrap();
-        println!("{}\n{:#?}", "Source:".cyan(), source);
+        println!("{}\n{}", "Source:".cyan(), source);
 
         let ast = tachyon::frontend::parser::Parser::parse(source);
 
@@ -31,7 +31,7 @@ fn main() {
         let mut source = String::new();
         std::io::stdin().lock().read_line(&mut source).expect("Oof");
 
-        println!("{}\n{:#?}", "Source:".cyan(), source);
+        println!("{}\n{}", "Source:".cyan(), source);
 
         let ast = tachyon::frontend::parser::Parser::parse(source.as_str());
 

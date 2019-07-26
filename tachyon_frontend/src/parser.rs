@@ -28,7 +28,7 @@ struct ParseRule {
     precedence: Prec
 }
 
-const PARSER_RULE_TABLE: [ParseRule; 43] = [
+const PARSER_RULE_TABLE: [ParseRule; 44] = [
 ParseRule{prefix: grouping, infix: nil_func, precedence: Prec::Call       }, // TokenType::LParen
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::RParen
 ParseRule{prefix: block,    infix: nil_func, precedence: Prec::None       }, // TokenType::LCurly
@@ -60,15 +60,16 @@ ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // 
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwStruct
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwReturn
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwImport
-ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwLet
+ParseRule{prefix: let_,     infix: nil_func, precedence: Prec::None       }, // TokenType::KwLet
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwDef
+ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwMut
 ParseRule{prefix: if_else,  infix: nil_func, precedence: Prec::None       }, // TokenType::KwIf
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwElse
-ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwWhile
+ParseRule{prefix: while_,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwWhile
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwFor
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwBreak
-ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwTrue
-ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwFalse
+ParseRule{prefix: literal,  infix: nil_func, precedence: Prec::None       }, // TokenType::KwTrue
+ParseRule{prefix: literal,  infix: nil_func, precedence: Prec::None       }, // TokenType::KwFalse
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwNil
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::Err
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::Eof
@@ -97,8 +98,6 @@ impl<'a> Parser<'a> {
         } else {
             self.current = Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1});
         }
-
-        println!("{:?}", self.current);
     }
 
     fn consume(&mut self, token_type: TokenType, err_msg: &'static str) -> Result<(), String> {
@@ -170,6 +169,8 @@ fn literal<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     match p.previous.token_type {
         TokenType::Number => Ok(Ast::Number(if let TokenData::Number(n) = &p.previous.data { n.clone() } else { 0.0 })),
         TokenType::String => Ok(Ast::String(if let TokenData::String(s) = &p.previous.data { s.clone() } else { "Error".to_string() })),
+        TokenType::KwTrue => Ok(Ast::Bool(true)),
+        TokenType::KwFalse => Ok(Ast::Bool(false)),
         _ => Err(p.make_error("Unreachable error for literal()"))
     }
 }
@@ -241,4 +242,37 @@ fn if_else<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     }
 
     Ok(Ast::IfElse(Box::new(if_cond), Box::new(if_block), else_if_exprs, else_block))
+}
+
+fn while_<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
+    Ok(Ast::While(Box::new(expression(p)?), Box::new(expression(p)?)))
+}
+
+fn let_<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
+    let mut mutable = false;
+    if p.check(TokenType::KwMut) {
+        p.advance();
+        mutable = true;
+    }
+    p.consume(TokenType::Identifier, "Expected identifier for variable name")?;
+    let ident = match &p.previous.data {
+            TokenData::String(s) => s.clone(),
+            _ => return Err(p.make_error("Could not read identifier name from token"))
+        };
+    
+    let val_expr: Option<Box<Ast>> = 
+        if p.check(TokenType::Equal) {
+            p.advance();
+            Some(Box::new(expression(p)?))
+        } else {
+            None
+        };
+
+    if p.check(TokenType::Semicolon) {
+        p.advance();
+        return Ok(Ast::Statement(Box::new(Ast::Let(ident, mutable, val_expr))));
+    }
+
+    Ok(Ast::Let(ident, mutable, val_expr))
+
 }
