@@ -31,7 +31,7 @@ struct ParseRule {
 const PARSER_RULE_TABLE: [ParseRule; 43] = [
 ParseRule{prefix: grouping, infix: nil_func, precedence: Prec::Call       }, // TokenType::LParen
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::RParen
-ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::LCurly
+ParseRule{prefix: block,    infix: nil_func, precedence: Prec::None       }, // TokenType::LCurly
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::RCurly
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::LBracket
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::RBracket
@@ -62,7 +62,7 @@ ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // 
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwImport
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwLet
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwDef
-ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwIf
+ParseRule{prefix: if_else,  infix: nil_func, precedence: Prec::None       }, // TokenType::KwIf
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwElse
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwWhile
 ParseRule{prefix: nil_func, infix: nil_func, precedence: Prec::None       }, // TokenType::KwFor
@@ -97,6 +97,8 @@ impl<'a> Parser<'a> {
         } else {
             self.current = Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1});
         }
+
+        println!("{:?}", self.current);
     }
 
     fn consume(&mut self, token_type: TokenType, err_msg: &'static str) -> Result<(), String> {
@@ -107,13 +109,17 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn check(&mut self, token_type: TokenType) -> bool {
+        self.current.token_type == token_type
+    }
+
     pub fn parse(source: &'a str) -> Result<Ast, String> {
         let mut p = Parser {
             lex: Lexer::new(source),
             current: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
             previous: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
 
-            prefix_node: Ast::List(Vec::new())
+            prefix_node: Ast::Block(Vec::new())
         };
 
         p.advance();
@@ -203,6 +209,36 @@ fn binary<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
 
 fn grouping<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
     let expr = expression(p)?;
-    p.consume(TokenType::RParen, "Expected right parenthesis")?;
+    p.consume(TokenType::RParen, "Expected closing right parenthesis")?;
     Ok(expr)
+}
+
+fn block<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
+    let mut expr_vec: Vec<Ast> = Vec::new();
+    while !p.check(TokenType::RCurly) {
+        expr_vec.push(expression(p)?);
+    }
+    p.consume(TokenType::RCurly, "Expected closing right curly bracket")?;
+    Ok(Ast::Block(expr_vec))
+}
+
+fn if_else<'a>(p: &mut Parser<'a>)  -> Result<Ast, String> {
+    let if_cond = expression(p)?;
+    let if_block = expression(p)?;
+    
+    let mut else_if_exprs: Vec<(Box<Ast>, Box<Ast>)> = Vec::new();
+    let mut else_block: Option<Box<Ast>> = None;
+
+    while p.check(TokenType::KwElse) {
+        p.advance();
+        if p.check(TokenType::KwIf) {
+            p.advance();
+            else_if_exprs.push((Box::new(expression(p)?), Box::new(expression(p)?)));
+        } else {
+            else_block = Some(Box::new(expression(p)?));
+            break;
+        }
+    }
+
+    Ok(Ast::IfElse(Box::new(if_cond), Box::new(if_block), else_if_exprs, else_block))
 }

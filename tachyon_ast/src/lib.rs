@@ -30,5 +30,6 @@ pub enum Ast {
     String(String),
     Binary(BinaryOperation, Box<Ast>, Box<Ast>),
     Unary(UnaryOperation, Box<Ast>),
-    List(Vec<Ast>)
+    Block(Vec<Ast>),
+    IfElse(Box<Ast>, Box<Ast>, Vec<(Box<Ast>, Box<Ast>)>, Option<Box<Ast>>)
 }
