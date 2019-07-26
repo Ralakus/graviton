@@ -1,3 +1,5 @@
+<img src="./docs/logo.png" width=25%>
+
 # Tachyon Programming language
 
 [![license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](./LICENSE)

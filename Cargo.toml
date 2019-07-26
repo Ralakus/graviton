@@ -8,6 +8,7 @@ respository = "https://github.com/Ralakus/tachyon"
 homepage = "https://github.com/Ralakus/tachyon"
 description = "Tachyon is a fast programming language that is minimal and simplistic with a simple and easy to read compiler"
 license-file = "LICENSE"
+readme = "README.md"
 exclude = [
     ".vscode/**"
 ]
