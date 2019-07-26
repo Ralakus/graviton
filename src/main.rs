@@ -17,6 +17,6 @@ fn main() {
 
     let ast = tachyon::frontend::parser::Parser::parse(std::str::from_utf8(&mapped_file[..]).unwrap());
 
-    println!("{:?}", ast);
+    println!("{:#?}", ast);
 
 }
