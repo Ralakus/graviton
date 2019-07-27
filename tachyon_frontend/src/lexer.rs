@@ -57,7 +57,7 @@ impl<'a> Lexer<'a> {
             "return" => TokenType::KwReturn,
             "import" => TokenType::KwImport,
             "let" => TokenType::KwLet,
-            "def" => TokenType::KwDef,
+            "fn" => TokenType::KwFn,
             "mut" => TokenType::KwMut,
 
             "if" => TokenType::KwIf,

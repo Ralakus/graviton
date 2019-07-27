@@ -42,7 +42,7 @@ pub enum TokenType {
     KwReturn,
     KwImport,
     KwLet,
-    KwDef,
+    KwFn,
     KwMut,
 
     KwIf,

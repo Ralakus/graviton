@@ -11,13 +11,18 @@ expression = literal
            | if_expr
            | while_expr
            | let_expr 
-           | statement ;
+           | statement
+           | import 
+           | fn_def
+           | fn_call ;
 
 block_expr = "{" {expression} "}" ;
 
 literal = NUMBER
         | STRING
         | BOOLEAN ;
+
+identifier = IDENTIFIER ;
 
 unary_expr = unary_op expression;
 
@@ -41,9 +46,24 @@ if_expr = "if" expression expression {"else" "if" expression expression} ["else"
 
 while_expr = "while" expression expression ;
 
-let_expr = "let" ["mut"] IDENTIFIER ["=" expression] ;
+type_signature = ":" IDENTIFIER ;
+
+variable_signature = IDENTIFIER [type_signature] ;
+
+let_expr = "let" ["mut"] variable_signature ["=" expression] ;
+
+import = "import" STRING ;
+
+function_signature = "fn" [IDENTIFIER] "(" {variable_signature} ")" [type_signature] ;
+
+fn_def = function_signature expression ;
+
+fn_call = IDENTIFIER "(" {variable_signature} ")" ;
 
 (* Statements are like expressions but have no return value *)
-statement = let_stmt ;
+statement = let_stmt 
+          | import_stmt ;
 
 let_stmt = let_expr ";" ;
+
+import_stmt = import ";" ;
