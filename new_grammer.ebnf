@@ -1,7 +1,10 @@
 
 package = {statement} EOF ;
 
-statement = expression ";" ;
+statement = return_statement
+          | expression ";" ;
+
+return_statement = "return" expression ";" ;
 
 expression = literal 
            | block

@@ -65,6 +65,9 @@ pub enum Ast {
     // operator, expr
     Unary(UnaryOperation, Box<Ast>),
 
+    // returned expression
+    Return(Box<Ast>),
+
     // vector of expr
     Block(Vec<Ast>),
 
@@ -84,5 +87,5 @@ pub enum Ast {
     FnDef(FunctionSignature, Box<Ast>),
 
     // function name, arguments
-    FnCall(String, Vec<Ast>)
+    FnCall(String, Vec<Ast>),
 }

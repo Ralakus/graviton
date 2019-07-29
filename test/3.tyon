@@ -2,12 +2,12 @@
 import "1.tyon";
 
 fn add (x: i32, y: i32): i32 {
-    x + y
-}
+    return x + y;
+};
 
 let x = 5;
 
 if let y = 5 {
-    let z = add(x, y);
-}
+    return let z = add(x, y);
+};
 

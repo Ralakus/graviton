@@ -232,9 +232,16 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, Par
 }
 
 fn statement<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
-    let ast = expression(p)?;
+    let is_return = if p.check(TokenType::KwReturn) {
+        p.advance();
+        true
+    } else {
+        false
+    };
+
+    let expr = expression(p)?;
     p.consume(TokenType::Semicolon, "Expected \';\' to end expression to make into statement")?;
-    Ok(Ast::Statement(Box::new(ast)))
+    if !is_return { Ok(Ast::Statement(Box::new(expr))) } else { Ok(Ast::Return(Box::new(expr))) }
 }
 
 fn expression<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
@@ -369,11 +376,6 @@ fn let_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
             None
         };
 
-    if p.check(TokenType::Semicolon) {
-        p.advance();
-        return Ok(Ast::Statement(Box::new(Ast::Let(var_sig, mutable, val_expr))));
-    }
-
     Ok(Ast::Let(var_sig, mutable, val_expr))
 
 }
@@ -384,11 +386,6 @@ fn import<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
             TokenData::String(s) => s.clone(),
             _ => return Err(p.make_error("Could not read identifier name from token"))
         };
-    if p.check(TokenType::Semicolon) {
-        p.advance();
-        return Ok(Ast::Statement(Box::new(Ast::Import(name))));
-    }
-
     Ok(Ast::Import(name))
 }
 

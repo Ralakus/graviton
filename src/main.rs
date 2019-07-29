@@ -74,7 +74,7 @@ fn main() {
 
     println!("{}\n{}", "Source:".cyan(), source);
 
-    let ast = tachyon::frontend::parser::Parser::parse(source);
+    let ast = tachyon::frontend::parser_new::Parser::parse(source);
 
     match ast {
         Ok(a) => {
