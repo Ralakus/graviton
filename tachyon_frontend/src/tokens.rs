@@ -75,16 +75,16 @@ pub enum TokenData {
 
 #[derive(Debug, Clone)]
 pub struct Token {
-    pub token_type: TokenType,
+    pub type_: TokenType,
     pub data: TokenData,
     pub pos: Position
 }
 
 
 impl Token {
-    pub fn new(token_type: TokenType, data: TokenData, pos: Position) -> Self {
+    pub fn new(type_: TokenType, data: TokenData, pos: Position) -> Self {
         Token {
-            token_type,
+            type_,
             data,
             pos
         }
@@ -93,6 +93,6 @@ impl Token {
 
 impl ToString for Token {
     fn to_string(&self) -> String { 
-        format!("{:?}, {:?}, line: {}, col: {}", self.token_type, self.data, self.pos.line, self.pos.col)
+        format!("{:?}, {:?}, line: {}, col: {}", self.type_, self.data, self.pos.line, self.pos.col)
     }
 }

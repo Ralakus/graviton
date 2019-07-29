@@ -18,5 +18,10 @@ tachyon_ast      = { path = "tachyon_ast",      version = "*" }
 tachyon_frontend = { path = "tachyon_frontend", version = "*" }
 tachyon_backend  = { path = "tachyon_backend",  version = "*" }
 
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+
+clap = { version = "*", features = [ "suggestions", "color" ] }
+
 memmap = "*"
 colored = "*"

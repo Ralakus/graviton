@@ -13,8 +13,8 @@ impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         Lexer {
             source: source.chars().peekable(),
-            start_pos: Position{line: 1, col: 1},
-            pos: Position{line: 1, col: 1}
+            start_pos: Position{line: 1, col: 0},
+            pos: Position{line: 1, col: 0}
         }
     }
 
@@ -34,7 +34,7 @@ impl<'a> Lexer<'a> {
         while match self.peek() {
             Some(c) if c == '\n' => {
                 self.pos.line += 1;
-                self.pos.col = 1;
+                self.pos.col = 0;
                 true
             }
             Some(c) if c.is_whitespace() => {

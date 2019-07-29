@@ -81,8 +81,8 @@ ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, /
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::Eof
 ];
 
-fn get_rule(token_type: TokenType) -> &'static ParseRule {
-    &PARSER_RULE_TABLE[token_type as usize]
+fn get_rule(type_: TokenType) -> &'static ParseRule {
+    &PARSER_RULE_TABLE[type_ as usize]
 }
 
 
@@ -90,6 +90,7 @@ pub struct Parser<'a> {
     lex: Lexer<'a>,
     current: Token,
     previous: Token,
+    errors: Vec<ParseError>,
 
     prefix_node: Ast,
 }
@@ -106,23 +107,24 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume(&mut self, token_type: TokenType, err_msg: &'static str) -> Result<(), ParseError> {
-        if self.current.token_type == token_type {
+    fn consume(&mut self, type_: TokenType, err_msg: &'static str) -> Result<(), ParseError> {
+        if self.current.type_ == type_ {
             Ok(self.advance())
         } else {
             Err(self.make_error(err_msg))
         }
     }
 
-    fn check(&mut self, token_type: TokenType) -> bool {
-        self.current.token_type == token_type
+    fn check(&mut self, type_: TokenType) -> bool {
+        self.current.type_ == type_
     }
 
-    pub fn parse(source: &'a str) -> Result<Ast, ParseError> {
+    pub fn parse(source: &'a str) -> Result<Ast, Vec<ParseError>> {
         let mut p = Parser {
             lex: Lexer::new(source),
             current: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
             previous: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
+            errors: Vec::new(),
 
             prefix_node: Ast::Block(Vec::new())
         };
@@ -130,17 +132,43 @@ impl<'a> Parser<'a> {
         p.advance();
         let mut exprs: Vec<Ast> = Vec::new();
         while !p.check(TokenType::Eof) {
-            exprs.push(expression(&mut p)?);
+            match expression(&mut p) {
+                Ok(ast) => exprs.push(ast),
+                _ => (),
+            }
         }
-        p.consume(TokenType::Eof, "Expected EOF")?;
+        let _ = p.consume(TokenType::Eof, "Expected EOF");
+
+        if p.errors.len() > 0 {
+            return Err(p.errors);
+        }
 
         Ok(Ast::Block(exprs))
     }
 
     fn make_error(&mut self, msg: &'static str) -> ParseError {
-        ParseError {
+        let error = ParseError {
             pos: self.previous.pos.clone(),
             msg: msg.to_string()
+        };
+        self.errors.push(error.clone());
+        error
+    }
+
+    // For error recovery 
+    fn synchronize(&mut self) {
+        while !(self.check(TokenType::RCurly) ||
+                self.check(TokenType::KwFn) ||
+                self.check(TokenType::KwStruct) ||
+                self.check(TokenType::KwLet) || 
+                self.check(TokenType::KwWhile) ||
+                self.check(TokenType::KwReturn) || 
+                self.check(TokenType::Eof)) {
+            self.advance();
+            if self.check(TokenType::Semicolon) {
+                self.advance();
+                break;
+            }
         }
     }
 
@@ -175,21 +203,29 @@ fn nil_func<'a>(p: &mut Parser<'a>) -> Result<Ast, ParseError> {
 fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, ParseError> {
     p.advance();
 
-    let prefix_rule = get_rule(p.previous.token_type.clone()).prefix;
+    let prefix_rule = get_rule(p.previous.type_.clone()).prefix;
     if prefix_rule as usize == nil_func as usize {
         return Err(p.make_error("Expected prefix expression"));
     }
 
-    p.prefix_node = prefix_rule(p)?;
+    let prefix_node = prefix_rule(p);
+    match prefix_node {
+        Ok(ast) => p.prefix_node = ast,
+        Err(_) => p.synchronize()
+    }
 
-    while precedence as u8 <= get_rule(p.current.token_type.clone()).precedence as u8 {
+    while precedence as u8 <= get_rule(p.current.type_.clone()).precedence as u8 {
         p.advance();
-        let infix_rule = get_rule(p.previous.token_type.clone()).infix;
+        let infix_rule = get_rule(p.previous.type_.clone()).infix;
         if infix_rule as usize == nil_func as usize {
             return Err(p.make_error("Expected infix expression"));
         }
 
-        p.prefix_node = infix_rule(p)?;
+        let infix_node = infix_rule(p);
+        match infix_node {
+            Ok(ast) => p.prefix_node = ast,
+            Err(_) => p.synchronize()
+        }
     }
 
     Ok(p.prefix_node.clone())
@@ -200,7 +236,7 @@ fn expression<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
 }
 
 fn literal<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
-    match p.previous.token_type {
+    match p.previous.type_ {
         TokenType::Number => Ok(Ast::Number(if let TokenData::Number(n) = &p.previous.data { n.clone() } else { 0.0 })),
         TokenType::String => Ok(Ast::String(if let TokenData::String(s) = &p.previous.data { s.clone() } else { "err".to_string() })),
         TokenType::KwTrue => Ok(Ast::Bool(true)),
@@ -210,7 +246,7 @@ fn literal<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
 }
 
 fn identifier<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
-    let name = match p.previous.token_type {
+    let name = match p.previous.type_ {
             TokenType::Identifier => if let TokenData::String(s) = &p.previous.data { s.clone() } else { "err".to_string() },
             _ => return Err(p.make_error("Unreachable error for identifier()"))
         };
@@ -238,7 +274,7 @@ fn identifier<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
 }
 
 fn unary<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
-    let op = p.previous.token_type.clone();
+    let op = p.previous.type_.clone();
 
     let expr = parse_precedence(p, Prec::Unary)?;
 
@@ -251,7 +287,7 @@ fn unary<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
 
 fn binary<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
     let left = p.prefix_node.clone();
-    let op = p.previous.token_type.clone();
+    let op = p.previous.type_.clone();
     let right = parse_precedence(p, get_rule(op.clone()).precedence)?;
     Ok(Ast::Binary(match op {
         TokenType::Plus => BinaryOperation::Add,

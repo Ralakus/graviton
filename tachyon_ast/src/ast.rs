@@ -1,6 +1,7 @@
 
+use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum BinaryOperation {
     Add,
     Subtract,
@@ -16,32 +17,32 @@ pub enum BinaryOperation {
     Assign
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum UnaryOperation {
     Negate,
 
     Not
 }
 
-#[derive(Hash, Clone, Debug)]
+#[derive(Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct TypeSignature {
     pub name: String
 }
 
-#[derive(Hash, Clone, Debug)]
+#[derive(Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct VariableSignature {
     pub name: String,
     pub type_sig: Option<TypeSignature>,
 }
 
-#[derive(Hash, Clone, Debug)]
+#[derive(Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct FunctionSignature {
     pub name: Option<String>,
     pub params: Vec<VariableSignature>,
     pub return_type: Option<TypeSignature>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Ast {
     // identifier name
     Identifier(String),
