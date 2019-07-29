@@ -1,0 +1,53 @@
+
+package = {statement} EOF ;
+
+statement = expression ";" ;
+
+expression = literal 
+           | block
+           | unary_op expression
+           | expression binary_op expression
+           | if
+           | while
+           | let
+           | import
+           | fn_def
+           | fn_call ;
+
+literal = NUMBER
+        | STRING
+        | BOOLEAN ;
+
+block = "{" {statement} "}" ;
+
+unary_op = "-"
+         | "!" ;
+
+binary_op = "+"
+          | "-"
+          | "*"
+          | "/"
+          | "<"
+          | "<="
+          | ">"
+          | ">="
+          | "=="
+          | "=" ;
+
+if "if" expression expression {"else" "if" expression expression} ["else" expression] ;
+
+while = "while" expression expression ;
+
+type_signature = ":" IDENTIFIER ;
+
+variable_signature = IDENTIFIER [type_signature] ;
+
+let = "let" ["mut"] variable_signature ["=" expression] ;
+
+import = "import" STRING ;
+
+function_signature = "fn" [IDENTIFIER] "(" (variable_signature {"," variable_signature}) ")" [type_signature] ;
+
+fn_def = function_signature expression ;
+
+fn_call = IDENTIFIER { "." IDENTIFIER } "(" {variable_signature} ")" ;
