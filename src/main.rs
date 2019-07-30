@@ -1,18 +1,15 @@
 
-use std::env;
 use std::fs::File;
 
 extern crate tachyon;
-
-extern crate colored;
-use colored::*;
+use tachyon::colored::*;
+use tachyon::errors::report_error;
 
 use memmap::Mmap;
 
 extern crate clap;
 use clap::{Arg, App, SubCommand};
 
-mod errors;
 mod repl;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -35,6 +32,8 @@ fn main() {
                     .help("Input file to process")
                     .index(1))
                 .arg(debug_arg.clone())
+                .arg(Arg::with_name("no_run")
+                    .long("no_run"))
                 .subcommand(SubCommand::with_name("repl")
                     .about("Live REPL environment")
                     .version(VERSION)
@@ -50,6 +49,8 @@ fn main() {
             _ => 0
         };
 
+    let run_code = !args.is_present("no_run");
+
     if let Some(repl_args) = args.subcommand_matches("repl") {
         let debug_level = match repl_args.value_of("Debug Level").unwrap_or("0") {
                 "0" => 0,
@@ -63,7 +64,6 @@ fn main() {
 
         return;
     }
-
 
     let input = args.value_of("Input").unwrap();
     let mapped_file: memmap::Mmap;
@@ -88,15 +88,17 @@ fn main() {
                     if debug_level >= 1 {
                         println!("{:#?}", bc);
                     }
-                    let mut vm = tachyon::backend::vm::StackVm::new();
-                    println!("Result: {:?}", vm.run(bc));
+                    if run_code {
+                        let mut vm = tachyon::backend::vm::StackVm::new();
+                        println!("Result: {:?}", vm.run(bc));
+                    }
                 },
                 Err(s) => println!("Error {}", s),
             };
         },
         Err(errors) => {
             for e in errors {
-                errors::report_error(&e, Some(source), Some(input));
+                report_error(&e, Some(source), Some(input));
             }
         },
     };

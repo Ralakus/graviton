@@ -1,11 +1,11 @@
 
 use std::io::{BufRead,Write};
 use tachyon::frontend::tokens::{Token, TokenType, TokenData, Position};
-use super::errors;
 
 use super::tachyon;
 
-use super::colored::*;
+use super::tachyon::errors;
+use super::tachyon::colored::*;
 
 pub fn repl(debug_level_in: i32) -> Result<(), String> {
 

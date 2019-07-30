@@ -1,5 +1,5 @@
 
-use super::tachyon::frontend::parser::ParseError;
+use super::frontend::parser::ParseError;
 use super::colored::*;
 
 pub fn report_error<'a>(e: &ParseError, source: Option<&'a str>, file: Option<&'a str>) {
