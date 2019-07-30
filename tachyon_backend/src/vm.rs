@@ -37,6 +37,7 @@ pub enum ByteOp {
     ScopeClose,
 
     DefVar(u64),
+    DefMutVar(u64),
     SetVar(u64),
     GetVar(u64),
 
@@ -166,51 +167,76 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
             bc.ops.push(ByteOp::ScopeClose);
         },
         ast::Ast::IfElse(ifcond, ifexpr, elseifs, elseexpr) => {
+            // Generates code for condition that and creates a temporary jump instruction
             ast_to_bytecode(bc, *ifcond)?;
             bc.ops.push(ByteOp::JumpFalse(1));
             let last_jump_idx = bc.ops.len() - 1;
+
             ast_to_bytecode(bc, *ifexpr)?;
+
+            // Patches the temporary jump instruction to the end of the if expression's expression
             bc.ops[last_jump_idx] = ByteOp::JumpFalse((bc.ops.len() as isize - (last_jump_idx) as isize + 1) as i16);
+
+            // Creates a list of the indecies of the temporary jumps that jump to the end of the entire if expresssion
             let mut last_patch_idx: Vec<usize> = Vec::new();
-            if let Some(_) = elseexpr {
+
+            // Adds the first if to the list of jumps that needs patching
+            bc.ops.push(ByteOp::Jump(1));
+            last_patch_idx.push(bc.ops.len() - 1);
+
+            for (cond, expr) in elseifs {
+                // Generates code for condition that and creates a temporary jump instruction
+                ast_to_bytecode(bc, *cond)?;
+                bc.ops.push(ByteOp::JumpFalse(1));
+                let last_jump_idx = bc.ops.len() - 1;
+
+                ast_to_bytecode(bc, *expr)?;
+
+                // Patches the temporary jump instruction to the end of the if expression's expression
+                bc.ops[last_jump_idx] = ByteOp::JumpFalse((bc.ops.len()  as isize - (last_jump_idx) as isize + 1) as i16);
+
+                // Adds to list of temporary jumps that need to be patched
                 bc.ops.push(ByteOp::Jump(1));
                 last_patch_idx.push(bc.ops.len() - 1);
             }
 
-            for (cond, expr) in elseifs {
-                ast_to_bytecode(bc, *cond)?;
-                bc.ops.push(ByteOp::JumpFalse(1));
-                let last_jump_idx = bc.ops.len() - 1;
-                ast_to_bytecode(bc, *expr)?;
-                bc.ops[last_jump_idx] = ByteOp::JumpFalse((bc.ops.len()  as isize - (last_jump_idx) as isize + 1) as i16);
-                if let Some(_) = elseexpr {
-                    bc.ops.push(ByteOp::Jump(1));
-                    last_patch_idx.push(bc.ops.len() - 1);
-                }
-            }
-
+            // Generates code for else expression if present
             if let Some(eexpr) = elseexpr {
                 ast_to_bytecode(bc, *eexpr)?;
             }
 
+            // Patches all temporary jumps
             for patch in last_patch_idx {
                 bc.ops[patch] = ByteOp::Jump((bc.ops.len()  as isize - (patch) as isize) as i16);
             }
         },
         ast::Ast::While(cond, expr) => {
+
+            // Saves index in code to the begining of the condition expression
             let begin_idx = bc.ops.len();
             ast_to_bytecode(bc, *cond)?;
+
+            // Adds a temporary jump that needs to be patched that jumps to the end of the entire expression
             bc.ops.push(ByteOp::JumpFalse(1));
             let cond_jump_idx = bc.ops.len() - 1;
+
             ast_to_bytecode(bc, *expr)?;
+
+            // Patches jump to begining of the condition expression
             bc.ops.push(ByteOp::Jump((begin_idx as isize - bc.ops.len() as isize) as i16));
+
+            // Patches conditional jump to end of entire expression
             bc.ops[cond_jump_idx] = ByteOp::JumpFalse((bc.ops.len() as isize - cond_jump_idx as isize) as i16);
         },
-        ast::Ast::Let(var_sig, _mutable, set_expr) => {
+        ast::Ast::Let(var_sig, mutable, set_expr) => {
             if let Some(se) = set_expr {
                 ast_to_bytecode(bc, *se)?;
             }
-            bc.ops.push(ByteOp::DefVar(hash(&var_sig.name)));
+            if mutable {
+                bc.ops.push(ByteOp::DefMutVar(hash(&var_sig.name)));
+            } else {
+                bc.ops.push(ByteOp::DefVar(hash(&var_sig.name)));
+            }
         }
         other => { return Err(format!("Non implemented AST node {:?}", other)); }
     };
@@ -218,7 +244,7 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
 }
 
 struct Scope {
-    variables: HashMap<u64, Value>
+    variables: HashMap<u64, (bool, Value)>
 }
 
 pub struct StackVm {
@@ -240,7 +266,7 @@ impl<'a> StackVm {
         self.stack[self.stack.len() - 1 - distance]
     }
 
-    fn var_in_scopes_mut(scope_stack: &'a mut Vec<Scope>, id: &u64) -> Option<&'a mut Value> {
+    fn var_in_scopes_mut(scope_stack: &'a mut Vec<Scope>, id: &u64) -> Option<&'a mut (bool, Value)> {
         for s in scope_stack.iter_mut().rev() {
             match s.variables.get_mut(id) {
                 Some(var) => return Some(var),
@@ -250,7 +276,7 @@ impl<'a> StackVm {
         None
     }
 
-    fn var_in_scopes(scope_stack: &'a Vec<Scope>, id: &u64) -> Option<&'a Value> {
+    fn var_in_scopes(scope_stack: &'a Vec<Scope>, id: &u64) -> Option<&'a (bool, Value)> {
         for s in scope_stack.iter().rev() {
             match s.variables.get(id) {
                 Some(var) => return Some(var),
@@ -482,18 +508,32 @@ impl<'a> StackVm {
                             return Err(format!("Variable: {} arleady defined", id))
                         },
                         None => {
-                            self.scopes.last_mut().unwrap().variables.insert(*id, if let Some(val) = self.stack.pop() { self.stack.push(val); val } else { Value::Nil });
+                            self.scopes.last_mut().unwrap().variables.insert(*id, if let Some(val) = self.stack.pop() { self.stack.push(val); (false, val) } else { (false, Value::Nil) });
+                        }
+                    }
+                },
+                Some(ByteOp::DefMutVar(id)) => {
+                    match StackVm::var_in_scopes_mut(&mut self.scopes, id) {
+                        Some(_) => {
+                            return Err(format!("Variable: {} arleady defined", id))
+                        },
+                        None => {
+                            self.scopes.last_mut().unwrap().variables.insert(*id, if let Some(val) = self.stack.pop() { self.stack.push(val); (true, val) } else { (true, Value::Nil) });
                         }
                     }
                 },
                 Some(ByteOp::SetVar(id)) => {
                     match StackVm::var_in_scopes_mut(&mut self.scopes, id) {
                         Some(val) => {
-                            if self.stack.len() > 0 {
-                                *val = self.stack.pop().unwrap();
-                                self.stack.push(*val);
+                            if val.0 {
+                                if self.stack.len() > 0 {
+                                    val.1 = self.stack.pop().unwrap();
+                                    self.stack.push(val.1);
+                                } else {
+                                    val.1 = Value::Nil;
+                                }
                             } else {
-                                *val = Value::Nil;
+                                return Err(format!("Variable {} is not mutable", id));
                             }
                         },
                         None => {
@@ -504,7 +544,7 @@ impl<'a> StackVm {
                 Some(ByteOp::GetVar(id)) => {
                     match StackVm::var_in_scopes(&self.scopes, id) {
                         Some(val) => {
-                            self.stack.push(*val);
+                            self.stack.push(val.1);
                         },
                         None => return Err("Failed to find variable in scope".to_string())
                     }

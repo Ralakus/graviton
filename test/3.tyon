@@ -1,12 +1,12 @@
 
-let x = 14;
-let y = 48;
+let mut x = 14;
+let mut y = 48;
 
 while x < y {
     x = x + 1;
 };
 
-let z = 14;
+let mut z = 14;
 
 z = {
     z = 48;
