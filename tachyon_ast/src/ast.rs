@@ -25,8 +25,37 @@ pub enum UnaryOperation {
 }
 
 #[derive(Hash, Clone, Debug, Serialize, Deserialize)]
-pub struct TypeSignature {
-    pub name: String
+pub enum PrimitiveType {
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64
+}
+
+#[derive(Hash, Clone, Debug, Serialize, Deserialize)]
+pub enum TypeSignature {
+    Primitive(PrimitiveType),
+    Custom(String)
+}
+
+impl<'a> TypeSignature {
+    pub fn new(t: &'a str) -> TypeSignature {
+        match t {
+            "i8"  => TypeSignature::Primitive(PrimitiveType::I8),
+            "i16" => TypeSignature::Primitive(PrimitiveType::I16),
+            "i32" => TypeSignature::Primitive(PrimitiveType::I32),
+            "i64" => TypeSignature::Primitive(PrimitiveType::I64),
+            "u8"  => TypeSignature::Primitive(PrimitiveType::U8),
+            "u16" => TypeSignature::Primitive(PrimitiveType::U16),
+            "u32" => TypeSignature::Primitive(PrimitiveType::U32),
+            "u64" => TypeSignature::Primitive(PrimitiveType::U64),
+            _ => TypeSignature::Custom(t.to_string())
+        }
+    }
 }
 
 #[derive(Hash, Clone, Debug, Serialize, Deserialize)]

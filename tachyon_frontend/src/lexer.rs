@@ -131,11 +131,12 @@ impl<'a> Iterator for Lexer<'a> {
 
             Some('\"') => {
                 let mut literal = String::new();
-                while let Some(c) = self.advance() {
+                while let Some(c) = self.peek() {
                     if c == '\"' {
                         self.advance();
                         return Some(Token::new(TokenType::String, TokenData::String(literal), self.start_pos));
                     } else {
+                        self.advance();
                         literal.push(c);
                     }
                 }

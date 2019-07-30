@@ -69,7 +69,7 @@ ParseRule{prefix: import,     infix: nil_func, precedence: Prec::None       }, /
 ParseRule{prefix: let_,       infix: nil_func, precedence: Prec::None       }, // TokenType::KwLet
 ParseRule{prefix: fn_,        infix: nil_func, precedence: Prec::None       }, // TokenType::KwFn
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwMut
-ParseRule{prefix: if_else,    infix: nil_func, precedence: Prec::None       }, // TokenType::KwIf
+ParseRule{prefix: if_,        infix: nil_func, precedence: Prec::None       }, // TokenType::KwIf
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwElse
 ParseRule{prefix: while_,     infix: nil_func, precedence: Prec::None       }, // TokenType::KwWhile
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwFor
@@ -132,7 +132,7 @@ impl<'a> Parser<'a> {
         p.advance();
         let mut exprs: Vec<Ast> = Vec::new();
         while !p.check(TokenType::Eof) {
-            match expression(&mut p) {
+            match maybe_statement_else_expression(&mut p) {
                 Ok(ast) => exprs.push(ast),
                 _ => (),
             }
@@ -174,7 +174,11 @@ impl<'a> Parser<'a> {
 
 }
 
-fn get_variable_signature<'a>(p: &mut Parser<'a>) -> Result<VariableSignature, ParseError> {
+fn nil_func<'a>(p: &mut Parser<'a>) -> Result<Ast, ParseError> {
+    Err(p.make_error("Invalid parser function call!"))
+}
+
+fn variable_signature<'a>(p: &mut Parser<'a>) -> Result<VariableSignature, ParseError> {
     p.consume(TokenType::Identifier, "Expected identifier for name")?;
     let name = match &p.previous.data {
             TokenData::String(s) => s.clone(),
@@ -184,20 +188,16 @@ fn get_variable_signature<'a>(p: &mut Parser<'a>) -> Result<VariableSignature, P
     let type_sig: Option<TypeSignature> = 
     if p.check(TokenType::Colon) {
         p.advance();
-        p.consume(TokenType::Identifier, "Expected identifier for variable type")?;
-        Some(TypeSignature { name: match &p.previous.data {
-            TokenData::String(s) => s.clone(),
-            _ => return Err(p.make_error("Could not read identifier name from token"))
-            }})
+        p.consume(TokenType::Identifier, "Expected identifier for type")?;
+        Some(TypeSignature::new(match &p.previous.data {
+                TokenData::String(s) => s.as_str(),
+                _ => return Err(p.make_error("Could not read identifier name from token"))
+            }))
     } else {
         None
     };
 
     Ok(VariableSignature{name, type_sig})
-}
-
-fn nil_func<'a>(p: &mut Parser<'a>) -> Result<Ast, ParseError> {
-    Err(p.make_error("Invalid parser function call!"))
 }
 
 fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, ParseError> {
@@ -229,6 +229,41 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, Par
     }
 
     Ok(p.prefix_node.clone())
+}
+
+fn maybe_statement_else_expression<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+    let is_return = if p.check(TokenType::KwReturn) {
+        p.advance();
+        true
+    } else {
+        false
+    };
+
+    let expr = expression(p)?;
+    if !is_return {
+        if p.check(TokenType::Semicolon) {
+            p.advance();
+            Ok(Ast::Statement(Box::new(expr)))
+        } else {
+            Ok(expr)
+        }
+    } else {
+        p.consume(TokenType::Semicolon, "Expected \';\' to end expression to make into return statement")?;
+        Ok(Ast::Return(Box::new(expr)))
+    }
+}
+
+fn statement<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+    let is_return = if p.check(TokenType::KwReturn) {
+        p.advance();
+        true
+    } else {
+        false
+    };
+
+    let expr = expression(p)?;
+    p.consume(TokenType::Semicolon, "Expected \';\' to end expression to make into statement")?;
+    if !is_return { Ok(Ast::Statement(Box::new(expr))) } else { Ok(Ast::Return(Box::new(expr))) }
 }
 
 fn expression<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
@@ -315,13 +350,13 @@ fn grouping<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
 fn block<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
     let mut expr_vec: Vec<Ast> = Vec::new();
     while !p.check(TokenType::RCurly) {
-        expr_vec.push(expression(p)?);
+        expr_vec.push(maybe_statement_else_expression(p)?);
     }
     p.consume(TokenType::RCurly, "Expected closing right curly bracket")?;
     Ok(Ast::Block(expr_vec))
 }
 
-fn if_else<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn if_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
     let if_cond = expression(p)?;
     let if_block = expression(p)?;
     
@@ -353,7 +388,7 @@ fn let_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
         mutable = true;
     }
 
-    let var_sig = get_variable_signature(p)?;
+    let var_sig = variable_signature(p)?;
     
     let val_expr: Option<Box<Ast>> = 
         if p.check(TokenType::Equal) {
@@ -362,11 +397,6 @@ fn let_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
         } else {
             None
         };
-
-    if p.check(TokenType::Semicolon) {
-        p.advance();
-        return Ok(Ast::Statement(Box::new(Ast::Let(var_sig, mutable, val_expr))));
-    }
 
     Ok(Ast::Let(var_sig, mutable, val_expr))
 
@@ -378,11 +408,6 @@ fn import<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
             TokenData::String(s) => s.clone(),
             _ => return Err(p.make_error("Could not read identifier name from token"))
         };
-    if p.check(TokenType::Semicolon) {
-        p.advance();
-        return Ok(Ast::Statement(Box::new(Ast::Import(name))));
-    }
-
     Ok(Ast::Import(name))
 }
 
@@ -402,7 +427,7 @@ fn fn_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
 
     let mut params: Vec<VariableSignature> = Vec::new();
     while !p.check(TokenType::RParen) {
-        params.push(get_variable_signature(p)?);
+        params.push(variable_signature(p)?);
         
         if p.check(TokenType::Comma) {
             p.advance();
@@ -415,10 +440,10 @@ fn fn_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
         if p.check(TokenType::Colon) {
             p.advance();
             p.consume(TokenType::Identifier, "Expected type identifier")?;
-            Some(TypeSignature { name: match &p.previous.data {
-                    TokenData::String(s) => s.clone(),
+            Some(TypeSignature::new(match &p.previous.data {
+                    TokenData::String(s) => s.as_str(),
                     _ => return Err(p.make_error("Could not read identifier name from token"))
-                }})
+                }))
         } else {
             None
         };

@@ -12,6 +12,7 @@ use memmap::Mmap;
 extern crate clap;
 use clap::{Arg, App, SubCommand};
 
+mod errors;
 mod repl;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -74,7 +75,7 @@ fn main() {
 
     println!("{}\n{}", "Source:".cyan(), source);
 
-    let ast = tachyon::frontend::parser_new::Parser::parse(source);
+    let ast = tachyon::frontend::parser::Parser::parse(source);
 
     match ast {
         Ok(a) => {
@@ -83,26 +84,8 @@ fn main() {
             }
         },
         Err(errors) => {
-            println!("{}", String::from("-").repeat(16).yellow());
             for e in errors {
-                if e.pos.line != -1 {
-                    let mut line = 1;
-                    for l in source.lines() {
-                        if line == e.pos.line {
-                            println!("{}\n{}{}{}\n{} at {:?}",
-                                l,
-                                if e.pos.col > 1 { String::from("~").repeat((e.pos.col - 1) as usize).red() } else { "".red() },
-                                "^".red(),
-                                if (e.pos.col as usize) < l.len() { String::from("~").repeat(l.len() - e.pos.col as usize ).red() } else { "".red() },
-                                e.msg,
-                                e.pos
-                            );
-
-                        }
-                        line += 1;
-                    }
-                    println!("{}", String::from("-").repeat(16).yellow());
-                }
+                errors::report_error(&e, Some(source), Some(input));
             }
         },
     };
