@@ -82,6 +82,17 @@ fn main() {
             if debug_level >= 2 {
                 println!("{}\n{:#?}", "AST:".cyan(), a);
             }
+            let bytecode = tachyon::backend::vm::Bytecode::new(a);
+            match bytecode {
+                Ok(bc) => {
+                    if debug_level >= 1 {
+                        println!("{:#?}", bc);
+                    }
+                    let mut vm = tachyon::backend::vm::StackVm::new();
+                    println!("Result: {:?}", vm.run(bc));
+                },
+                Err(s) => println!("Error {}", s),
+            };
         },
         Err(errors) => {
             for e in errors {
