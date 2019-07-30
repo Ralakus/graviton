@@ -10,3 +10,5 @@ edition = "2018"
 tachyon_ast = { path = "../tachyon_ast", version = "*" }
 
 serde = { version = "*", features = ["derive"] }
+
+cranelift = "*"

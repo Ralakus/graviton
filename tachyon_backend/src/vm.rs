@@ -33,6 +33,8 @@ pub enum ByteOp {
 
     Negate,
 
+    Print,
+
     ScopeOpen,
     ScopeClose,
 
@@ -167,65 +169,65 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
             bc.ops.push(ByteOp::ScopeClose);
         },
         ast::Ast::IfElse(ifcond, ifexpr, elseifs, elseexpr) => {
-            // Generates code for condition that and creates a temporary jump instruction
+            // generates code for condition that and creates a temporary jump instruction
             ast_to_bytecode(bc, *ifcond)?;
             bc.ops.push(ByteOp::JumpFalse(1));
             let last_jump_idx = bc.ops.len() - 1;
 
             ast_to_bytecode(bc, *ifexpr)?;
 
-            // Patches the temporary jump instruction to the end of the if expression's expression
+            // patches the temporary jump instruction to the end of the if expression's expression
             bc.ops[last_jump_idx] = ByteOp::JumpFalse((bc.ops.len() as isize - (last_jump_idx) as isize + 1) as i16);
 
-            // Creates a list of the indecies of the temporary jumps that jump to the end of the entire if expresssion
+            // creates a list of the indecies of the temporary jumps that jump to the end of the entire if expresssion
             let mut last_patch_idx: Vec<usize> = Vec::new();
 
-            // Adds the first if to the list of jumps that needs patching
+            // adds the first if to the list of jumps that needs patching
             bc.ops.push(ByteOp::Jump(1));
             last_patch_idx.push(bc.ops.len() - 1);
 
             for (cond, expr) in elseifs {
-                // Generates code for condition that and creates a temporary jump instruction
+                // generates code for condition that and creates a temporary jump instruction
                 ast_to_bytecode(bc, *cond)?;
                 bc.ops.push(ByteOp::JumpFalse(1));
                 let last_jump_idx = bc.ops.len() - 1;
 
                 ast_to_bytecode(bc, *expr)?;
 
-                // Patches the temporary jump instruction to the end of the if expression's expression
+                // patches the temporary jump instruction to the end of the if expression's expression
                 bc.ops[last_jump_idx] = ByteOp::JumpFalse((bc.ops.len()  as isize - (last_jump_idx) as isize + 1) as i16);
 
-                // Adds to list of temporary jumps that need to be patched
+                // adds to list of temporary jumps that need to be patched
                 bc.ops.push(ByteOp::Jump(1));
                 last_patch_idx.push(bc.ops.len() - 1);
             }
 
-            // Generates code for else expression if present
+            // generates code for else expression if present
             if let Some(eexpr) = elseexpr {
                 ast_to_bytecode(bc, *eexpr)?;
             }
 
-            // Patches all temporary jumps
+            // patches all temporary jumps
             for patch in last_patch_idx {
                 bc.ops[patch] = ByteOp::Jump((bc.ops.len()  as isize - (patch) as isize) as i16);
             }
         },
         ast::Ast::While(cond, expr) => {
 
-            // Saves index in code to the begining of the condition expression
+            // saves index in code to the begining of the condition expression
             let begin_idx = bc.ops.len();
             ast_to_bytecode(bc, *cond)?;
 
-            // Adds a temporary jump that needs to be patched that jumps to the end of the entire expression
+            // adds a temporary jump that needs to be patched that jumps to the end of the entire expression
             bc.ops.push(ByteOp::JumpFalse(1));
             let cond_jump_idx = bc.ops.len() - 1;
 
             ast_to_bytecode(bc, *expr)?;
 
-            // Patches jump to begining of the condition expression
+            // patches jump to begining of the condition expression
             bc.ops.push(ByteOp::Jump((begin_idx as isize - bc.ops.len() as isize) as i16));
 
-            // Patches conditional jump to end of entire expression
+            // patches conditional jump to end of entire expression
             bc.ops[cond_jump_idx] = ByteOp::JumpFalse((bc.ops.len() as isize - cond_jump_idx as isize) as i16);
         },
         ast::Ast::Let(var_sig, mutable, set_expr) => {
@@ -236,6 +238,14 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
                 bc.ops.push(ByteOp::DefMutVar(hash(&var_sig.name)));
             } else {
                 bc.ops.push(ByteOp::DefVar(hash(&var_sig.name)));
+            }
+        },
+        ast::Ast::FnCall(name, args) => {
+            if name == "print" && args.len() == 1 {
+                ast_to_bytecode(bc, args[0].clone())?;
+                bc.ops.push(ByteOp::Print);
+            } else {
+                return Err(format!("Non implemented AST node {:?}", ast::Ast::FnCall(name, args)));
             }
         }
         other => { return Err(format!("Non implemented AST node {:?}", other)); }
@@ -494,6 +504,18 @@ impl<'a> StackVm {
                                 return Err("Failed to pop unary negate value".to_string());
                             }
                         }
+                    }
+                },
+                Some(ByteOp::Print) => {
+                    match self.stack.pop() {
+                        Some(val) => {
+                            match val {
+                                Value::Nil => println!("nil"),
+                                Value::Bool(b) => println!("{}", b),
+                                Value::Number(n) => println!("{}", n)
+                            }
+                        },
+                        None => println!("nil")
                     }
                 },
                 Some(ByteOp::ScopeOpen) => {
