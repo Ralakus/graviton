@@ -1,25 +1,25 @@
 
 use std::io::{BufRead,Write};
-use tachyon::frontend::tokens::{Token, TokenType, TokenData, Position};
+use graviton::frontend::tokens::{Token, TokenType, TokenData, Position};
 
-use super::tachyon;
+use super::graviton;
 
-use super::tachyon::errors;
-use super::tachyon::colored::*;
+use super::graviton::errors;
+use super::graviton::colored::*;
 
 pub fn repl(debug_level_in: i32) -> Result<(), String> {
 
     let mut debug_level = debug_level_in;
 
     let mut source = String::from("");
-    let mut lex: tachyon::frontend::lexer::Lexer;
+    let mut lex: graviton::frontend::lexer::Lexer;
 
     'repl: loop {
         source.clear();
         print!("> "); std::io::stdout().flush().unwrap();
         std::io::stdin().lock().read_line(&mut source).expect("Error reading input");
 
-        lex = tachyon::frontend::lexer::Lexer::new(source.as_str());
+        lex = graviton::frontend::lexer::Lexer::new(source.as_str());
 
         if let Some(tok) = lex.next() {
             if tok.type_ == TokenType::Colon {
@@ -46,20 +46,20 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
             }
         }
 
-        let ast = tachyon::frontend::parser::Parser::parse(source.as_str());
+        let ast = graviton::frontend::parser::Parser::parse(source.as_str());
 
         match ast {
             Ok(a) => {
                 if debug_level >= 2 {
                     println!("{}\n{:#?}", "AST:".cyan(), a);
                 }
-                let bytecode = tachyon::backend::vm::Bytecode::new(a);
+                let bytecode = graviton::backend::vm::Bytecode::new(a);
                 match bytecode {
                     Ok(bc) => {
                         if debug_level >= 1 {
                             println!("{:#?}", bc);
                         }
-                        let mut vm = tachyon::backend::vm::StackVm::new();
+                        let mut vm = graviton::backend::vm::StackVm::new();
                         match vm.run(bc) {
                             Ok(result) => println!("Result: {:?}", result),
                             Err(err) => println!("Runtime Error: {:?}", err),

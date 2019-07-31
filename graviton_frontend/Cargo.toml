@@ -1,0 +1,14 @@
+[package]
+name = "graviton_frontend"
+version = "0.1.0"
+authors = ["Ralakus <12schneide@gmail.com>"]
+edition = "2018"
+
+respository = "https://github.com/Ralakus/graviton"
+homepage = "https://github.com/Ralakus/graviton"
+description = "The frontend which has the token data structuer, lexer, and parser"
+license = "MIT"
+readme = "README.md"
+
+[dependencies]
+graviton_ast = { path = "../graviton_ast", version = "*" }

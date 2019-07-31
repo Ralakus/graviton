@@ -1,0 +1,20 @@
+[package]
+name = "graviton_backend"
+version = "0.1.0"
+authors = ["Ralakus <12schneide@gmail.com>"]
+edition = "2018"
+
+respository = "https://github.com/Ralakus/graviton"
+homepage = "https://github.com/Ralakus/graviton"
+description = "The backend which includes a stack based virtual machine"
+license = "MIT"
+readme = "README.md"
+
+[dependencies]
+graviton_ast = { path = "../graviton_ast", version = "*" }
+
+serde = { version = "*", features = ["derive"] }
+
+cranelift = "*"
+
+crc16 = "*"

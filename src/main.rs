@@ -1,9 +1,9 @@
 
 use std::fs::File;
 
-extern crate tachyon;
-use tachyon::colored::*;
-use tachyon::errors::report_error;
+extern crate graviton;
+use graviton::colored::*;
+use graviton::errors::report_error;
 
 use memmap::Mmap;
 
@@ -73,23 +73,23 @@ fn main() {
 
     let source = std::str::from_utf8(&mapped_file[..]).unwrap();
 
-    let ast = tachyon::frontend::parser::Parser::parse(source);
+    let ast = graviton::frontend::parser::Parser::parse(source);
 
     match ast {
         Ok(a) => {
             if debug_level >= 2 {
                 println!("{}\n{:#?}", "AST:".cyan(), a);
             }
-            let bytecode = tachyon::backend::vm::Bytecode::new(a);
+            let bytecode = graviton::backend::vm::Bytecode::new(a);
             match bytecode {
                 Ok(bc) => {
                     if debug_level >= 1 {
                         println!("{:#?}", bc);
                     }
                     if run_code {
-                        let mut vm = tachyon::backend::vm::StackVm::new();
+                        let mut vm = graviton::backend::vm::StackVm::new();
                         match vm.run(bc) {
-                            Ok(tachyon::backend::vm::Value::Nil) => {},
+                            Ok(graviton::backend::vm::Value::Nil) => {},
                             Ok(result) => println!("Result: {:?}", result),
                             Err(err) => println!("Runtime Error: {:?}", err),
                         }

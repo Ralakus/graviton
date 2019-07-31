@@ -1,22 +1,28 @@
 [package]
-name = "tachyon"
+name = "graviton"
 version = "0.1.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
-respository = "https://github.com/Ralakus/tachyon"
-homepage = "https://github.com/Ralakus/tachyon"
-description = "Tachyon is a fast programming language that is minimal and simplistic with a simple and easy to read compiler"
-license-file = "LICENSE"
+respository = "https://github.com/Ralakus/graviton"
+homepage = "https://github.com/Ralakus/graviton"
+description = "Tachyon is a fast programming language that is minimal and simplistic with a simple and easy to read compiler. Everything is an expression unless a semicolon is used `;` then it becomes a statement which gives a clear distinction between expressions and statements."
+license = "MIT"
 readme = "README.md"
 exclude = [
     ".vscode/**"
 ]
 
+[badges]
+travis-ci = { repository = "Ralakus/graviton" }
+
+[workspace]
+members = ["graviton_ast", "graviton_frontend", "graviton_backend"]
+
 [dependencies]
-tachyon_ast      = { path = "tachyon_ast",      version = "*" }
-tachyon_frontend = { path = "tachyon_frontend", version = "*" }
-tachyon_backend  = { path = "tachyon_backend",  version = "*" }
+graviton_ast      = { path = "graviton_ast",      version = "*" }
+graviton_frontend = { path = "graviton_frontend", version = "*" }
+graviton_backend  = { path = "graviton_backend",  version = "*" }
 
 serde = { version = "*", features = ["derive"] }
 rmp-serde = "*"

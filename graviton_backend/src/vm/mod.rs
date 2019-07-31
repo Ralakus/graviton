@@ -3,9 +3,13 @@ use super::ast;
 
 use serde::{Serialize, Deserialize};
 use std::collections::hash_map::*;
-use std::hash::{Hash, Hasher};
+// use std::hash::{Hash, Hasher};
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+mod object;
+
+// use object::StackVmObject;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Value {
     Nil,
     Number(f64),
@@ -38,10 +42,10 @@ pub enum ByteOp {
     ScopeOpen,
     ScopeClose,
 
-    DefVar(u64),
-    DefMutVar(u64),
-    SetVar(u64),
-    GetVar(u64),
+    DefVar(u16),
+    DefMutVar(u16),
+    SetVar(u16),
+    GetVar(u16),
 
     Jump(i16),
     JumpFalse(i16),
@@ -68,16 +72,16 @@ impl Bytecode {
     }
 }
 
-fn hash<T: Hash>(t: &T) -> u64 {
+/* fn hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
     s.finish()
-}
+} */
 
 fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
     match ast {
         ast::Ast::Identifier(ident) => {
-            bc.ops.push(ByteOp::GetVar(hash(&ident)));
+            bc.ops.push(ByteOp::GetVar(crc16::State::<crc16::ARC>::calculate(ident.as_bytes())));
         },
         ast::Ast::Number(n) => {
             let mut idx: usize = 0;
@@ -105,7 +109,7 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
             if let ast::BinaryOperation::Assign = op {
                 if let ast::Ast::Identifier(ident) = *l {
                     ast_to_bytecode(bc, *r)?;
-                    bc.ops.push(ByteOp::SetVar(hash(&ident)));
+                    bc.ops.push(ByteOp::SetVar(crc16::State::<crc16::ARC>::calculate(ident.as_bytes())));
                 } else {
                     return Err("Assign must assign to variable".to_string())
                 }
@@ -258,9 +262,9 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
                 ast_to_bytecode(bc, *se)?;
             }
             if mutable {
-                bc.ops.push(ByteOp::DefMutVar(hash(&var_sig.name)));
+                bc.ops.push(ByteOp::DefMutVar(crc16::State::<crc16::ARC>::calculate(var_sig.name.as_bytes())));
             } else {
-                bc.ops.push(ByteOp::DefVar(hash(&var_sig.name)));
+                bc.ops.push(ByteOp::DefVar(crc16::State::<crc16::ARC>::calculate(var_sig.name.as_bytes())));
             }
         },
         ast::Ast::FnCall(name, args) => {
@@ -277,7 +281,7 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
 }
 
 struct Scope {
-    variables: HashMap<u64, (bool, Value)>
+    variables: HashMap<u16, (bool, Value)>
 }
 
 pub struct StackVm {
@@ -297,13 +301,13 @@ impl<'a> StackVm {
 
     fn stack_peek(&self, distance: usize) -> Value {
         if let Some(v) = self.stack.get(self.stack.len() - 1 - distance) {
-            *v
+            v.clone()
         } else {
             Value::Nil
         }
     }
 
-    fn var_in_scopes_mut(scope_stack: &'a mut Vec<Scope>, id: &u64) -> Option<&'a mut (bool, Value)> {
+    fn var_in_scopes_mut(scope_stack: &'a mut Vec<Scope>, id: &u16) -> Option<&'a mut (bool, Value)> {
         for s in scope_stack.iter_mut().rev() {
             match s.variables.get_mut(id) {
                 Some(var) => return Some(var),
@@ -313,7 +317,7 @@ impl<'a> StackVm {
         None
     }
 
-    fn var_in_scopes(scope_stack: &'a Vec<Scope>, id: &u64) -> Option<&'a (bool, Value)> {
+    fn var_in_scopes(scope_stack: &'a Vec<Scope>, id: &u16) -> Option<&'a (bool, Value)> {
         for s in scope_stack.iter().rev() {
             match s.variables.get(id) {
                 Some(var) => return Some(var),
@@ -328,7 +332,7 @@ impl<'a> StackVm {
             // println!("ip_idx: {}\nStack: {:?}\nOp: {:?}\n", self.ip_idx, self.stack, bc.ops.get(self.ip_idx));
             match bc.ops.get(self.ip_idx) {
                 Some(ByteOp::Load(n)) => {
-                    self.stack.push(bc.constants[*n as usize]);
+                    self.stack.push(bc.constants[*n as usize].clone());
                 },
                 Some(ByteOp::True) => {
                     self.stack.push(Value::Bool(true));
@@ -556,7 +560,7 @@ impl<'a> StackVm {
                             return Err(format!("Variable: {} arleady defined", id))
                         },
                         None => {
-                            self.scopes.last_mut().unwrap().variables.insert(*id, if let Some(val) = self.stack.pop() { self.stack.push(val); (false, val) } else { (false, Value::Nil) });
+                            self.scopes.last_mut().unwrap().variables.insert(*id, if let Some(val) = self.stack.pop() { self.stack.push(val.clone()); (false, val) } else { (false, Value::Nil) });
                         }
                     }
                 },
@@ -566,7 +570,7 @@ impl<'a> StackVm {
                             return Err(format!("Variable: {} arleady defined", id))
                         },
                         None => {
-                            self.scopes.last_mut().unwrap().variables.insert(*id, if let Some(val) = self.stack.pop() { self.stack.push(val); (true, val) } else { (true, Value::Nil) });
+                            self.scopes.last_mut().unwrap().variables.insert(*id, if let Some(val) = self.stack.pop() { self.stack.push(val.clone()); (true, val) } else { (true, Value::Nil) });
                         }
                     }
                 },
@@ -576,7 +580,7 @@ impl<'a> StackVm {
                             if val.0 {
                                 if self.stack.len() > 0 {
                                     val.1 = self.stack.pop().unwrap();
-                                    self.stack.push(val.1);
+                                    self.stack.push(val.1.clone());
                                 } else {
                                     val.1 = Value::Nil;
                                 }
@@ -592,7 +596,7 @@ impl<'a> StackVm {
                 Some(ByteOp::GetVar(id)) => {
                     match StackVm::var_in_scopes(&self.scopes, id) {
                         Some(val) => {
-                            self.stack.push(val.1);
+                            self.stack.push(val.1.clone());
                         },
                         None => return Err("Failed to find variable in scope".to_string())
                     }
