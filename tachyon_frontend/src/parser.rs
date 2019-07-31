@@ -449,5 +449,5 @@ fn fn_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
         };
 
 
-    Ok(Ast::FnDef(FunctionSignature { name, params, return_type: type_sig }, Box::new(expression(p)?)))
+    Ok(Ast::FnDef(name, FunctionSignature { params, return_type: type_sig }, Box::new(expression(p)?)))
 }

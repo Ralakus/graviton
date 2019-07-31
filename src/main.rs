@@ -73,8 +73,6 @@ fn main() {
 
     let source = std::str::from_utf8(&mapped_file[..]).unwrap();
 
-    println!("{}\n{}", "Source:".cyan(), source);
-
     let ast = tachyon::frontend::parser::Parser::parse(source);
 
     match ast {
@@ -90,7 +88,11 @@ fn main() {
                     }
                     if run_code {
                         let mut vm = tachyon::backend::vm::StackVm::new();
-                        println!("Result: {:?}", vm.run(bc));
+                        match vm.run(bc) {
+                            Ok(tachyon::backend::vm::Value::Nil) => {},
+                            Ok(result) => println!("Result: {:?}", result),
+                            Err(err) => println!("Runtime Error: {:?}", err),
+                        }
                     }
                 },
                 Err(s) => println!("Error {}", s),

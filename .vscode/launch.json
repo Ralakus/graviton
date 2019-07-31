@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": [ "repl" ],
+            "args": [ "test/fib.tyon" ],
             "cwd": "${workspaceFolder}",
             "terminal": "integrated"
         },

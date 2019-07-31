@@ -60,7 +60,10 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                             println!("{:#?}", bc);
                         }
                         let mut vm = tachyon::backend::vm::StackVm::new();
-                        println!("Result: {:?}", vm.run(bc));
+                        match vm.run(bc) {
+                            Ok(result) => println!("Result: {:?}", result),
+                            Err(err) => println!("Runtime Error: {:?}", err),
+                        }
                     },
                     Err(s) => println!("Error {}", s),
                 };

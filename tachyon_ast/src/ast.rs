@@ -70,7 +70,6 @@ pub struct VariableSignature {
 
 #[derive(Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct FunctionSignature {
-    pub name: Option<String>,
     pub params: Vec<VariableSignature>,
     pub return_type: Option<TypeSignature>,
 }
@@ -117,7 +116,7 @@ pub enum Ast {
     Import(String),
 
     // optional function name, function parameters, return type, implementation
-    FnDef(FunctionSignature, Box<Ast>),
+    FnDef(Option<String>, FunctionSignature, Box<Ast>),
 
     // function name, arguments
     FnCall(String, Vec<Ast>),

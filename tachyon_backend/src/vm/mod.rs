@@ -9,7 +9,7 @@ use std::hash::{Hash, Hasher};
 pub enum Value {
     Nil,
     Number(f64),
-    Bool(bool)
+    Bool(bool),
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -46,6 +46,7 @@ pub enum ByteOp {
     Jump(i16),
     JumpFalse(i16),
     JumpTrue(i16),
+
     Pop,
     Return
 }
@@ -156,6 +157,9 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
                             ast_to_bytecode(bc, ast::Ast::Statement(expr))?
                         }
                     },
+                    ast::Ast::Return(expr) => {
+                        ast_to_bytecode(bc, *expr)?;
+                    }
                     expr => {
                         if idx != len{
                             return Err("Only the last element in a block may be an expression".to_string());
@@ -169,6 +173,9 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
             bc.ops.push(ByteOp::ScopeClose);
         },
         ast::Ast::IfElse(ifcond, ifexpr, elseifs, elseexpr) => {
+            // ppens a new scope for the if expression
+            bc.ops.push(ByteOp::ScopeOpen);
+
             // generates code for condition that and creates a temporary jump instruction
             ast_to_bytecode(bc, *ifcond)?;
             bc.ops.push(ByteOp::JumpFalse(1));
@@ -176,8 +183,12 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
 
             ast_to_bytecode(bc, *ifexpr)?;
 
+
             // patches the temporary jump instruction to the end of the if expression's expression
             bc.ops[last_jump_idx] = ByteOp::JumpFalse((bc.ops.len() as isize - (last_jump_idx) as isize + 1) as i16);
+
+            // closes if scope
+            bc.ops.push(ByteOp::ScopeClose);
 
             // creates a list of the indecies of the temporary jumps that jump to the end of the entire if expresssion
             let mut last_patch_idx: Vec<usize> = Vec::new();
@@ -187,6 +198,9 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
             last_patch_idx.push(bc.ops.len() - 1);
 
             for (cond, expr) in elseifs {
+                // opens a new scope for the else if expression
+                bc.ops.push(ByteOp::ScopeOpen);
+                
                 // generates code for condition that and creates a temporary jump instruction
                 ast_to_bytecode(bc, *cond)?;
                 bc.ops.push(ByteOp::JumpFalse(1));
@@ -196,6 +210,9 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
 
                 // patches the temporary jump instruction to the end of the if expression's expression
                 bc.ops[last_jump_idx] = ByteOp::JumpFalse((bc.ops.len()  as isize - (last_jump_idx) as isize + 1) as i16);
+
+                // closes scope for the else if expression
+                bc.ops.push(ByteOp::ScopeClose);
 
                 // adds to list of temporary jumps that need to be patched
                 bc.ops.push(ByteOp::Jump(1));
@@ -214,6 +231,9 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
         },
         ast::Ast::While(cond, expr) => {
 
+            // opens a new scope for the while expression
+            bc.ops.push(ByteOp::ScopeOpen);
+
             // saves index in code to the begining of the condition expression
             let begin_idx = bc.ops.len();
             ast_to_bytecode(bc, *cond)?;
@@ -229,6 +249,9 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
 
             // patches conditional jump to end of entire expression
             bc.ops[cond_jump_idx] = ByteOp::JumpFalse((bc.ops.len() as isize - cond_jump_idx as isize) as i16);
+
+            // closes the while expression scope
+            bc.ops.push(ByteOp::ScopeClose);
         },
         ast::Ast::Let(var_sig, mutable, set_expr) => {
             if let Some(se) = set_expr {
@@ -247,7 +270,7 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: ast::Ast) -> Result<(), String> {
             } else {
                 return Err(format!("Non implemented AST node {:?}", ast::Ast::FnCall(name, args)));
             }
-        }
+        },
         other => { return Err(format!("Non implemented AST node {:?}", other)); }
     };
     Ok(())
@@ -273,7 +296,11 @@ impl<'a> StackVm {
     }
 
     fn stack_peek(&self, distance: usize) -> Value {
-        self.stack[self.stack.len() - 1 - distance]
+        if let Some(v) = self.stack.get(self.stack.len() - 1 - distance) {
+            *v
+        } else {
+            Value::Nil
+        }
     }
 
     fn var_in_scopes_mut(scope_stack: &'a mut Vec<Scope>, id: &u64) -> Option<&'a mut (bool, Value)> {
@@ -298,7 +325,7 @@ impl<'a> StackVm {
 
     pub fn run(&mut self, bc: Bytecode) -> Result<Value, String> {
         'run: loop {
-            // println!("ip_idx: {}\nStack: {:?}\nOp: {:?}", self.ip_idx, self.stack, bc.ops.get(self.ip_idx));
+            // println!("ip_idx: {}\nStack: {:?}\nOp: {:?}\n", self.ip_idx, self.stack, bc.ops.get(self.ip_idx));
             match bc.ops.get(self.ip_idx) {
                 Some(ByteOp::Load(n)) => {
                     self.stack.push(bc.constants[*n as usize]);
@@ -402,7 +429,6 @@ impl<'a> StackVm {
                                     } else {
                                         return Err("Failed to pop binary div b".to_string());
                                     }
-
                                 } 
                             }
                         }
@@ -570,11 +596,11 @@ impl<'a> StackVm {
                         },
                         None => return Err("Failed to find variable in scope".to_string())
                     }
-                }
+                },
                 Some(ByteOp::Jump(distance)) => {
                     self.ip_idx = (self.ip_idx as isize + *distance as isize) as usize;
                     continue 'run;
-                }
+                },
                 Some(ByteOp::JumpFalse(distance)) => {
                     match self.stack_peek(0) {
                         Value::Nil => { return Err("Jump on false value cannot be nil".to_string()); },
@@ -615,6 +641,12 @@ impl<'a> StackVm {
                         self.scopes.pop();
                         if self.scopes.len() > 0 {
                             self.stack.push(v);
+                            while match bc.ops[self.ip_idx] {
+                                ByteOp::ScopeClose => false,
+                                _ => true,
+                            } {
+                                self.ip_idx += 1;
+                            }
                         } else {
                             return Ok(v);
                         }

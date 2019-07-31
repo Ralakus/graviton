@@ -155,10 +155,10 @@ impl<'a> Iterator for Lexer<'a> {
                 }
                 Some(Token::new(TokenType::Number, TokenData::Number(literal.parse::<f64>().unwrap()), self.start_pos))
             },
-            Some(c) if c.is_alphabetic() => {
+            Some(c) if c == '_' || c.is_alphabetic() => {
                 let mut literal = c.to_string();
                 while let Some(c) = self.peek() {
-                    if c.is_alphabetic() || c.is_digit(10){
+                    if c.is_alphabetic() || c.is_digit(10) || c == '_'{
                         literal.push(c);
                     } else {
                         break;

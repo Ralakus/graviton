@@ -79,9 +79,9 @@ pub fn eval_expr_type(ast: ast::Ast) -> ast::TypeSignature {
 pub fn analyze(sa: &mut SemanticAnalyzer, ast: ast::Ast) {
     match ast {
         ast::Ast::Identifier(s) => {
-            if let None = sa.check_if_var_in_scopes(s.as_str()) {
+            /* if let None = sa.check_if_var_in_scopes(s.as_str()) {
                 sa.make_err(format!("Variable {} not defined", s).as_str());
-            }
+            }*/
         },
         ast::Ast::Number(_) => (),
         ast::Ast::String(_) => {
@@ -117,7 +117,7 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: ast::Ast) {
         ast::Ast::Import(_) => {
 
         },
-        ast::Ast::FnDef(_, _) => {
+        ast::Ast::FnDef(_, _, _) => {
 
         },
         ast::Ast::FnCall(_, _) => {

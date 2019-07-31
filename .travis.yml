@@ -5,3 +5,5 @@ rust:
 
 script:
   - cargo run test/1.tyon
+  - cargo run test/2.tyon
+  - cargo run test/3.tyon
