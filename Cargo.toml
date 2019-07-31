@@ -20,14 +20,14 @@ travis-ci = { repository = "Ralakus/graviton" }
 members = ["graviton_ast", "graviton_frontend", "graviton_backend"]
 
 [dependencies]
-graviton_ast      = { path = "graviton_ast",      version = "*" }
-graviton_frontend = { path = "graviton_frontend", version = "*" }
-graviton_backend  = { path = "graviton_backend",  version = "*" }
+graviton_ast      = { path = "graviton_ast",      version = "0.1.0" }
+graviton_frontend = { path = "graviton_frontend", version = "0.1.0" }
+graviton_backend  = { path = "graviton_backend",  version = "0.1.0" }
 
-serde = { version = "*", features = ["derive"] }
-rmp-serde = "*"
+serde = { version = "1.0.98", features = ["derive"] }
+rmp-serde = "0.13.7"
 
-clap = { version = "*", features = [ "suggestions", "color" ] }
+clap = { version = "2.33.0", features = [ "suggestions", "color" ] }
 
-memmap = "*"
-colored = "*"
+memmap = "0.7.0"
+colored = "1.8.0"
