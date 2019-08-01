@@ -1,6 +1,6 @@
 [package]
 name = "graviton"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
@@ -31,9 +31,9 @@ vm_store_names = [
 ]
 
 [dependencies]
-graviton_ast      = { path = "graviton_ast",      version = "0.3.0" }
-graviton_frontend = { path = "graviton_frontend", version = "0.3.0" }
-graviton_backend  = { path = "graviton_backend",  version = "0.3.0" }
+graviton_ast      = { path = "graviton_ast",      version = "0.3.1" }
+graviton_frontend = { path = "graviton_frontend", version = "0.3.1" }
+graviton_backend  = { path = "graviton_backend",  version = "0.3.1" }
 
 serde = { version = "1.0.98", features = ["derive"] }
 rmp-serde = "0.13.7"
