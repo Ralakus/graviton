@@ -2,7 +2,8 @@
 package = {statement} EOF ;
 
 statement = return_statement
-          | expression ";" ;
+          | expression ";"
+          ;
 
 return_statement = "return" expression ";" ;
 
@@ -15,16 +16,19 @@ expression = literal
            | let
            | import
            | fn_def
-           | fn_call ;
+           | fn_call
+           ;
 
 literal = NUMBER
         | STRING
-        | BOOLEAN ;
+        | BOOLEAN
+        ;
 
 block = "{" {statement} "}" ;
 
 unary_op = "-"
-         | "!" ;
+         | "!"
+         ;
 
 binary_op = "+"
           | "-"
@@ -36,9 +40,10 @@ binary_op = "+"
           | ">="
           | "=="
           | "!="
-          | "=" ;
+          | "="
+          ;
 
-if "if" expression expression {"else" "if" expression expression} ["else" expression] ;
+if = "if" expression expression {"else" "if" expression expression} ["else" expression] ;
 
 while = "while" expression expression ;
 
