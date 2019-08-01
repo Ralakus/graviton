@@ -2,11 +2,13 @@
 use super::lexer::Lexer;
 use super::tokens::{TokenType, Token, TokenData, Position};
 use super::ast::{Ast, AstNode, UnaryOperation, BinaryOperation, TypeSignature, VariableSignature, FunctionSignature};
+use memmap::Mmap;
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
     pub pos: Position,
     pub msg: String,
+    pub file: Option<String>
 }
 
 #[repr(u8)]
@@ -35,7 +37,7 @@ struct ParseRule {
 }
 
 const PARSER_RULE_TABLE: [ParseRule; 44] = [
-ParseRule{prefix: grouping,   infix: nil_func, precedence: Prec::Call       }, // TokenType::LParen
+ParseRule{prefix: grouping,   infix: call,     precedence: Prec::Call       }, // TokenType::LParen
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::RParen
 ParseRule{prefix: block,      infix: nil_func, precedence: Prec::None       }, // TokenType::LCurly
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::RCurly
@@ -92,6 +94,8 @@ pub struct Parser<'a> {
     previous: Token,
     errors: Vec<ParseError>,
 
+    file_name: Option<&'a str>,
+
     prefix_node: AstNode,
 }
 
@@ -119,12 +123,14 @@ impl<'a> Parser<'a> {
         self.current.type_ == type_
     }
 
-    pub fn parse(source: &'a str) -> Result<AstNode, Vec<ParseError>> {
+    pub fn parse(source: &'a str, file_name: Option<&'a str>) -> Result<AstNode, Vec<ParseError>> {
         let mut p = Parser {
             lex: Lexer::new(source),
             current: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
             previous: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
             errors: Vec::new(),
+
+            file_name,
 
             prefix_node: AstNode {
                 node: Ast::Block(Vec::new()),
@@ -154,7 +160,18 @@ impl<'a> Parser<'a> {
     fn make_error(&mut self, msg: &'static str) -> ParseError {
         let error = ParseError {
             pos: self.previous.pos.clone(),
-            msg: msg.to_string()
+            msg: msg.to_string(),
+            file: if let Some(name) = self.file_name { Some(name.to_string()) } else { None }
+        };
+        self.errors.push(error.clone());
+        error
+    }
+
+    fn make_error_with_string(&mut self, msg: String) -> ParseError {
+        let error = ParseError {
+            pos: self.previous.pos.clone(),
+            msg: msg,
+            file: if let Some(name) = self.file_name { Some(name.to_string()) } else { None }
         };
         self.errors.push(error.clone());
         error
@@ -299,27 +316,7 @@ fn identifier<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
             TokenType::Identifier => if let TokenData::String(s) = &p.previous.data { s.clone() } else { "err".to_string() },
             _ => return Err(p.make_error("Unreachable error for identifier()"))
         };
-    if p.check(TokenType::LParen) {
-        p.advance();
-
-        
-        let mut args: Vec<AstNode> = Vec::new();
-        while !p.check(TokenType::RParen) {
-            args.push(expression(p)?);
-
-            if p.check(TokenType::Comma) {
-                p.advance();
-            } else {
-                break;
-            }
-        }
-
-        p.consume(TokenType::RParen, "Expected closing right parenthesis")?;
-
-        Ok(p.new_node(Ast::FnCall(name, args)))
-    } else {
-        Ok(p.new_node(Ast::Identifier(name)))
-    }
+    Ok(p.new_node(Ast::Identifier(name)))
 }
 
 fn unary<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
@@ -425,7 +422,26 @@ fn import<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
             TokenData::String(s) => s.clone(),
             _ => return Err(p.make_error("Could not read identifier name from token"))
         };
-    Ok(p.new_node(Ast::Import(name)))
+
+    let mapped_file: memmap::Mmap;
+
+    let file = if let Ok(f) = std::fs::File::open(name.clone()) { f } else { return Err(p.make_error_with_string(format!("Failed to open file {}", name))) };
+    mapped_file = unsafe { if let Ok(mf) = Mmap::map(&file) { mf } else { return Err(p.make_error_with_string(format!("Failed to map file {}", name))) } };
+
+    let result = Parser::parse(
+        if let Ok(s) = std::str::from_utf8(&mapped_file[..]) { &s }
+        else {
+            return Err(p.make_error_with_string(format!("Failed to convert file {} to utf8", name)));
+        }, Some(&*name));
+
+    match result {
+        Ok(ast) => Ok(p.new_node(Ast::Import(name, Box::new(ast)))),
+        Err(errors) => {
+            let mut e = errors.clone();
+            p.errors.append(&mut e);
+            Err(p.make_error_with_string(format!("Failed to parse file {}", name)))
+        }
+    }
 }
 
 fn fn_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
@@ -443,12 +459,16 @@ fn fn_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     p.consume(TokenType::LParen, "Expected left parenthesis for function params")?;
 
     let mut params: Vec<VariableSignature> = Vec::new();
-    while !p.check(TokenType::RParen) {
+
+    if !p.check(TokenType::RParen) {
+
         params.push(variable_signature(p)?);
-        
-        if p.check(TokenType::Comma) {
+
+        while p.check(TokenType::Comma) {
             p.advance();
+            params.push(variable_signature(p)?);
         }
+
     }
 
     p.consume(TokenType::RParen, "Expected right parenthesis to close function params")?;
@@ -468,4 +488,24 @@ fn fn_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let body = expression(p)?;
 
     Ok(p.new_node(Ast::FnDef(name, FunctionSignature { params, return_type: type_sig }, Box::new(body))))
+}
+
+fn call<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+
+    let callee = p.prefix_node.clone();
+
+    let mut args: Vec<AstNode> = Vec::new();
+    if !p.check(TokenType::RParen) {
+        args.push(expression(p)?);
+
+        while p.check(TokenType::Comma) {
+            p.advance();
+            args.push(expression(p)?);
+        }
+    }
+
+    p.consume(TokenType::RParen, "Expected right parenthesis to close function call arguments")?;
+
+    Ok(p.new_node(Ast::FnCall(Box::new(callee), args)))
+
 }

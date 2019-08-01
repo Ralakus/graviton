@@ -1,12 +1,12 @@
 
 let output = if (let fib_number = {
-        let n = 14;
+        let n = read_num();
 
         let mut prevprevn = 0;
         let mut prevn = 0;
         let mut curn = 1;
 
-        let mut i = 0;
+        let mut i = 2;
 
         while i <= n {
 
@@ -21,10 +21,10 @@ let output = if (let fib_number = {
         };
 
         return curn;
-    }) != 987 {
+    }) != 377 {
         fib_number
     } else {
         -fib_number
     };
 
-print(output);
+println(output);

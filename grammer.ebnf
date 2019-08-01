@@ -35,6 +35,7 @@ binary_op = "+"
           | ">"
           | ">="
           | "=="
+          | "!="
           | "=" ;
 
 if "if" expression expression {"else" "if" expression expression} ["else" expression] ;
@@ -49,8 +50,8 @@ let = "let" ["mut"] variable_signature ["=" expression] ;
 
 import = "import" STRING ;
 
-function_signature = "fn" [IDENTIFIER] "(" (variable_signature {"," variable_signature}) ")" [type_signature] ;
+function_signature = "fn" [IDENTIFIER] "(" [variable_signature {"," variable_signature}] ")" [type_signature] ;
 
 fn_def = function_signature expression ;
 
-fn_call = IDENTIFIER { "." IDENTIFIER } "(" {variable_signature} ")" ;
+fn_call = IDENTIFIER "(" {variable_signature} ")" ;

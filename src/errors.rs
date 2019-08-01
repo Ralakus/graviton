@@ -3,8 +3,8 @@ use super::frontend::parser::ParseError;
 use super::backend::vm::VmError;
 use super::colored::*;
 
-pub fn report_parser_error<'a>(e: &ParseError, source: Option<&'a str>, file: Option<&'a str>) {
-    report_error_msg_with_pos(&e.msg, e.pos, source, file)
+pub fn report_parser_error<'a>(e: &ParseError, source: Option<&'a str>) {
+    report_error_msg_with_pos(&e.msg, e.pos, source, if let Some(name) = &e.file { Some(&name) } else { None })
 }
 
 #[cfg(feature = "node_code_pos")]
@@ -13,8 +13,8 @@ pub fn report_vm_error<'a>(e: &VmError, source: Option<&'a str>, file: Option<&'
 }
 
 #[cfg(not(feature = "node_code_pos"))]
-pub fn report_vm_error<'a>(e: &VmError, source: Option<&'a str>, file: Option<&'a str>) {
-    println!("{}: {}", "Error".red(), msg);
+pub fn report_vm_error<'a>(e: &VmError, _source: Option<&'a str>, _file: Option<&'a str>) {
+    println!("{}: {}", "Error".red(), e.msg);
 }
 
 pub fn report_error_msg_with_pos<'a>(msg: &String, pos: ast::Position, source: Option<&'a str>, file: Option<&'a str>) {
