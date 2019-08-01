@@ -4,10 +4,10 @@
 
 [![crates.io](https://img.shields.io/crates/v/graviton?style=flat-square)](https://crates.io/crates/graviton)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](./LICENSE)
-[![build](https://img.shields.io/travis/Ralakus/tachyon?style=flat-square)](https://travis-ci.org/Ralakus/tachyon)
-[![issues](https://img.shields.io/github/issues/Ralakus/tachyon?style=flat-square)](https://github.com/Ralakus/tachyon/issues)
-[![repo size](https://img.shields.io/github/repo-size/Ralakus/tachyon?style=flat-square)](https://github.com/Ralakus/tachyon)
-[![code size](https://img.shields.io/github/languages/code-size/Ralakus/tachyon?style=flat-square)](https://github.com/Ralakus/tachyon)
+[![build](https://img.shields.io/travis/Ralakus/graviton?style=flat-square)](https://travis-ci.org/Ralakus/graviton)
+[![issues](https://img.shields.io/github/issues/Ralakus/graviton?style=flat-square)](https://github.com/Ralakus/graviton/issues)
+[![repo size](https://img.shields.io/github/repo-size/Ralakus/graviton?style=flat-square)](https://github.com/Ralakus/graviton)
+[![code size](https://img.shields.io/github/languages/code-size/Ralakus/graviton?style=flat-square)](https://github.com/Ralakus/graviton)
 
 ## Build requirements
 * Rust nightly with cargo
