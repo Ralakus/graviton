@@ -12,7 +12,8 @@ pub enum BinaryOperation {
     LessEqual,
     Greater,
     GreaterEqual,
-    Equals,
+    Equal,
+    NotEqual,
 
     Assign
 }
@@ -89,35 +90,63 @@ pub enum Ast {
     Bool(bool),
 
     // expr
-    Statement(Box<Ast>),
+    Statement(Box<AstNode>),
 
     // operator, left expr, right expr
-    Binary(BinaryOperation, Box<Ast>, Box<Ast>),
+    Binary(BinaryOperation, Box<AstNode>, Box<AstNode>),
 
     // operator, expr
-    Unary(UnaryOperation, Box<Ast>),
+    Unary(UnaryOperation, Box<AstNode>),
 
     // returned expression
-    Return(Box<Ast>),
+    Return(Box<AstNode>),
 
     // vector of expr
-    Block(Vec<Ast>),
+    Block(Vec<AstNode>),
 
     // if cond, if expr, else if conds, else if exprs, optional else expr
-    IfElse(Box<Ast>, Box<Ast>, Vec<(Box<Ast>, Box<Ast>)>, Option<Box<Ast>>),
+    IfElse(Box<AstNode>, Box<AstNode>, Vec<(Box<AstNode>, Box<AstNode>)>, Option<Box<AstNode>>),
 
     // while cond, while expr
-    While(Box<Ast>, Box<Ast>),
+    While(Box<AstNode>, Box<AstNode>),
 
     // variable name, mutable, optional value expr
-    Let(VariableSignature, bool, Option<Box<Ast>>),
+    Let(VariableSignature, bool, Option<Box<AstNode>>),
 
     // import name
     Import(String),
 
     // optional function name, function parameters, return type, implementation
-    FnDef(Option<String>, FunctionSignature, Box<Ast>),
+    FnDef(Option<String>, FunctionSignature, Box<AstNode>),
 
     // function name, arguments
-    FnCall(String, Vec<Ast>),
+    FnCall(String, Vec<AstNode>),
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AstNode {
+    pub node: Ast,
+
+    #[cfg(feature = "node_code_pos")]
+    pub pos: super::Position
+}
+
+impl std::fmt::Debug for AstNode {
+    #[cfg(not(feature = "node_code_pos"))]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            write!(f, "{}", format!("{:#?}", self.node))
+        } else {
+            write!(f, "{}", format!("{:?}", self.node))
+        }
+    }
+
+    #[cfg(feature = "node_code_pos")]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            write!(f, "{}", format!("[{},{}]: {:#?}", self.pos.line, self.pos.col, self.node))
+        } else {
+            write!(f, "{}", format!("[{},{}]: {:?}", self.pos.line, self.pos.col, self.node))
+        }
+    }
 }

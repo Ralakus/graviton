@@ -59,11 +59,7 @@ pub enum TokenType {
     Eof
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct Position {
-    pub line: i32,
-    pub col: i32
-}
+pub use ast::Position;
 
 #[derive(Debug, Clone)]
 pub enum TokenData {

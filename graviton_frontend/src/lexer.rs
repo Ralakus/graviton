@@ -13,8 +13,8 @@ impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         Lexer {
             source: source.chars().peekable(),
-            start_pos: Position{line: 1, col: 0},
-            pos: Position{line: 1, col: 0}
+            start_pos: Position{line: 1, col: 1},
+            pos: Position{line: 1, col: 1}
         }
     }
 
@@ -158,7 +158,7 @@ impl<'a> Iterator for Lexer<'a> {
             Some(c) if c == '_' || c.is_alphabetic() => {
                 let mut literal = c.to_string();
                 while let Some(c) = self.peek() {
-                    if c.is_alphabetic() || c.is_digit(10) || c == '_'{
+                    if c.is_alphabetic() || c.is_digit(10) || c == '_' {
                         literal.push(c);
                     } else {
                         break;

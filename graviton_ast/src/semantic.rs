@@ -53,7 +53,7 @@ impl<'a> SemanticAnalyzer {
         self.scopes.push(Scope { variables: HashMap::new(), functions: HashMap::new() });
     }
 
-    pub fn analyze(ast: ast::Ast) -> Result<(), Vec<SemanticError>> {
+    pub fn analyze(ast: ast::AstNode) -> Result<(), Vec<SemanticError>> {
 
         let mut sa = SemanticAnalyzer {
             scopes: Vec::new(),
@@ -72,12 +72,12 @@ impl<'a> SemanticAnalyzer {
     }
 }
 
-pub fn eval_expr_type(ast: ast::Ast) -> ast::TypeSignature {
+pub fn eval_expr_type(ast: ast::AstNode) -> ast::TypeSignature {
     ast::TypeSignature::new("i32")
 }
 
-pub fn analyze(sa: &mut SemanticAnalyzer, ast: ast::Ast) {
-    match ast {
+pub fn analyze(sa: &mut SemanticAnalyzer, ast: ast::AstNode) {
+    match ast.node {
         ast::Ast::Identifier(s) => {
             /* if let None = sa.check_if_var_in_scopes(s.as_str()) {
                 sa.make_err(format!("Variable {} not defined", s).as_str());

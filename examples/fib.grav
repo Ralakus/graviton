@@ -21,10 +21,10 @@ let output = if (let fib_number = {
         };
 
         return curn;
-    }) == 987 {
+    }) != 987 {
         fib_number
     } else {
-        false
+        -fib_number
     };
 
 print(output);

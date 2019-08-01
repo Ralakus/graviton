@@ -1,7 +1,7 @@
 
 use super::lexer::Lexer;
 use super::tokens::{TokenType, Token, TokenData, Position};
-use super::ast::{Ast, UnaryOperation, BinaryOperation, TypeSignature, VariableSignature, FunctionSignature};
+use super::ast::{Ast, AstNode, UnaryOperation, BinaryOperation, TypeSignature, VariableSignature, FunctionSignature};
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
@@ -25,7 +25,7 @@ enum Prec {
 	Primary
 }
 
-type ParseFn = fn(&mut Parser) -> Result<Ast, ParseError>;
+type ParseFn = fn(&mut Parser) -> Result<AstNode, ParseError>;
 
 #[derive(Clone)]
 struct ParseRule {
@@ -92,7 +92,7 @@ pub struct Parser<'a> {
     previous: Token,
     errors: Vec<ParseError>,
 
-    prefix_node: Ast,
+    prefix_node: AstNode,
 }
 
 impl<'a> Parser<'a> {
@@ -119,18 +119,23 @@ impl<'a> Parser<'a> {
         self.current.type_ == type_
     }
 
-    pub fn parse(source: &'a str) -> Result<Ast, Vec<ParseError>> {
+    pub fn parse(source: &'a str) -> Result<AstNode, Vec<ParseError>> {
         let mut p = Parser {
             lex: Lexer::new(source),
             current: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
             previous: Token::new(TokenType::Eof, TokenData::None, Position{line: -1, col:-1}),
             errors: Vec::new(),
 
-            prefix_node: Ast::Block(Vec::new())
+            prefix_node: AstNode {
+                node: Ast::Block(Vec::new()),
+
+                #[cfg(feature = "node_code_pos")]
+                pos: Position { line: 1, col: 1 }
+            }
         };
 
         p.advance();
-        let mut exprs: Vec<Ast> = Vec::new();
+        let mut exprs: Vec<AstNode> = Vec::new();
         while !p.check(TokenType::Eof) {
             match maybe_statement_else_expression(&mut p) {
                 Ok(ast) => exprs.push(ast),
@@ -143,7 +148,7 @@ impl<'a> Parser<'a> {
             return Err(p.errors);
         }
 
-        Ok(Ast::Block(exprs))
+        Ok(p.new_node(Ast::Block(exprs)))
     }
 
     fn make_error(&mut self, msg: &'static str) -> ParseError {
@@ -172,9 +177,18 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn new_node(&self, ast: Ast) -> AstNode {
+        AstNode {
+            node: ast,
+
+            #[cfg(feature = "node_code_pos")]
+            pos: self.previous.pos.clone()
+        }
+    }
+
 }
 
-fn nil_func<'a>(p: &mut Parser<'a>) -> Result<Ast, ParseError> {
+fn nil_func<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     Err(p.make_error("Invalid parser function call!"))
 }
 
@@ -200,7 +214,7 @@ fn variable_signature<'a>(p: &mut Parser<'a>) -> Result<VariableSignature, Parse
     Ok(VariableSignature{name, type_sig})
 }
 
-fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, ParseError> {
+fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<AstNode, ParseError> {
     p.advance();
 
     let prefix_rule = get_rule(p.previous.type_.clone()).prefix;
@@ -231,7 +245,7 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<Ast, Par
     Ok(p.prefix_node.clone())
 }
 
-fn maybe_statement_else_expression<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn maybe_statement_else_expression<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let is_return = if p.check(TokenType::KwReturn) {
         p.advance();
         true
@@ -243,17 +257,17 @@ fn maybe_statement_else_expression<'a>(p: &mut Parser<'a>)  -> Result<Ast, Parse
     if !is_return {
         if p.check(TokenType::Semicolon) {
             p.advance();
-            Ok(Ast::Statement(Box::new(expr)))
+            Ok(p.new_node(Ast::Statement(Box::new(expr))))
         } else {
             Ok(expr)
         }
     } else {
         p.consume(TokenType::Semicolon, "Expected \';\' to end expression to make into return statement")?;
-        Ok(Ast::Return(Box::new(expr)))
+        Ok(p.new_node(Ast::Return(Box::new(expr))))
     }
 }
 
-fn statement<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn statement<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let is_return = if p.check(TokenType::KwReturn) {
         p.advance();
         true
@@ -263,24 +277,24 @@ fn statement<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
 
     let expr = expression(p)?;
     p.consume(TokenType::Semicolon, "Expected \';\' to end expression to make into statement")?;
-    if !is_return { Ok(Ast::Statement(Box::new(expr))) } else { Ok(Ast::Return(Box::new(expr))) }
+    if !is_return { Ok(p.new_node(Ast::Statement(Box::new(expr)))) } else { Ok(p.new_node(Ast::Return(Box::new(expr)))) }
 }
 
-fn expression<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn expression<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     parse_precedence(p, Prec::Assignment)
 }
 
-fn literal<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn literal<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     match p.previous.type_ {
-        TokenType::Number => Ok(Ast::Number(if let TokenData::Number(n) = &p.previous.data { n.clone() } else { 0.0 })),
-        TokenType::String => Ok(Ast::String(if let TokenData::String(s) = &p.previous.data { s.clone() } else { "err".to_string() })),
-        TokenType::KwTrue => Ok(Ast::Bool(true)),
-        TokenType::KwFalse => Ok(Ast::Bool(false)),
+        TokenType::Number => Ok(p.new_node(Ast::Number(if let TokenData::Number(n) = &p.previous.data { n.clone() } else { 0.0 }))),
+        TokenType::String => Ok(p.new_node(Ast::String(if let TokenData::String(s) = &p.previous.data { s.clone() } else { "err".to_string() }))),
+        TokenType::KwTrue => Ok(p.new_node(Ast::Bool(true))),
+        TokenType::KwFalse => Ok(p.new_node(Ast::Bool(false))),
         _ => Err(p.make_error("Unreachable error for literal()"))
     }
 }
 
-fn identifier<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn identifier<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let name = match p.previous.type_ {
             TokenType::Identifier => if let TokenData::String(s) = &p.previous.data { s.clone() } else { "err".to_string() },
             _ => return Err(p.make_error("Unreachable error for identifier()"))
@@ -289,7 +303,7 @@ fn identifier<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
         p.advance();
 
         
-        let mut args: Vec<Ast> = Vec::new();
+        let mut args: Vec<AstNode> = Vec::new();
         while !p.check(TokenType::RParen) {
             args.push(expression(p)?);
 
@@ -302,29 +316,29 @@ fn identifier<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
 
         p.consume(TokenType::RParen, "Expected closing right parenthesis")?;
 
-        Ok(Ast::FnCall(name, args))
+        Ok(p.new_node(Ast::FnCall(name, args)))
     } else {
-        Ok(Ast::Identifier(name))
+        Ok(p.new_node(Ast::Identifier(name)))
     }
 }
 
-fn unary<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn unary<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let op = p.previous.type_.clone();
 
     let expr = parse_precedence(p, Prec::Unary)?;
 
-    Ok(Ast::Unary(match op {
+    Ok(p.new_node(Ast::Unary(match op {
         TokenType::Minus => UnaryOperation::Negate,
         TokenType::Bang => UnaryOperation::Not,
         _ => return Err(p.make_error("Invalid unary operator"))
-    }, Box::new(expr)))
+    }, Box::new(expr))))
 }
 
-fn binary<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn binary<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let left = p.prefix_node.clone();
     let op = p.previous.type_.clone();
     let right = parse_precedence(p, get_rule(op.clone()).precedence)?;
-    Ok(Ast::Binary(match op {
+    Ok(p.new_node(Ast::Binary(match op {
         TokenType::Plus => BinaryOperation::Add,
         TokenType::Minus => BinaryOperation::Subtract, 
         TokenType::Star => BinaryOperation::Multiply,
@@ -334,34 +348,35 @@ fn binary<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
         TokenType::LessEqual => BinaryOperation::LessEqual,
         TokenType::Greater => BinaryOperation::Greater,
         TokenType::GreaterEqual => BinaryOperation::GreaterEqual,
-        TokenType::EqualEqual => BinaryOperation::Equals,
+        TokenType::EqualEqual => BinaryOperation::Equal,
+        TokenType::BangEqual => BinaryOperation::NotEqual,
         TokenType::Equal => BinaryOperation::Assign,
 
         _ => return Err(p.make_error("Invalid binary operator"))
-    }, Box::new(left), Box::new(right)))
+    }, Box::new(left), Box::new(right))))
 }
 
-fn grouping<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn grouping<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let expr = expression(p)?;
     p.consume(TokenType::RParen, "Expected closing right parenthesis")?;
     Ok(expr)
 }
 
-fn block<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
-    let mut expr_vec: Vec<Ast> = Vec::new();
+fn block<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+    let mut expr_vec: Vec<AstNode> = Vec::new();
     while !p.check(TokenType::RCurly) {
         expr_vec.push(maybe_statement_else_expression(p)?);
     }
     p.consume(TokenType::RCurly, "Expected closing right curly bracket")?;
-    Ok(Ast::Block(expr_vec))
+    Ok(p.new_node(Ast::Block(expr_vec)))
 }
 
-fn if_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn if_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let if_cond = expression(p)?;
     let if_block = expression(p)?;
     
-    let mut else_if_exprs: Vec<(Box<Ast>, Box<Ast>)> = Vec::new();
-    let mut else_block: Option<Box<Ast>> = None;
+    let mut else_if_exprs: Vec<(Box<AstNode>, Box<AstNode>)> = Vec::new();
+    let mut else_block: Option<Box<AstNode>> = None;
 
     while p.check(TokenType::KwElse) {
         p.advance();
@@ -374,14 +389,16 @@ fn if_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
         }
     }
 
-    Ok(Ast::IfElse(Box::new(if_cond), Box::new(if_block), else_if_exprs, else_block))
+    Ok(p.new_node(Ast::IfElse(Box::new(if_cond), Box::new(if_block), else_if_exprs, else_block)))
 }
 
-fn while_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
-    Ok(Ast::While(Box::new(expression(p)?), Box::new(expression(p)?)))
+fn while_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+    let cond = expression(p)?;
+    let body = expression(p)?;
+    Ok(p.new_node(Ast::While(Box::new(cond), Box::new(body))))
 }
 
-fn let_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn let_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let mut mutable = false;
     if p.check(TokenType::KwMut) {
         p.advance();
@@ -390,7 +407,7 @@ fn let_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
 
     let var_sig = variable_signature(p)?;
     
-    let val_expr: Option<Box<Ast>> = 
+    let val_expr: Option<Box<AstNode>> = 
         if p.check(TokenType::Equal) {
             p.advance();
             Some(Box::new(expression(p)?))
@@ -398,20 +415,20 @@ fn let_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
             None
         };
 
-    Ok(Ast::Let(var_sig, mutable, val_expr))
+    Ok(p.new_node(Ast::Let(var_sig, mutable, val_expr)))
 
 }
 
-fn import<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn import<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     p.consume(TokenType::String, "Expected string for import file")?;
     let name = match &p.previous.data {
             TokenData::String(s) => s.clone(),
             _ => return Err(p.make_error("Could not read identifier name from token"))
         };
-    Ok(Ast::Import(name))
+    Ok(p.new_node(Ast::Import(name)))
 }
 
-fn fn_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
+fn fn_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let name: Option<String> =
         if p.check(TokenType::Identifier) {
             p.advance();
@@ -448,6 +465,7 @@ fn fn_<'a>(p: &mut Parser<'a>)  -> Result<Ast, ParseError> {
             None
         };
 
+    let body = expression(p)?;
 
-    Ok(Ast::FnDef(name, FunctionSignature { params, return_type: type_sig }, Box::new(expression(p)?)))
+    Ok(p.new_node(Ast::FnDef(name, FunctionSignature { params, return_type: type_sig }, Box::new(body))))
 }
