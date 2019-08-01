@@ -6,7 +6,7 @@ edition = "2018"
 
 respository = "https://github.com/Ralakus/graviton"
 homepage = "https://github.com/Ralakus/graviton"
-description = "The frontend which has the token data structuer, lexer, and parser"
+description = "The Graviton frontend which has the token data structuer, lexer, and parser"
 license = "MIT"
 readme = "README.md"
 

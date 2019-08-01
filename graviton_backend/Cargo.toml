@@ -6,7 +6,7 @@ edition = "2018"
 
 respository = "https://github.com/Ralakus/graviton"
 homepage = "https://github.com/Ralakus/graviton"
-description = "The backend which includes a stack based virtual machine"
+description = "The Graviton backend which includes a stack based virtual machine"
 license = "MIT"
 readme = "README.md"
 

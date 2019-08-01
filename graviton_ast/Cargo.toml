@@ -6,7 +6,7 @@ edition = "2018"
 
 respository = "https://github.com/Ralakus/graviton"
 homepage = "https://github.com/Ralakus/graviton"
-description = "The abstract syntax tree data structure used throughout the language"
+description = "The abstract syntax tree data structure used throughout the Graviton language"
 license = "MIT"
 readme = "README.md"
 
