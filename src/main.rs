@@ -3,7 +3,7 @@ use std::fs::File;
 
 extern crate graviton;
 use graviton::colored::*;
-use graviton::errors::report_error;
+use graviton::errors;
 
 use memmap::Mmap;
 
@@ -65,7 +65,12 @@ fn main() {
         return;
     }
 
-    let input = args.value_of("Input").unwrap();
+    let input = if let Some(input) = args.value_of("Input") {
+        input
+    } else {
+        eprintln!("{}: Expects at least one argument for input", "Error".red());
+        return;
+    };
     let mapped_file: memmap::Mmap;
 
     let file = File::open(input).expect("failed to open file");
@@ -88,19 +93,19 @@ fn main() {
                     }
                     if run_code {
                         let mut vm = graviton::backend::vm::StackVm::new();
-                        match vm.run(bc) {
+                        match vm.run(bc, debug_level) {
                             Ok(graviton::backend::vm::Value::Nil) => {},
                             Ok(result) => println!("Result: {:?}", result),
-                            Err(err) => println!("Runtime Error: {:?}", err),
+                            Err(err) => errors::report_vm_error(&err, Some(&*source), Some(input)),
                         }
                     }
                 },
-                Err(s) => println!("Error {}", s),
+                Err(err) => errors::report_vm_error(&err, Some(&*source), Some(input)),
             };
         },
         Err(errors) => {
             for e in errors {
-                report_error(&e, Some(source), Some(input));
+                errors::report_parser_error(&e, Some(source), Some(input));
             }
         },
     };

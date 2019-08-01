@@ -7,4 +7,4 @@ script:
   - cargo run test/1.grav
   - cargo run test/2.grav
   - cargo run test/3.grav
-  - cargo run test/fib.grav
+  - cargo run examples/fib.grav

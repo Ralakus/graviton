@@ -1,6 +1,6 @@
 [package]
 name = "graviton_ast"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
@@ -9,6 +9,9 @@ homepage = "https://github.com/Ralakus/graviton"
 description = "The abstract syntax tree data structure used throughout the language"
 license = "MIT"
 readme = "README.md"
+
+[features]
+node_code_pos = []
 
 [dependencies]
 serde = { version = "1.0.98", features = ["derive"] }
