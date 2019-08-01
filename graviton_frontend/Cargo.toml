@@ -1,6 +1,6 @@
 [package]
 name = "graviton_frontend"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
@@ -14,4 +14,6 @@ readme = "README.md"
 node_code_pos = [ "graviton_ast/node_code_pos" ]
 
 [dependencies]
-graviton_ast = { path = "../graviton_ast", version = "0.2.0" }
+graviton_ast = { path = "../graviton_ast", version = "0.3.0" }
+
+memmap = "0.7.0"

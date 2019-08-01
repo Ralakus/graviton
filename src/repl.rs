@@ -46,7 +46,7 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
             }
         }
 
-        let ast = graviton::frontend::parser::Parser::parse(source.as_str());
+        let ast = graviton::frontend::parser::Parser::parse(source.as_str(), None);
 
         match ast {
             Ok(a) => {
@@ -70,7 +70,7 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
             },
             Err(errors) => {
                 for e in errors {
-                    errors::report_parser_error(&e, Some(source.as_str()), None);
+                    errors::report_parser_error(&e, Some(source.as_str()));
                 }
             },
         };

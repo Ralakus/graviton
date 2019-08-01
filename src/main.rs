@@ -78,7 +78,7 @@ fn main() {
 
     let source = std::str::from_utf8(&mapped_file[..]).unwrap();
 
-    let ast = graviton::frontend::parser::Parser::parse(source);
+    let ast = graviton::frontend::parser::Parser::parse(source, Some(&*input));
 
     match ast {
         Ok(a) => {
@@ -105,7 +105,7 @@ fn main() {
         },
         Err(errors) => {
             for e in errors {
-                errors::report_parser_error(&e, Some(source), Some(input));
+                errors::report_parser_error(&e, Some(source));
             }
         },
     };

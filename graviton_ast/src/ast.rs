@@ -113,14 +113,14 @@ pub enum Ast {
     // variable name, mutable, optional value expr
     Let(VariableSignature, bool, Option<Box<AstNode>>),
 
-    // import name
-    Import(String),
+    // import file name, file's ast
+    Import(String, Box<AstNode>),
 
     // optional function name, function parameters, return type, implementation
     FnDef(Option<String>, FunctionSignature, Box<AstNode>),
 
-    // function name, arguments
-    FnCall(String, Vec<AstNode>),
+    // expression that evaluates to function, arguments
+    FnCall(Box<AstNode>, Vec<AstNode>),
 }
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -114,7 +114,7 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: ast::AstNode) {
         ast::Ast::Let(_, _, _) => {
 
         },
-        ast::Ast::Import(_) => {
+        ast::Ast::Import(_, _) => {
 
         },
         ast::Ast::FnDef(_, _, _) => {

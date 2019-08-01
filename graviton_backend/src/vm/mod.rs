@@ -3,6 +3,8 @@ use super::ast;
 
 use serde::{Serialize, Deserialize};
 use std::collections::hash_map::*;
+use std::io::{BufRead,Write};
+use std::error::Error;
 
 mod object;
 
@@ -59,10 +61,10 @@ pub enum ByteOp {
 
     Negate,
 
-    Print,
-
     ScopeOpen,
     ScopeClose,
+
+    NativeFnCall(u16, u8),
 
     DefVar(u16),
     DefMutVar(u16),
@@ -325,12 +327,22 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
                 bc.emit(&ast, ByteOp::DefVar(hash));
             }
         },
-        ast::Ast::FnCall(name, args) => {
-            if name == "print" && args.len() == 1 {
-                ast_to_bytecode(bc, &args[0].clone())?;
-                bc.emit(&ast, ByteOp::Print);
+        ast::Ast::Import(_, expr) => {
+            ast_to_bytecode(bc, &*expr)?;
+        },
+        ast::Ast::FnCall(callee, args) => {
+            if let ast::Ast::Identifier(name) = &callee.node {
+                for a in args {
+                    ast_to_bytecode(bc, &a)?;
+                }
+                let hash = crc16::State::<crc16::ARC>::calculate(name.as_bytes());
+
+                #[cfg(feature = "store_names")]
+                bc.names.insert(hash, name.clone());
+                
+                bc.emit(&ast, ByteOp::NativeFnCall(hash, args.len() as u8));
             } else {
-                return Err(VmError::new(format!("Non implemented AST node: {:?}", ast::Ast::FnCall(name.clone(), args.clone())), &ast));
+                return Err(VmError::new(format!("Function variables not support yet"), &ast));
             }
         },
         other => { return Err(VmError::new(format!("Non implemented AST node: {:?}", other), &ast)); }
@@ -342,19 +354,103 @@ struct Scope {
     variables: HashMap<u16, (bool, Value)>
 }
 
+pub type NativeVmFn = fn(&mut StackVm, &Bytecode) -> Result<(), VmError>;
+
 pub struct StackVm {
     ip_idx: usize,
-    stack: Vec<Value>,
-    scopes: Vec<Scope>
+    pub stack: Vec<Value>,
+    scopes: Vec<Scope>,
+
+    native_fns: HashMap<u16, (u8, NativeVmFn)>,
+}
+
+fn read_num(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
+    print!("Input number: "); std::io::stdout().flush().unwrap();
+
+        let mut input = String::new();
+        if let Err(e) = std::io::stdin().lock().read_line(&mut input) {
+            return Err(vm.make_error(bc, e.description().to_string()));
+        }
+
+        let value = match input.trim().parse::<f64>() {
+                Ok(n) => Value::Number(n),
+                Err(e) => return Err(vm.make_error(bc, e.description().to_string()))
+            };
+
+        vm.stack.push(value);
+
+        Ok(())
+}
+
+fn read_bool(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
+    print!("Input bool [true, false]: "); std::io::stdout().flush().unwrap();
+
+    let mut input = String::new();
+    if let Err(e) = std::io::stdin().lock().read_line(&mut input) {
+        return Err(vm.make_error(bc, e.description().to_string()));
+    }
+
+    let value = match input.trim() {
+            "true" => Value::Bool(true),
+            "false" => Value::Bool(false),
+            _ => return Err(vm.make_error(bc, "Not true or false".to_string()))
+        };
+
+    vm.stack.push(value);
+
+    Ok(())
+}
+
+fn println(vm: &mut StackVm, _bc: &Bytecode) -> Result<(), VmError> {
+    match vm.stack.pop() {
+        Some(val) => {
+            match val {
+                Value::Nil => println!("nil"),
+                Value::Bool(b) => println!("{}", b),
+                Value::Number(n) => println!("{}", n)
+            }
+        },
+        None => println!("No value in stack")
+    }
+    Ok(())
+}
+
+fn print(vm: &mut StackVm, _bc: &Bytecode) -> Result<(), VmError> {
+    match vm.stack.pop() {
+        Some(val) => {
+            match val {
+                Value::Nil => print!("nil"),
+                Value::Bool(b) => print!("{}", b),
+                Value::Number(n) => print!("{}", n)
+            }
+        },
+        None => println!("No value in stack")
+    }
+    std::io::stdout().flush().unwrap();
+    Ok(())
 }
 
 impl<'a> StackVm {
     pub fn new() -> StackVm {
-        StackVm {
+        let mut vm = StackVm {
             ip_idx: 0,
             stack: Vec::new(),
             scopes: Vec::new(),
-        }
+
+            native_fns: HashMap::new(),
+        };
+
+        vm.add_fn(&"read_num".to_string(), 0, read_num);
+        vm.add_fn(&"read_bool".to_string(), 0, read_bool);
+        vm.add_fn(&"println".to_string(), 1, println);
+        vm.add_fn(&"print".to_string(), 1, print);
+
+        return vm;
+    }
+
+    pub fn add_fn(&mut self, name: &String, arg_count: u8, function: NativeVmFn) {
+        let hash = crc16::State::<crc16::ARC>::calculate(name.as_bytes());
+        self.native_fns.insert(hash, (arg_count, function));
     }
 
     fn stack_peek(&self, distance: usize) -> Value {
@@ -614,32 +710,43 @@ impl<'a> StackVm {
                         }
                     }
                 },
-                Some(ByteOp::Print) => {
-                    match self.stack.pop() {
-                        Some(val) => {
-                            match val {
-                                Value::Nil => println!("nil"),
-                                Value::Bool(b) => println!("{}", b),
-                                Value::Number(n) => println!("{}", n)
-                            }
-                        },
-                        None => println!("nil")
-                    }
-                },
                 Some(ByteOp::ScopeOpen) => {
                     self.scopes.push(Scope { variables: HashMap::new() });
                 },
                 Some(ByteOp::ScopeClose) => {
                     self.scopes.pop();
                 },
+                Some(ByteOp::NativeFnCall(id, arg_count)) => {
+                    if let Some(function) = self.native_fns.get(id) {
+                        if function.0 != *arg_count {
+                            #[cfg(feature = "store_names")]
+                            return Err(self.make_error(&bc, format!("Function: {} expects {} arguments but recieved {}", bc.names[id], function.0, arg_count)));
+
+                            #[cfg(not(feature = "store_names"))]
+                            return Err(self.make_error(&bc, format!("Function: {} expects {} arguments but recieved {}", id, function.0, arg_count)));
+                        } else if let Err(e)  = (function.1)(self, &bc) {
+                            #[cfg(feature = "store_names")]
+                            return Err(self.make_error(&bc, format!("Function: {} returned an error: {}", bc.names[id], e.msg)));
+
+                            #[cfg(not(feature = "store_names"))]
+                            return Err(self.make_error(&bc, format!("Function: {} returned an error: {}", id, e.msg)));
+                        }
+                    } else {
+                        #[cfg(feature = "store_names")]
+                        return Err(self.make_error(&bc, format!("Function: {} not defined", bc.names[id])));
+
+                        #[cfg(not(feature = "store_names"))]
+                        return Err(self.make_error(&bc, format!("Function: {} not defined", id)));
+                    }
+                },
                 Some(ByteOp::DefVar(id)) => {
                     match StackVm::var_in_scopes_mut(&mut self.scopes, id) {
                         Some(_) => {
                             #[cfg(feature = "store_names")]
-                            return Err(self.make_error(&bc, format!("Variable: {} arleady defined", bc.names[id])));
+                            return Err(self.make_error(&bc, format!("Variable: {} already defined", bc.names[id])));
 
                             #[cfg(not(feature = "store_names"))]
-                            return Err(self.make_error(&bc, format!("Variable: {} arleady defined", id)));
+                            return Err(self.make_error(&bc, format!("Variable: {} already defined", id)));
                         },
                         None => {
                             self.scopes.last_mut().unwrap().variables.insert(*id, if let Some(val) = self.stack.pop() { self.stack.push(val.clone()); (false, val) } else { (false, Value::Nil) });
@@ -651,10 +758,10 @@ impl<'a> StackVm {
                         Some(_) => {
 
                             #[cfg(feature = "store_names")]
-                            return Err(self.make_error(&bc, format!("Variable: {} arleady defined", bc.names[id])));
+                            return Err(self.make_error(&bc, format!("Variable: {} already defined", bc.names[id])));
 
                             #[cfg(not(feature = "store_names"))]
-                            return Err(self.make_error(&bc, format!("Variable: {} arleady defined", id)));
+                            return Err(self.make_error(&bc, format!("Variable: {} already defined", id)));
                         },
                         None => {
                             self.scopes.last_mut().unwrap().variables.insert(*id, if let Some(val) = self.stack.pop() { self.stack.push(val.clone()); (true, val) } else { (true, Value::Nil) });
