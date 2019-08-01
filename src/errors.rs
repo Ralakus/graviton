@@ -13,8 +13,8 @@ pub fn report_vm_error<'a>(e: &VmError, source: Option<&'a str>, file: Option<&'
 }
 
 #[cfg(not(feature = "node_code_pos"))]
-pub fn report_vm_error<'a>(e: &VmError, source: Option<&'a str>, file: Option<&'a str>) {
-    println!("{}: {}", "Error".red(), msg);
+pub fn report_vm_error<'a>(e: &VmError, _source: Option<&'a str>, _file: Option<&'a str>) {
+    println!("{}: {}", "Error".red(), e.msg);
 }
 
 pub fn report_error_msg_with_pos<'a>(msg: &String, pos: ast::Position, source: Option<&'a str>, file: Option<&'a str>) {
