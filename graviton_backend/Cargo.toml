@@ -1,6 +1,6 @@
 [package]
 name = "graviton_backend"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
@@ -15,7 +15,7 @@ node_code_pos = [ "graviton_ast/node_code_pos" ]
 store_names = []
 
 [dependencies]
-graviton_ast = { path = "../graviton_ast", version = "0.3.1" }
+graviton_ast = { path = "../graviton_ast", version = "0.4.0" }
 
 serde = { version = "1.0.98", features = ["derive"] }
 

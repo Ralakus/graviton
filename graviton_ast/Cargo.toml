@@ -1,6 +1,6 @@
 [package]
 name = "graviton_ast"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
