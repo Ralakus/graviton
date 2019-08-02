@@ -1,5 +1,5 @@
 
-package = {statement} EOF ;
+package = {statement} (expression) EOF ;
 
 statement = expression ";" ;
 
@@ -21,7 +21,7 @@ literal = NUMBER
         | BOOLEAN
         ;
 
-block = "{" {statement} "}" ;
+block = "{" {statement} (expression) "}" ;
 
 unary_op = "-"
          | "!"
