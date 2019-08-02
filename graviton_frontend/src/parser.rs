@@ -115,7 +115,7 @@ impl<'a> Parser<'a> {
         if self.current.type_ == type_ {
             Ok(self.advance())
         } else {
-            Err(self.make_error(err_msg))
+            Err(self.make_error_with_string(format!("{}; found {:?}", err_msg, self.current.type_)))
         }
     }
 

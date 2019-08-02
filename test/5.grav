@@ -1,0 +1,8 @@
+
+let x = 14;
+
+println(let is_x_greater_than_five = if x > 5 true else false);
+
+println(is_x_greater_than_five);
+
+1 + 2
