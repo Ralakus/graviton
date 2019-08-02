@@ -61,7 +61,7 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                         }
                         let mut vm = graviton::backend::vm::StackVm::new();
                         match vm.run(bc, debug_level) {
-                            Ok(result) => println!("Result: {:?}", result),
+                            Ok(result) => println!("=> {:?}", result),
                             Err(err) => errors::report_vm_error(&err, Some(&*source), None),
                         }
                     },

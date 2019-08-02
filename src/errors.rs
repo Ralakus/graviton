@@ -14,7 +14,7 @@ pub fn report_vm_error<'a>(e: &VmError, source: Option<&'a str>, file: Option<&'
 
 #[cfg(not(feature = "node_code_pos"))]
 pub fn report_vm_error<'a>(e: &VmError, _source: Option<&'a str>, _file: Option<&'a str>) {
-    println!("{}: {}", "Error".red(), e.msg);
+    eprintln!("{}: {}", "Error".red(), e.msg);
 }
 
 pub fn report_error_msg_with_pos<'a>(msg: &String, pos: ast::Position, source: Option<&'a str>, file: Option<&'a str>) {
@@ -24,7 +24,7 @@ pub fn report_error_msg_with_pos<'a>(msg: &String, pos: ast::Position, source: O
                 let mut line = 1;
                 for l in s.lines() {
                     if line == pos.line {
-                        println!("{}: {}\n\tat: {}\n\t{}\n\t{}{}{}",
+                        eprintln!("{}: {}\n\tat: {}\n\t{}\n\t{}{}{}",
                             "Error".red(),
                             msg,
                             format!("{}{}:{}:{}{}", "[".bold(), f, pos.line, pos.col, "]".bold()),
@@ -41,7 +41,7 @@ pub fn report_error_msg_with_pos<'a>(msg: &String, pos: ast::Position, source: O
                 let mut line = 1;
                 for l in s.lines() {
                     if line == pos.line {
-                        println!("{}: {}\n\tat: {}\n\t{}\n\t{}{}{}",
+                        eprintln!("{}: {}\n\tat: {}\n\t{}\n\t{}{}{}",
                             "Error".red(),
                             msg,
                             format!("{}Line: {}, Col: {}{}", "[".bold(), pos.line, pos.col, "]".bold()),
@@ -57,13 +57,13 @@ pub fn report_error_msg_with_pos<'a>(msg: &String, pos: ast::Position, source: O
             }
         } else {
             if let Some(f) = file {
-                println!("{}: {}\n\tat: {}",
+                eprintln!("{}: {}\n\tat: {}",
                     "Error".red(),
                     msg,
                     format!("{}{}:{}:{}{}", "[".bold(), f, pos.line, pos.col, "]".bold()),
                 );
             } else {
-                println!("{}: {}\n\tat: {}",
+                eprintln!("{}: {}\n\tat: {}",
                     "Error".red(),
                     msg,
                     format!("{}Line: {}, Col: {}{}", "[".bold(), pos.line, pos.col, "]".bold()),
