@@ -24,7 +24,7 @@ fn main() {
                 .long("debug")
                 .takes_value(true);
 
-    let args = App::new("Tachyon")
+    let args = App::new("Graviton")
                 .version(VERSION)
                 .author(AUTHOR)
                 .about(DESCRIPTION)

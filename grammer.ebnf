@@ -1,11 +1,7 @@
 
 package = {statement} EOF ;
 
-statement = return_statement
-          | expression ";"
-          ;
-
-return_statement = "return" expression ";" ;
+statement = expression ";" ;
 
 expression = literal 
            | block
@@ -17,6 +13,7 @@ expression = literal
            | import
            | fn_def
            | fn_call
+           | "return" expression
            ;
 
 literal = NUMBER

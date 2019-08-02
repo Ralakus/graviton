@@ -199,9 +199,8 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
                 ast::UnaryOperation::Not => bc.emit(&ast, ByteOp::Not)
             }
         },
-        ast::Ast::Return(expr) => {
-            ast_to_bytecode(bc, &*expr)?;
-            bc.emit(&ast, ByteOp::Return);
+        ast::Ast::Return(_) => {
+            return Err(VmError::new("Returns may only be present within blocks".to_string(), &ast));
         },
         ast::Ast::Block(exprs) => {
             bc.emit(&ast, ByteOp::ScopeOpen);
@@ -212,19 +211,24 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
                     ast::Ast::Statement(expr) => {
                         if let ast::Ast::Block(_) = expr.node {
                             ast_to_bytecode(bc, &*expr)?;
+                        } else if let ast::Ast::Return(rexpr) = &expr.node {
+                            ast_to_bytecode(bc, &*rexpr)?;
+                            bc.emit(&ast, ByteOp::Return);
                         } else {
                             ast_to_bytecode(bc, &e)?
                         }
                     },
-                    ast::Ast::Return(expr) => {
-                        ast_to_bytecode(bc, &*expr)?;
-                    }
                     _ => {
                         if idx != len{
-                            return Err(VmError::new("Only the last element in a block may be an expression".to_string(), &ast));
+                            return Err(VmError::new("Only the last element in a block may be an expression".to_string(), &e));
                         }
-                        ast_to_bytecode(bc, &e)?;
-                        bc.emit(&ast, ByteOp::Return);
+                        if let ast::Ast::Return(rexpr) = &e.node {
+                            ast_to_bytecode(bc, &*rexpr)?;
+                            bc.emit(&ast, ByteOp::Return);
+                        } else {
+                            ast_to_bytecode(bc, &e)?;
+                            bc.emit(&ast, ByteOp::Return);
+                        }
                     }
                 }
                 idx += 1;

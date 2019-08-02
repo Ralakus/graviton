@@ -66,7 +66,7 @@ ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, /
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwOr
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwSelf
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwStruct
-ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwReturn
+ParseRule{prefix: return_,    infix: nil_func, precedence: Prec::None       }, // TokenType::KwReturn
 ParseRule{prefix: import,     infix: nil_func, precedence: Prec::None       }, // TokenType::KwImport
 ParseRule{prefix: let_,       infix: nil_func, precedence: Prec::None       }, // TokenType::KwLet
 ParseRule{prefix: fn_,        infix: nil_func, precedence: Prec::None       }, // TokenType::KwFn
@@ -262,29 +262,18 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<AstNode,
     Ok(p.prefix_node.clone())
 }
 
-fn maybe_statement_else_expression<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
-    let is_return = if p.check(TokenType::KwReturn) {
-        p.advance();
-        true
-    } else {
-        false
-    };
+fn maybe_statement_else_expression<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
 
     let expr = expression(p)?;
-    if !is_return {
-        if p.check(TokenType::Semicolon) {
-            p.advance();
-            Ok(p.new_node(Ast::Statement(Box::new(expr))))
-        } else {
-            Ok(expr)
-        }
+    if p.check(TokenType::Semicolon) {
+        p.advance();
+        Ok(p.new_node(Ast::Statement(Box::new(expr))))
     } else {
-        p.consume(TokenType::Semicolon, "Expected \';\' to end expression to make into return statement")?;
-        Ok(p.new_node(Ast::Return(Box::new(expr))))
+        Ok(expr)
     }
 }
 
-fn statement<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+/*fn statement<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let is_return = if p.check(TokenType::KwReturn) {
         p.advance();
         true
@@ -295,13 +284,13 @@ fn statement<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     let expr = expression(p)?;
     p.consume(TokenType::Semicolon, "Expected \';\' to end expression to make into statement")?;
     if !is_return { Ok(p.new_node(Ast::Statement(Box::new(expr)))) } else { Ok(p.new_node(Ast::Return(Box::new(expr)))) }
-}
+}*/
 
-fn expression<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn expression<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     parse_precedence(p, Prec::Assignment)
 }
 
-fn literal<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn literal<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     match p.previous.type_ {
         TokenType::Number => Ok(p.new_node(Ast::Number(if let TokenData::Number(n) = &p.previous.data { n.clone() } else { 0.0 }))),
         TokenType::String => Ok(p.new_node(Ast::String(if let TokenData::String(s) = &p.previous.data { s.clone() } else { "err".to_string() }))),
@@ -311,7 +300,7 @@ fn literal<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     }
 }
 
-fn identifier<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn identifier<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let name = match p.previous.type_ {
             TokenType::Identifier => if let TokenData::String(s) = &p.previous.data { s.clone() } else { "err".to_string() },
             _ => return Err(p.make_error("Unreachable error for identifier()"))
@@ -319,7 +308,7 @@ fn identifier<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     Ok(p.new_node(Ast::Identifier(name)))
 }
 
-fn unary<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn unary<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let op = p.previous.type_.clone();
 
     let expr = parse_precedence(p, Prec::Unary)?;
@@ -331,7 +320,7 @@ fn unary<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     }, Box::new(expr))))
 }
 
-fn binary<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn binary<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let left = p.prefix_node.clone();
     let op = p.previous.type_.clone();
     let right = parse_precedence(p, get_rule(op.clone()).precedence)?;
@@ -353,13 +342,18 @@ fn binary<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     }, Box::new(left), Box::new(right))))
 }
 
-fn grouping<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn grouping<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let expr = expression(p)?;
     p.consume(TokenType::RParen, "Expected closing right parenthesis")?;
     Ok(expr)
 }
 
-fn block<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn return_<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
+    let expr = expression(p)?;
+    Ok(p.new_node(Ast::Return(Box::new(expr))))
+}
+
+fn block<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let mut expr_vec: Vec<AstNode> = Vec::new();
     while !p.check(TokenType::RCurly) {
         expr_vec.push(maybe_statement_else_expression(p)?);
@@ -389,13 +383,13 @@ fn if_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     Ok(p.new_node(Ast::IfElse(Box::new(if_cond), Box::new(if_block), else_if_exprs, else_block)))
 }
 
-fn while_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn while_<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let cond = expression(p)?;
     let body = expression(p)?;
     Ok(p.new_node(Ast::While(Box::new(cond), Box::new(body))))
 }
 
-fn let_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn let_<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let mut mutable = false;
     if p.check(TokenType::KwMut) {
         p.advance();
@@ -416,7 +410,7 @@ fn let_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
 
 }
 
-fn import<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn import<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     p.consume(TokenType::String, "Expected string for import file")?;
     let name = match &p.previous.data {
             TokenData::String(s) => s.clone(),
@@ -444,7 +438,7 @@ fn import<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     }
 }
 
-fn fn_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn fn_<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let name: Option<String> =
         if p.check(TokenType::Identifier) {
             p.advance();
@@ -490,7 +484,7 @@ fn fn_<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
     Ok(p.new_node(Ast::FnDef(name, FunctionSignature { params, return_type: type_sig }, Box::new(body))))
 }
 
-fn call<'a>(p: &mut Parser<'a>)  -> Result<AstNode, ParseError> {
+fn call<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
 
     let callee = p.prefix_node.clone();
 
