@@ -154,6 +154,8 @@ impl<'a> Parser<'a> {
             return Err(p.errors);
         }
 
+        p.previous = Token::new(TokenType::Eof, TokenData::None, Position{line: -2, col:-2});
+
         Ok(p.new_node(Ast::Block(exprs)))
     }
 
@@ -206,7 +208,7 @@ impl<'a> Parser<'a> {
 }
 
 fn nil_func<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
-    Err(p.make_error("Invalid parser function call!"))
+    Err(p.make_error("Invalid parser function call"))
 }
 
 fn variable_signature<'a>(p: &mut Parser<'a>) -> Result<VariableSignature, ParseError> {

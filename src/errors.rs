@@ -70,5 +70,33 @@ pub fn report_error_msg_with_pos<'a>(msg: &String, pos: ast::Position, source: O
                 );
             }
         }
+    } else if pos.line == -1 {
+        if let Some(f) = file {
+            eprintln!("{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}{}:EOF{}", "[".bold(), f, "]".bold()),
+            );
+        } else {
+            eprintln!("{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}EOF{}", "[".bold(), "]".bold()),
+            );
+        }
+    } else if pos.line == -2 {
+        if let Some(f) = file {
+            eprintln!("{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}{}:begining of file{}", "[".bold(), f, "]".bold()),
+            );
+        } else {
+            eprintln!("{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}begining of file{}", "[".bold(), "]".bold()),
+            );
+        }
     }
 }
