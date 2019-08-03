@@ -62,8 +62,8 @@ ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, /
 ParseRule{prefix: identifier, infix: nil_func, precedence: Prec::None       }, // TokenType::Identifier
 ParseRule{prefix: literal,    infix: nil_func, precedence: Prec::None       }, // TokenType::String
 ParseRule{prefix: literal,    infix: nil_func, precedence: Prec::None       }, // TokenType::Number
-ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwAnd
-ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwOr
+ParseRule{prefix: nil_func,   infix: binary,   precedence: Prec::And        }, // TokenType::KwAnd
+ParseRule{prefix: nil_func,   infix: binary,   precedence: Prec::Or         }, // TokenType::KwOr
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwSelf
 ParseRule{prefix: nil_func,   infix: nil_func, precedence: Prec::None       }, // TokenType::KwStruct
 ParseRule{prefix: return_,    infix: nil_func, precedence: Prec::None       }, // TokenType::KwReturn
@@ -187,12 +187,13 @@ impl<'a> Parser<'a> {
                 self.check(TokenType::KwLet) || 
                 self.check(TokenType::KwWhile) ||
                 self.check(TokenType::KwReturn) || 
+                self.check(TokenType::KwIf) ||
                 self.check(TokenType::Eof)) {
             self.advance();
-            if self.check(TokenType::Semicolon) {
-                self.advance();
-                break;
-            }
+            println!("previous {:?}", self.previous);
+        }
+        if self.check(TokenType::Semicolon) {
+            self.advance();
         }
     }
 
@@ -338,6 +339,10 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
         TokenType::GreaterEqual => BinaryOperation::GreaterEqual,
         TokenType::EqualEqual => BinaryOperation::Equal,
         TokenType::BangEqual => BinaryOperation::NotEqual,
+
+        TokenType::KwAnd => BinaryOperation::And,
+        TokenType::KwOr => BinaryOperation::Or,
+
         TokenType::Equal => BinaryOperation::Assign,
 
         _ => return Err(p.make_error("Invalid binary operator"))
@@ -346,7 +351,7 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
 
 fn grouping<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let expr = expression(p)?;
-    p.consume(TokenType::RParen, "Expected closing right parenthesis")?;
+    p.consume(TokenType::RParen, "Expected closing right parenthesis to complete grouping")?;
     Ok(expr)
 }
 

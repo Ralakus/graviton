@@ -54,6 +54,8 @@ pub enum ByteOp {
     Div,
 
     Not,
+    And,
+    Or,
 
     Equal,
     Greater,
@@ -188,7 +190,11 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
                         bc.emit(&ast, ByteOp::Equal);
                         bc.emit(&ast, ByteOp::Not);
                     }
-                    ast::BinaryOperation::Assign => {},
+
+                    ast::BinaryOperation::And => bc.emit(&ast, ByteOp::And),
+                    ast::BinaryOperation::Or => bc.emit(&ast, ByteOp::Or),
+
+                    ast::BinaryOperation::Assign => unreachable!(),
                 };
             }
         },
@@ -523,21 +529,21 @@ impl<'a> StackVm {
                 },
                 Some(ByteOp::Add) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Binary add value cannot be nil".to_string())); }
-                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary add value cannot be bool".to_string())); }
+                        Value::Nil => { return Err(self.make_error(&bc, "Binary add right value cannot be Nil".to_string())); }
+                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary add right value cannot be Bool".to_string())); }
                         Value::Number(_) => {
                             match self.stack_peek(1) {
-                                Value::Nil => { return Err(self.make_error(&bc, "Binary add value cannot be nil".to_string())); }
-                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary add value cannot be bool".to_string())); }
+                                Value::Nil => { return Err(self.make_error(&bc, "Binary add value cannot be Nil".to_string())); }
+                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary add value cannot be Bool".to_string())); }
                                 Value::Number(_) => {
                                     if let Some(Value::Number(b)) = self.stack.pop() {
                                         if let Some(Value::Number(a)) = self.stack.pop() {
                                             self.stack.push(Value::Number(a + b));
                                         } else {
-                                            return Err(self.make_error(&bc, "Failed to pop binary add a".to_string()));
+                                            return Err(self.make_error(&bc, "Failed to pop binary add left".to_string()));
                                         }
                                     } else {
-                                        return Err(self.make_error(&bc, "Failed to pop binary add b".to_string()));
+                                        return Err(self.make_error(&bc, "Failed to pop binary add right".to_string()));
                                     }
 
                                 } 
@@ -547,21 +553,21 @@ impl<'a> StackVm {
                 },
                 Some(ByteOp::Sub) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Binary sub value cannot be nil".to_string())); }
-                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary sub value cannot be bool".to_string())); }
+                        Value::Nil => { return Err(self.make_error(&bc, "Binary sub right value cannot be Nil".to_string())); }
+                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary sub right value cannot be Bool".to_string())); }
                         Value::Number(_) => {
                             match self.stack_peek(1) {
-                                Value::Nil => { return Err(self.make_error(&bc, "Binary sub value cannot be nil".to_string())); }
-                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary sub value cannot be bool".to_string())); }
+                                Value::Nil => { return Err(self.make_error(&bc, "Binary sub left value cannot be Nil".to_string())); }
+                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary sub left value cannot be Bool".to_string())); }
                                 Value::Number(_) => {
                                     if let Some(Value::Number(b)) = self.stack.pop() {
                                         if let Some(Value::Number(a)) = self.stack.pop() {
                                             self.stack.push(Value::Number(a - b));
                                         } else {
-                                            return Err(self.make_error(&bc, "Failed to pop binary sub a".to_string()));
+                                            return Err(self.make_error(&bc, "Failed to pop binary sub left".to_string()));
                                         }
                                     } else {
-                                        return Err(self.make_error(&bc, "Failed to pop binary sub b".to_string()));
+                                        return Err(self.make_error(&bc, "Failed to pop binary sub right".to_string()));
                                     }
 
                                 } 
@@ -571,21 +577,21 @@ impl<'a> StackVm {
                 },
                 Some(ByteOp::Mul) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Binary mul value cannot be nil".to_string())); }
-                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary mul value cannot be bool".to_string())); }
+                        Value::Nil => { return Err(self.make_error(&bc, "Binary mul right value cannot be Nil".to_string())); }
+                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary mul right value cannot be Bool".to_string())); }
                         Value::Number(_) => {
                             match self.stack_peek(1) {
-                                Value::Nil => { return Err(self.make_error(&bc, "Binary mul value cannot be nil".to_string())); }
-                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary mul value cannot be bool".to_string())); }
+                                Value::Nil => { return Err(self.make_error(&bc, "Binary mul left value cannot be Nil".to_string())); }
+                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary mul left value cannot be Bool".to_string())); }
                                 Value::Number(_) => {
                                     if let Some(Value::Number(b)) = self.stack.pop() {
                                         if let Some(Value::Number(a)) = self.stack.pop() {
                                             self.stack.push(Value::Number(a * b));
                                         } else {
-                                            return Err(self.make_error(&bc, "Failed to pop binary mul a".to_string()));
+                                            return Err(self.make_error(&bc, "Failed to pop binary mul left".to_string()));
                                         }
                                     } else {
-                                        return Err(self.make_error(&bc, "Failed to pop binary mul b".to_string()));
+                                        return Err(self.make_error(&bc, "Failed to pop binary mul right".to_string()));
                                     }
 
                                 } 
@@ -595,21 +601,21 @@ impl<'a> StackVm {
                 },
                 Some(ByteOp::Div) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Binary div value cannot be nil".to_string())); }
-                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary div value cannot be bool".to_string())); }
+                        Value::Nil => { return Err(self.make_error(&bc, "Binary div right value cannot be Nil".to_string())); }
+                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary div value cannot be Bool".to_string())); }
                         Value::Number(_) => {
                             match self.stack_peek(1) {
-                                Value::Nil => { return Err(self.make_error(&bc, "Binary div value cannot be nil".to_string())); }
-                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary div value cannot be bool".to_string())); }
+                                Value::Nil => { return Err(self.make_error(&bc, "Binary div left value cannot be Nil".to_string())); }
+                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary div left value cannot be Bool".to_string())); }
                                 Value::Number(_) => {
                                     if let Some(Value::Number(b)) = self.stack.pop() {
                                         if let Some(Value::Number(a)) = self.stack.pop() {
                                             self.stack.push(Value::Number(a / b));
                                         } else {
-                                            return Err(self.make_error(&bc, "Failed to pop binary div a".to_string()));
+                                            return Err(self.make_error(&bc, "Failed to pop binary div left".to_string()));
                                         }
                                     } else {
-                                        return Err(self.make_error(&bc, "Failed to pop binary div b".to_string()));
+                                        return Err(self.make_error(&bc, "Failed to pop binary div right".to_string()));
                                     }
                                 } 
                             }
@@ -618,7 +624,7 @@ impl<'a> StackVm {
                 },
                 Some(ByteOp::Not) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Unary not value cannot be nil".to_string())); }
+                        Value::Nil => { return Err(self.make_error(&bc, "Unary not value cannot be Nil".to_string())); }
                         Value::Bool(_) => {
                             if let Some(Value::Bool(b)) = self.stack.pop() {
                                 self.stack.push(Value::Bool(!b));
@@ -626,26 +632,104 @@ impl<'a> StackVm {
                                 return Err(self.make_error(&bc, "Failed to pop unary not value".to_string()));
                             }
                         }
-                        Value::Number(_) => { return Err(self.make_error(&bc, "Unary value cannot be number".to_string())); }
+                        Value::Number(_) => { return Err(self.make_error(&bc, "Unary value cannot be Number".to_string())); }
+                    }
+                },
+                Some(ByteOp::And) => {
+                    match self.stack_peek(0) {
+                        Value::Nil => { return Err(self.make_error(&bc, "Boolean \'and\' right value cannot be Nil".to_string())); }
+                        Value::Bool(_) => {
+                            match self.stack_peek(1) {
+                                Value::Nil => { return Err(self.make_error(&bc, "Boolean \'and\' left value cannot be Nil".to_string())); }
+                                Value::Bool(_) => {
+                                    if let Some(Value::Bool(b)) = self.stack.pop() {
+                                        if let Some(Value::Bool(a)) = self.stack.pop() {
+                                            self.stack.push(Value::Bool(a && b));
+                                        } else {
+                                            return Err(self.make_error(&bc, "Failed to pop boolean \'and\' left".to_string()));
+                                        }
+                                    } else {
+                                        return Err(self.make_error(&bc, "Failed to pop boolean \'and\' right".to_string()));
+                                    }
+                                },
+                                Value::Number(_) => { return Err(self.make_error(&bc, "Boolean \'and\' left value cannot be Number".to_string())); }
+                            }
+                        },
+                        Value::Number(_) => { return Err(self.make_error(&bc, "Boolean \'and\' right value cannot be Number".to_string())); }
+                    }
+                },
+                Some(ByteOp::Or) => {
+                    match self.stack_peek(0) {
+                        Value::Nil => { return Err(self.make_error(&bc, "Boolean \'and\' right value cannot be Nil".to_string())); }
+                        Value::Bool(_) => {
+                            match self.stack_peek(1) {
+                                Value::Nil => { return Err(self.make_error(&bc, "Boolean \'and\' right value cannot be Nil".to_string())); }
+                                Value::Bool(_) => {
+                                    if let Some(Value::Bool(b)) = self.stack.pop() {
+                                        if let Some(Value::Bool(a)) = self.stack.pop() {
+                                            self.stack.push(Value::Bool(a || b));
+                                        } else {
+                                            return Err(self.make_error(&bc, "Failed to pop boolean \'and\' left".to_string()));
+                                        }
+                                    } else {
+                                        return Err(self.make_error(&bc, "Failed to pop boolean \'and\' right".to_string()));
+                                    }
+                                },
+                                Value::Number(_) => { return Err(self.make_error(&bc, "Boolean \'and\' value cannot be Number".to_string())); }
+                            }
+                        },
+                        Value::Number(_) => { return Err(self.make_error(&bc, "Boolean \'and\' value cannot be Number".to_string())); }
                     }
                 },
                 Some(ByteOp::Equal) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Binary equal value cannot be nil".to_string())); }
-                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary equal value cannot be bool".to_string())); }
+                        Value::Nil => {
+                            match self.stack_peek(1) {
+                                Value::Nil => {
+                                    if let Some(Value::Nil) = self.stack.pop() {
+                                        if let Some(Value::Nil) = self.stack.pop() {
+                                            self.stack.push(Value::Bool(true));
+                                        } else {
+                                            return Err(self.make_error(&bc, "Failed to pop binary equal left".to_string()));
+                                        }
+                                    } else {
+                                        return Err(self.make_error(&bc, "Failed to pop binary equal right".to_string()));
+                                    }
+                                },
+                                Value::Bool(_) => { return Err(self.make_error(&bc, "Cannot compare Nil to Bool".to_string())); },
+                                Value::Number(_) => { return Err(self.make_error(&bc, "Cannot compare Nil to Number".to_string())); }
+                            }
+                        },
+                        Value::Bool(_) => {
+                            match self.stack_peek(1) {
+                                Value::Nil => { return Err(self.make_error(&bc, "Cannot compare Bool to Nil".to_string())); },
+                                Value::Bool(_) => {
+                                    if let Some(Value::Bool(b)) = self.stack.pop() {
+                                        if let Some(Value::Bool(a)) = self.stack.pop() {
+                                            self.stack.push(Value::Bool(a == b));
+                                        } else {
+                                            return Err(self.make_error(&bc, "Failed to pop binary equal left".to_string()));
+                                        }
+                                    } else {
+                                        return Err(self.make_error(&bc, "Failed to pop binary equal right".to_string()));
+                                    }
+                                },
+                                Value::Number(_) => { return Err(self.make_error(&bc, "Cannot compare Bool to Number".to_string())); }
+                            }
+                        },
                         Value::Number(_) => {
                             match self.stack_peek(1) {
-                                Value::Nil => { return Err(self.make_error(&bc, "Binary equal value cannot be nil".to_string())); }
-                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary equal value cannot be bool".to_string())); }
+                                Value::Nil => { return Err(self.make_error(&bc, "Cannot compare Number to Nil".to_string())); }
+                                Value::Bool(_) => { return Err(self.make_error(&bc, "Cannot compare Number to Number".to_string())); }
                                 Value::Number(_) => {
                                     if let Some(Value::Number(b)) = self.stack.pop() {
                                         if let Some(Value::Number(a)) = self.stack.pop() {
                                             self.stack.push(Value::Bool(a == b));
                                         } else {
-                                            return Err(self.make_error(&bc, "Failed to pop binary equal a".to_string()));
+                                            return Err(self.make_error(&bc, "Failed to pop binary equal left".to_string()));
                                         }
                                     } else {
-                                        return Err(self.make_error(&bc, "Failed to pop binary equal b".to_string()));
+                                        return Err(self.make_error(&bc, "Failed to pop binary equal right".to_string()));
                                     }
 
                                 } 
@@ -655,21 +739,21 @@ impl<'a> StackVm {
                 },
                 Some(ByteOp::Greater) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Binary greater value cannot be nil".to_string())); }
-                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary greater value cannot be bool".to_string())); }
+                        Value::Nil => { return Err(self.make_error(&bc, "Binary greater right value cannot be Nil".to_string())); }
+                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary greater right value cannot be Bool".to_string())); }
                         Value::Number(_) => {
                             match self.stack_peek(1) {
-                                Value::Nil => { return Err(self.make_error(&bc, "Binary greater value cannot be nil".to_string())); }
-                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary greater value cannot be bool".to_string())); }
+                                Value::Nil => { return Err(self.make_error(&bc, "Binary greater value cannot be Nil".to_string())); }
+                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary greater value cannot be Bool".to_string())); }
                                 Value::Number(_) => {
                                     if let Some(Value::Number(b)) = self.stack.pop() {
                                         if let Some(Value::Number(a)) = self.stack.pop() {
                                             self.stack.push(Value::Bool(a > b));
                                         } else {
-                                            return Err(self.make_error(&bc, "Failed to pop binary greater a".to_string()));
+                                            return Err(self.make_error(&bc, "Failed to pop binary greater left".to_string()));
                                         }
                                     } else {
-                                        return Err(self.make_error(&bc, "Failed to pop binary greater b".to_string()));
+                                        return Err(self.make_error(&bc, "Failed to pop binary greater right".to_string()));
                                     }
 
                                 } 
@@ -679,21 +763,21 @@ impl<'a> StackVm {
                 },
                 Some(ByteOp::Less) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Binary less value cannot be nil".to_string())); }
-                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary less value cannot be bool".to_string())); }
+                        Value::Nil => { return Err(self.make_error(&bc, "Binary less right value cannot be Nil".to_string())); }
+                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary less right value cannot be Bool".to_string())); }
                         Value::Number(_) => {
                             match self.stack_peek(1) {
-                                Value::Nil => { return Err(self.make_error(&bc, "Binary less value cannot be nil".to_string())); }
-                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary less value cannot be bool".to_string())); }
+                                Value::Nil => { return Err(self.make_error(&bc, "Binary less value cannot be Nil".to_string())); }
+                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary less value cannot be Bool".to_string())); }
                                 Value::Number(_) => {
                                     if let Some(Value::Number(b)) = self.stack.pop() {
                                         if let Some(Value::Number(a)) = self.stack.pop() {
                                             self.stack.push(Value::Bool(a < b));
                                         } else {
-                                            return Err(self.make_error(&bc, "Failed to pop binary less a".to_string()));
+                                            return Err(self.make_error(&bc, "Failed to pop binary less left".to_string()));
                                         }
                                     } else {
-                                        return Err(self.make_error(&bc, "Failed to pop binary less b".to_string()));
+                                        return Err(self.make_error(&bc, "Failed to pop binary less right".to_string()));
                                     }
 
                                 } 
@@ -703,8 +787,8 @@ impl<'a> StackVm {
                 },
                 Some(ByteOp::Negate) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Unary negate value cannot be nil".to_string())); }
-                        Value::Bool(_) => { return Err(self.make_error(&bc, "Unary negate value cannot be bool".to_string())); }
+                        Value::Nil => { return Err(self.make_error(&bc, "Unary negate value cannot be Nil".to_string())); }
+                        Value::Bool(_) => { return Err(self.make_error(&bc, "Unary negate value cannot be Bool".to_string())); }
                         Value::Number(_) => {
                             if let Some(Value::Number(n)) = self.stack.pop() {
                                 self.stack.push(Value::Number(-n));
@@ -817,7 +901,7 @@ impl<'a> StackVm {
                 },
                 Some(ByteOp::JumpFalse(distance)) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Jump on false value cannot be nil".to_string())); },
+                        Value::Nil => { return Err(self.make_error(&bc, "Jump on false value cannot be Nil".to_string())); },
                         Value::Bool(_) => {
                             if let Some(Value::Bool(b)) = self.stack.pop() {
                                 if !b {
@@ -828,12 +912,12 @@ impl<'a> StackVm {
                                 return Err(self.make_error(&bc, "Failed to pop jump on false value".to_string()));
                             }
                         },
-                        Value::Number(_) => { return Err(self.make_error(&bc, "Jump on false value cannot be bool".to_string())); },
+                        Value::Number(_) => { return Err(self.make_error(&bc, "Jump on false value cannot be Number".to_string())); },
                     }
                 },
                 Some(ByteOp::JumpTrue(distance)) => {
                     match self.stack_peek(0) {
-                        Value::Nil => { return Err(self.make_error(&bc, "Jump on true value cannot be nil".to_string())); },
+                        Value::Nil => { return Err(self.make_error(&bc, "Jump on true value cannot be Nil".to_string())); },
                         Value::Bool(_) => {
                             if let Some(Value::Bool(b)) = self.stack.pop() {
                                 if b {
