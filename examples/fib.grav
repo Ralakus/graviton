@@ -1,4 +1,6 @@
 
+println("Iterative Fibonacci example");
+
 let output = if (let fib_number = {
         print("Enter a number: ");
         let n = read_num();
@@ -28,4 +30,4 @@ let output = if (let fib_number = {
         -fib_number
     };
 
-println(output);
+println("Result is: " + str(output));

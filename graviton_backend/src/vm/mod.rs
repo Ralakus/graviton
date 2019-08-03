@@ -255,7 +255,6 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
 
             ast_to_bytecode(bc, &*ifexpr)?;
 
-
             // patches the temporary jump instruction to the end of the if expression's expression
             bc.ops[last_jump_idx] = ByteOp::JumpFalse((bc.ops.len() as isize - last_jump_idx as isize + 2) as i16);
 

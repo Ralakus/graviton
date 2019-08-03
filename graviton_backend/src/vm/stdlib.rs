@@ -71,9 +71,57 @@ pub fn print(vm: &mut StackVm, _bc: &Bytecode) -> Result<(), VmError> {
     Ok(())
 }
 
+pub fn vmto_number(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
+    match vm.stack.pop() {
+        Some(val) => {
+            match val {
+                Value::Nil => vm.stack.push(Value::Number(0.0)),
+                Value::Bool(b) => vm.stack.push(Value::Number(if b { 1.0 } else { 0.0 })),
+                Value::Number(n) => vm.stack.push(Value::Number(n)),
+                Value::Object(_) => vm.stack.push(Value::Number(0.0)),
+            }
+        },
+        None => return Err(vm.make_error(bc, format!("No value in stack to convert")))
+    }
+    Ok(())
+}
+
+pub fn vmto_bool(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
+    match vm.stack.pop() {
+        Some(val) => {
+            match val {
+                Value::Nil => vm.stack.push(Value::Bool(false)),
+                Value::Bool(b) => vm.stack.push(Value::Bool(b)),
+                Value::Number(n) => vm.stack.push(Value::Bool(n > 0.0)),
+                Value::Object(_) => vm.stack.push(Value::Bool(false)),
+            }
+        },
+        None => return Err(vm.make_error(bc, format!("No value in stack to convert")))
+    }
+    Ok(())
+}
+
+pub fn vmto_string(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
+    match vm.stack.pop() {
+        Some(val) => {
+            match val {
+                Value::Nil => vm.stack.push(Value::Object(Box::new(format!("Nil")))),
+                Value::Bool(b) => vm.stack.push(Value::Object(Box::new(format!("{}", b)))),
+                Value::Number(n) => vm.stack.push(Value::Object(Box::new(format!("{}", n)))),
+                Value::Object(o) => vm.stack.push(Value::Object(Box::new(format!("{:?}", o)))),
+            }
+        },
+        None => return Err(vm.make_error(bc, format!("No value in stack to convert")))
+    }
+    Ok(())
+}
+
 pub fn add_stdlib(vm: &mut StackVm) {
     vm.add_fn(&"read_num".to_string(), 0, read_num);
     vm.add_fn(&"read_bool".to_string(), 0, read_bool);
     vm.add_fn(&"println".to_string(), 1, println);
     vm.add_fn(&"print".to_string(), 1, print);
+    vm.add_fn(&"num".to_string(), 1, vmto_number);
+    vm.add_fn(&"bool".to_string(), 1, vmto_bool);
+    vm.add_fn(&"str".to_string(), 1, vmto_string);
 }
