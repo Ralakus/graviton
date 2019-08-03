@@ -177,11 +177,16 @@ fn main() {
             Ok(rmp_serde::from_slice(&mapped_file[..]).unwrap())
         } else {
             let bc: graviton::backend::vm::Bytecode = rmp_serde::from_slice(&mapped_file[..]).unwrap();
-            let mut vm = graviton::backend::vm::StackVm::new();
-            match vm.run(bc, debug_level) {
-                Ok(graviton::backend::vm::Value::Nil) => {},
-                Ok(result) => println!("=> {:?}", result),
-                Err(err) => errors::report_vm_error(&err, None, Some(input.as_str())),
+            if debug_level >= 1 {
+                println!("{:#?}", bc);
+            }
+            if run_code {
+                let mut vm = graviton::backend::vm::StackVm::new();
+                match vm.run(bc, debug_level) {
+                    Ok(graviton::backend::vm::Value::Nil) => {},
+                    Ok(result) => println!("=> {:?}", result),
+                    Err(err) => errors::report_vm_error(&err, None, Some(input.as_str())),
+                }
             }
             return;
         };

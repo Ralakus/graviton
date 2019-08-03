@@ -1,5 +1,6 @@
 
 let output = if (let fib_number = {
+        print("Enter a number: ");
         let n = read_num();
 
         let mut prevprevn = 0;
