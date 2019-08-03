@@ -1,12 +1,12 @@
 
 use super::Value;
-use downcast_rs::*;
+use downcast_rs::Downcast;
 
 #[typetag::serde(tag = "StackVmObject")]
 pub trait StackVmObject: StackVmObjectClone + std::fmt::Debug + std::fmt::Display + Downcast {
     fn add(&self, r: Value) -> Result<Value, String>;
 }
-impl_downcast!(StackVmObject);
+downcast_rs::impl_downcast!(StackVmObject);
 
 pub trait StackVmObjectClone {
     fn clone_box(&self) -> Box<dyn StackVmObject>;
