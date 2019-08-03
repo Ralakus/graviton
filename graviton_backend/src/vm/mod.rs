@@ -533,8 +533,8 @@ impl<'a> StackVm {
                         Value::Bool(_) => { return Err(self.make_error(&bc, "Binary add right value cannot be Bool".to_string())); }
                         Value::Number(_) => {
                             match self.stack_peek(1) {
-                                Value::Nil => { return Err(self.make_error(&bc, "Binary add value cannot be Nil".to_string())); }
-                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary add value cannot be Bool".to_string())); }
+                                Value::Nil => { return Err(self.make_error(&bc, "Binary add left value cannot be Nil".to_string())); }
+                                Value::Bool(_) => { return Err(self.make_error(&bc, "Binary add left value cannot be Bool".to_string())); }
                                 Value::Number(_) => {
                                     if let Some(Value::Number(b)) = self.stack.pop() {
                                         if let Some(Value::Number(a)) = self.stack.pop() {
@@ -602,7 +602,7 @@ impl<'a> StackVm {
                 Some(ByteOp::Div) => {
                     match self.stack_peek(0) {
                         Value::Nil => { return Err(self.make_error(&bc, "Binary div right value cannot be Nil".to_string())); }
-                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary div value cannot be Bool".to_string())); }
+                        Value::Bool(_) => { return Err(self.make_error(&bc, "Binary div right value cannot be Bool".to_string())); }
                         Value::Number(_) => {
                             match self.stack_peek(1) {
                                 Value::Nil => { return Err(self.make_error(&bc, "Binary div left value cannot be Nil".to_string())); }
