@@ -58,6 +58,8 @@ then
   FAILED=1
 fi
 
+rm out.gast
+
 if [ $FAILED -eq 1 ]
 then
     exit 1
