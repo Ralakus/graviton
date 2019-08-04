@@ -87,11 +87,11 @@ fn main() {
                     EmitType::None
                 } else {
                     eprintln!("{}: Cannot emit nothing when output is specified, remove the \'o\', \"output\" argument", "Error".red());
-                    return;
+                    std::process::exit(1);
                 },
             s => {
                 eprintln!("{}: Invalid emit type {}", "Error".red(), s);
-                return;
+                std::process::exit(1);
             }
         };
 
@@ -106,14 +106,14 @@ fn main() {
             "src" | "source" => InputType::Source,
             "ast" => if emit_type == EmitType::Ast {
                     eprintln!("{}: Input is already AST, rename file if a different name is desired", "Error".red());
-                    return;
+                    std::process::exit(1);
                 } else {
                     InputType::Ast
                 },
             "bytecode" | "bc" => {
                 if emit_type == EmitType::Ast {
                     eprintln!("{}: Cannot emit AST from bytecode", "Error".red());
-                    return;
+                    std::process::exit(1);
                 } else {
                     InputType::Bytecode
                 }
@@ -156,7 +156,7 @@ fn main() {
         }
     } else {
         eprintln!("{}: Expects at least one argument for input", "Error".red());
-        return;
+        std::process::exit(1);
     };
     let mapped_file: memmap::Mmap;
 
@@ -164,7 +164,7 @@ fn main() {
         Ok(f) => f,
         Err(e) => {
             eprintln!("{}: {}: {}", "Error".red(), input, e.description());
-            return;
+            std::process::exit(1);
         }
     };
     mapped_file = unsafe { Mmap::map(&file).expect("failed to map file") };
@@ -223,14 +223,17 @@ fn main() {
                                 }
                             }
                         },
-                        Err(err) => errors::report_vm_error(&err, if input_type == InputType::Source { Some(&*source) } else { None }, Some(input.as_str())),
+                        Err(err) => {
+                            errors::report_vm_error(&err, if input_type == InputType::Source { Some(&*source) } else { None }, Some(input.as_str()));
+                            std::process::exit(1);
+                        }
                     };
                 },
                 Err(errors) => {
                     for e in errors {
                         errors::report_semantic_error(&e, if input_type == InputType::Source { Some(&*source) } else { None }, Some(input.as_str()));
                     }
-                    return;
+                    std::process::exit(1);
                 } 
             }
         },
@@ -238,6 +241,7 @@ fn main() {
             for e in errors {
                 errors::report_parser_error(&e, Some(source));
             }
+            std::process::exit(1);
         },
     };
 
