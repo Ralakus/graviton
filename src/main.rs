@@ -126,11 +126,11 @@ fn main() {
 
     let output: String = match args.value_of("output").unwrap_or(match emit_type {
             EmitType::Ast => "out.gast",
-            EmitType::Bytecode | EmitType::None => "out.gbc",
+            EmitType::Bytecode | EmitType::None => "out.gabc",
         }) {
             s if !s.contains(".") => match emit_type {
                     EmitType::Ast => format!("{}.gast", s),
-                    EmitType::Bytecode | EmitType::None => format!("{}.gbc", s)
+                    EmitType::Bytecode | EmitType::None => format!("{}.gabc", s)
                 },
             s => s.to_string()
         };
@@ -150,7 +150,7 @@ fn main() {
             s if !s.contains(".") => match input_type {
                     InputType::Source => format!("{}.grav", s),
                     InputType::Ast => format!("{}.gast", s),
-                    InputType::Bytecode => format!("{}.gbc", s)
+                    InputType::Bytecode => format!("{}.gabc", s)
                 },
             s => s.to_string()
         }
@@ -196,33 +196,43 @@ fn main() {
             if debug_level >= 2 {
                 println!("{}\n{:#?}", "AST:".cyan(), a);
             }
-            if emit_type == EmitType::Ast {
-                let mut f = File::create(output).unwrap();
-                f.write_all(&*rmp_serde::to_vec(&a).unwrap()).unwrap();
-                return;
-            }
-            let bytecode = graviton::backend::vm::Bytecode::new(a);
-            match bytecode {
-                Ok(bc) => {
-                    if debug_level >= 1 {
-                        println!("{:#?}", bc);
-                    }
-                    if emit_type == EmitType::Bytecode {
+            match graviton::ast::semantic::SemanticAnalyzer::analyze(&a, Some(graviton::backend::vm::stdlib::get_stdlib_signatures())) {
+                Ok(_) => {
+                    if emit_type == EmitType::Ast {
                         let mut f = File::create(output).unwrap();
-                        f.write_all(&*rmp_serde::to_vec(&bc).unwrap()).unwrap();
+                        f.write_all(&*rmp_serde::to_vec(&a).unwrap()).unwrap();
                         return;
                     }
-                    if run_code {
-                        let mut vm = graviton::backend::vm::StackVm::new();
-                        match vm.run(bc, debug_level) {
-                            Ok(graviton::backend::vm::Value::Nil) => {},
-                            Ok(result) => println!("=> {:?}", result),
-                            Err(err) => errors::report_vm_error(&err, if input_type == InputType::Source { Some(&*source) } else { None }, Some(input.as_str())),
-                        }
-                    }
+                    let bytecode = graviton::backend::vm::Bytecode::new(a);
+                    match bytecode {
+                        Ok(bc) => {
+                            if debug_level >= 1 {
+                                println!("{:#?}", bc);
+                            }
+                            if emit_type == EmitType::Bytecode {
+                                let mut f = File::create(output).unwrap();
+                                f.write_all(&*rmp_serde::to_vec(&bc).unwrap()).unwrap();
+                                return;
+                            }
+                            if run_code {
+                                let mut vm = graviton::backend::vm::StackVm::new();
+                                match vm.run(bc, debug_level) {
+                                    Ok(graviton::backend::vm::Value::Nil) => {},
+                                    Ok(result) => println!("=> {:?}", result),
+                                    Err(err) => errors::report_vm_error(&err, if input_type == InputType::Source { Some(&*source) } else { None }, Some(input.as_str())),
+                                }
+                            }
+                        },
+                        Err(err) => errors::report_vm_error(&err, if input_type == InputType::Source { Some(&*source) } else { None }, Some(input.as_str())),
+                    };
                 },
-                Err(err) => errors::report_vm_error(&err, if input_type == InputType::Source { Some(&*source) } else { None }, Some(input.as_str())),
-            };
+                Err(errors) => {
+                    for e in errors {
+                        errors::report_semantic_error(&e, if input_type == InputType::Source { Some(&*source) } else { None }, Some(input.as_str()));
+                    }
+                    return;
+                } 
+            }
         },
         Err(errors) => {
             for e in errors {

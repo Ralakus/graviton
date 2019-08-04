@@ -53,20 +53,29 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                 if debug_level >= 2 {
                     println!("{}\n{:#?}", "AST:".cyan(), a);
                 }
-                let bytecode = graviton::backend::vm::Bytecode::new(a);
-                match bytecode {
-                    Ok(bc) => {
-                        if debug_level >= 1 {
-                            println!("{:#?}", bc);
-                        }
-                        let mut vm = graviton::backend::vm::StackVm::new();
-                        match vm.run(bc, debug_level) {
-                            Ok(result) => println!("=> {:?}", result),
+                match graviton::ast::semantic::SemanticAnalyzer::analyze(&a, Some(graviton::backend::vm::stdlib::get_stdlib_signatures())) {
+                    Ok(_) => {
+                        let bytecode = graviton::backend::vm::Bytecode::new(a);
+                        match bytecode {
+                            Ok(bc) => {
+                                if debug_level >= 1 {
+                                    println!("{:#?}", bc);
+                                }
+                                let mut vm = graviton::backend::vm::StackVm::new();
+                                match vm.run(bc, debug_level) {
+                                    Ok(result) => println!("=> {:?}", result),
+                                    Err(err) => errors::report_vm_error(&err, Some(&*source), None),
+                                }
+                            },
                             Err(err) => errors::report_vm_error(&err, Some(&*source), None),
-                        }
+                        };
                     },
-                    Err(err) => errors::report_vm_error(&err, Some(&*source), None),
-                };
+                    Err(errors) => {
+                        for e in errors {
+                            errors::report_semantic_error(&e, Some(&*source), None);
+                        }
+                    }
+                }
             },
             Err(errors) => {
                 for e in errors {

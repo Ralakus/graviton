@@ -70,6 +70,8 @@ impl<'a> Lexer<'a> {
             "false" => TokenType::KwFalse,
 
             "nil" => TokenType::KwNil,
+
+            "as" => TokenType::KwAs,
             
             _ => TokenType::Identifier
         }
@@ -98,7 +100,20 @@ impl<'a> Iterator for Lexer<'a> {
             Some('+') => Some(Token::new(TokenType::Plus, TokenData::None, self.start_pos)),
             Some('-') => Some(Token::new(TokenType::Minus, TokenData::None, self.start_pos)),
             Some('*') => Some(Token::new(TokenType::Star, TokenData::None, self.start_pos)),
-            Some('/') => Some(Token::new(TokenType::Slash, TokenData::None, self.start_pos)),
+            Some('/') => match self.peek() {
+                Some('/') => {
+                    self.advance();
+                    while let Some(c) = self.peek() {
+                        if c == '\n' {
+                            break;
+                        } else {
+                            self.advance();
+                        }
+                    }
+                    self.next()
+                }
+                _ => Some(Token::new(TokenType::Slash, TokenData::None, self.start_pos))
+            }
 
             Some('!') => match self.peek() {
                 Some('=') => {

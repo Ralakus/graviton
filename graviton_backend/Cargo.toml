@@ -1,6 +1,6 @@
 [package]
 name = "graviton_backend"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
@@ -11,17 +11,16 @@ license = "MIT"
 readme = "README.md"
 
 [features]
-node_code_pos = [ "graviton_ast/node_code_pos" ]
 store_names = []
 
 [dependencies]
-graviton_ast = { path = "../graviton_ast", version = "0.4.1" }
+graviton_ast = { path = "../graviton_ast", version = "0.5.0" }
 
 serde = { version = "1.0.98", features = ["derive"] }
 typetag = "0.1.3"
 
 downcast-rs = "1.0.4"
 
-# cranelift = "0.37.0"
+cranelift = "0.37.0"
 
 crc16 = "0.4.0"

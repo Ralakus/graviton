@@ -39,12 +39,13 @@ pub enum PrimitiveType {
     U8,
     U16,
     U32,
-    U64
+    U64,
 }
 
 #[derive(Hash, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum TypeSignature {
     Primitive(PrimitiveType),
+    Function(FunctionSignature),
     Custom(String)
 }
 
@@ -66,16 +67,27 @@ impl<'a> TypeSignature {
     }
 }
 
-#[derive(Hash, Clone, Debug, Serialize, Deserialize)]
+#[derive(Hash, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct VariableSignature {
-    pub name: String,
+    pub mutable: bool,
     pub type_sig: Option<TypeSignature>,
 }
 
-#[derive(Hash, Clone, Debug, Serialize, Deserialize)]
+#[derive(Hash, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct FunctionSignature {
     pub params: Vec<VariableSignature>,
-    pub return_type: Option<TypeSignature>,
+    pub return_type: Option<Box<TypeSignature>>,
+}
+
+#[macro_export]
+macro_rules! make_fn_sig {
+    (fn ( $( $type_:ident ),* ): $ret:ident) => {
+        ast::FunctionSignature{ params: vec!(
+            $(
+                ast::VariableSignature { mutable: true, type_sig: Some(ast::TypeSignature::new(stringify!($type_))) },
+            )*
+        ), return_type: Some(Box::new(ast::TypeSignature::new(stringify!($ret)))) }
+    };
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,38 +125,31 @@ pub enum Ast {
     // while cond, while expr
     While(Box<AstNode>, Box<AstNode>),
 
-    // variable name, mutable, optional value expr
-    Let(VariableSignature, bool, Option<Box<AstNode>>),
+    // name, variable signature, optional value expr
+    Let(String, VariableSignature, Option<Box<AstNode>>),
 
     // import file name, file's ast
     Import(String, Box<AstNode>),
 
-    // optional function name, function parameters, return type, implementation
-    FnDef(Option<String>, FunctionSignature, Box<AstNode>),
+    // function parameters, param names return type, implementation
+    FnDef(FunctionSignature, Vec<String>, Box<AstNode>),
 
     // expression that evaluates to function, arguments
     FnCall(Box<AstNode>, Vec<AstNode>),
+
+    // expression, type to cast to
+    As(Box<AstNode>, TypeSignature)
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AstNode {
     pub node: Ast,
 
-    #[cfg(feature = "node_code_pos")]
     pub pos: super::Position
 }
 
 impl std::fmt::Debug for AstNode {
-    #[cfg(not(feature = "node_code_pos"))]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if f.alternate() {
-            write!(f, "{}", format!("{:#?}", self.node))
-        } else {
-            write!(f, "{}", format!("{:?}", self.node))
-        }
-    }
 
-    #[cfg(feature = "node_code_pos")]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
             write!(f, "{}", format!("[{},{}]: {:#?}", self.pos.line, self.pos.col, self.node))

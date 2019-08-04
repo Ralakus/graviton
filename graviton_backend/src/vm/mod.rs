@@ -4,30 +4,20 @@ use super::ast;
 use serde::{Serialize, Deserialize};
 use std::collections::hash_map::*;
 
-mod object;
-mod stdlib;
+pub mod object;
+pub mod stdlib;
 
 #[derive(Clone, Debug)]
 pub struct VmError {
     pub msg: String,
-
-    #[cfg(feature = "node_code_pos")]
     pub pos: ast::Position
 }
 
 impl VmError {
-    #[cfg(feature = "node_code_pos")]
     fn new(msg: String, ast: &ast::AstNode) -> VmError {
         VmError {
             msg,
             pos: ast.pos
-        }
-    }
-
-    #[cfg(not(feature = "node_code_pos"))]
-    fn new(msg: String, _ast: &ast::AstNode) -> VmError {
-        VmError {
-            msg,
         }
     }
 }
@@ -85,8 +75,6 @@ pub enum ByteOp {
 pub struct Bytecode {
     constants: Vec<Value>,
     ops: Vec<ByteOp>,
-
-    #[cfg(feature = "node_code_pos")]
     positions: Vec<ast::Position>,
 
     #[cfg(feature = "store_names")]
@@ -98,8 +86,6 @@ impl Bytecode {
         let mut bc = Bytecode {
             constants: Vec::new(),
             ops: Vec::new(),
-
-            #[cfg(feature = "node_code_pos")]
             positions: Vec::new(),
 
             #[cfg(feature = "store_names")]
@@ -109,15 +95,9 @@ impl Bytecode {
         Ok(bc)
     }
 
-    #[cfg(feature = "node_code_pos")]
     fn emit(&mut self, ast: &ast::AstNode, op: ByteOp) {
         self.ops.push(op);
         self.positions.push(ast.pos);
-    }
-
-    #[cfg(not(feature = "node_code_pos"))]
-    fn emit(&mut self, _sdy: &ast::AstNode, op: ByteOp) {
-        self.ops.push(op);
     }
 }
 
@@ -301,12 +281,12 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
             }
         },
         ast::Ast::While(cond, expr) => {
+            // saves index in code to the begining of the condition expression
+            let begin_idx = bc.ops.len();
 
             // opens a new scope for the while expression
             bc.emit(&ast, ByteOp::ScopeOpen);
 
-            // saves index in code to the begining of the condition expression
-            let begin_idx = bc.ops.len();
             ast_to_bytecode(bc, &*cond)?;
 
             // adds a temporary jump that needs to be patched that jumps to the end of the entire expression
@@ -315,25 +295,26 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
 
             ast_to_bytecode(bc, &*expr)?;
 
+            // closes the while expression scope
+            bc.emit(&ast, ByteOp::ScopeClose);
+
             // patches jump to begining of the condition expression
             bc.emit(&ast, ByteOp::Jump((begin_idx as isize - bc.ops.len() as isize) as i16));
 
             // patches conditional jump to end of entire expression
             bc.ops[cond_jump_idx] = ByteOp::JumpFalse((bc.ops.len() as isize - cond_jump_idx as isize) as i16);
 
-            // closes the while expression scope
-            bc.emit(&ast, ByteOp::ScopeClose);
         },
-        ast::Ast::Let(var_sig, mutable, set_expr) => {
+        ast::Ast::Let(name, var_sig, set_expr) => {
             if let Some(se) = set_expr {
                 ast_to_bytecode(bc, &*se)?;
             }
-            let hash = crc16::State::<crc16::ARC>::calculate(var_sig.name.as_bytes());
+            let hash = crc16::State::<crc16::ARC>::calculate(name.as_bytes());
 
             #[cfg(feature = "store_names")]
-            bc.names.insert(hash, var_sig.name.clone());
+            bc.names.insert(hash, name.clone());
 
-            if *mutable {
+            if var_sig.mutable {
                 bc.emit(&ast, ByteOp::DefMutVar(hash));
             } else {
                 bc.emit(&ast, ByteOp::DefVar(hash));
@@ -424,18 +405,22 @@ impl<'a> StackVm {
         None
     }
 
-    #[cfg(feature = "node_code_pos")]
+    fn var_in_last_scope(scope_stack: &'a Vec<Scope>, id: &u16) -> Option<&'a (bool, Value)> {
+        match scope_stack.last() {
+            Some(s) => {
+                match s.variables.get(id) {
+                    Some(var) => Some(var),
+                    None => None
+                }
+            },
+            None => None
+        }
+    }
+
     pub fn make_error(&self, bc: &Bytecode, msg: String) -> VmError {
         VmError {
             msg,
             pos: bc.positions[self.ip_idx]
-        }
-    }
-
-    #[cfg(not(feature = "node_code_pos"))]
-    pub fn make_error(&self, _bc: &Bytecode, msg: String) -> VmError {
-        VmError {
-            msg
         }
     }
 
@@ -810,7 +795,7 @@ impl<'a> StackVm {
                     }
                 },
                 Some(ByteOp::DefVar(id)) => {
-                    match StackVm::var_in_scopes_mut(&mut self.scopes, id) {
+                    match StackVm::var_in_scopes(&mut self.scopes, id) {
                         Some(_) => {
                             #[cfg(feature = "store_names")]
                             return Err(self.make_error(&bc, format!("Variable: {} already defined", bc.names[id])));
@@ -824,7 +809,7 @@ impl<'a> StackVm {
                     }
                 },
                 Some(ByteOp::DefMutVar(id)) => {
-                    match StackVm::var_in_scopes_mut(&mut self.scopes, id) {
+                    match StackVm::var_in_scopes(&mut self.scopes, id) {
                         Some(_) => {
 
                             #[cfg(feature = "store_names")]

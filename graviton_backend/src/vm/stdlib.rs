@@ -2,9 +2,10 @@
 use std::io::{BufRead,Write};
 use std::error::Error;
 use super::{StackVm, Bytecode, VmError, Value};
+use super::ast::semantic::SemanticStdLib;
+
 
 pub fn read_num(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
-    // print!("Input number: "); std::io::stdout().flush().unwrap();
 
     let mut input = String::new();
     if let Err(e) = std::io::stdin().lock().read_line(&mut input) {
@@ -22,7 +23,6 @@ pub fn read_num(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
 }
 
 pub fn read_bool(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
-    // print!("Input bool [true, false]: "); std::io::stdout().flush().unwrap();
 
     let mut input = String::new();
     if let Err(e) = std::io::stdin().lock().read_line(&mut input) {
@@ -34,6 +34,20 @@ pub fn read_bool(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
             "false" => Value::Bool(false),
             _ => return Err(vm.make_error(bc, "Not true or false".to_string()))
         };
+
+    vm.stack.push(value);
+
+    Ok(())
+}
+
+pub fn read_line(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
+
+    let mut input = String::new();
+    if let Err(e) = std::io::stdin().lock().read_line(&mut input) {
+        return Err(vm.make_error(bc, e.description().to_string()));
+    }
+
+    let value = Value::Object(Box::new(input.trim().to_string()));
 
     vm.stack.push(value);
 
@@ -78,7 +92,17 @@ pub fn vmto_number(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
                 Value::Nil => vm.stack.push(Value::Number(0.0)),
                 Value::Bool(b) => vm.stack.push(Value::Number(if b { 1.0 } else { 0.0 })),
                 Value::Number(n) => vm.stack.push(Value::Number(n)),
-                Value::Object(_) => vm.stack.push(Value::Number(0.0)),
+                Value::Object(o) => {
+                    match o.downcast::<String>() {
+                        Ok(s) => {
+                            match s.trim().parse::<f64>() {
+                                Ok(n) => vm.stack.push(Value::Number(n)),
+                                Err(e) => return Err(vm.make_error(bc, e.description().to_string()))
+                            }
+                        },
+                        Err(_) => return Err(vm.make_error(bc, format!("Can only parse string object to numbers")))
+                    }
+                },
             }
         },
         None => return Err(vm.make_error(bc, format!("No value in stack to convert")))
@@ -117,11 +141,29 @@ pub fn vmto_string(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
 }
 
 pub fn add_stdlib(vm: &mut StackVm) {
+    vm.add_fn(&"read_line".to_string(), 0, read_line);
     vm.add_fn(&"read_num".to_string(), 0, read_num);
     vm.add_fn(&"read_bool".to_string(), 0, read_bool);
     vm.add_fn(&"println".to_string(), 1, println);
     vm.add_fn(&"print".to_string(), 1, print);
-    vm.add_fn(&"num".to_string(), 1, vmto_number);
-    vm.add_fn(&"bool".to_string(), 1, vmto_bool);
-    vm.add_fn(&"str".to_string(), 1, vmto_string);
+    vm.add_fn(&"nums".to_string(), 1, vmto_number);
+    vm.add_fn(&"numb".to_string(), 1, vmto_number);
+    vm.add_fn(&"booln".to_string(), 1, vmto_bool);
+    vm.add_fn(&"strn".to_string(), 1, vmto_string);
+    vm.add_fn(&"strb".to_string(), 1, vmto_string);
+}
+
+pub fn get_stdlib_signatures() -> SemanticStdLib {
+    let mut stdlib = SemanticStdLib::new();
+    stdlib.add_fn(String::from("read_line"), make_fn_sig! { fn(): String });
+    stdlib.add_fn(String::from("read_num"), make_fn_sig! { fn(): I32 });
+    stdlib.add_fn(String::from("read_bool"), make_fn_sig! { fn(): Bool });
+    stdlib.add_fn(String::from("println"), make_fn_sig! { fn(String): Nil });
+    stdlib.add_fn(String::from("print"), make_fn_sig! { fn(String): Nil });
+    stdlib.add_fn(String::from("nums"), make_fn_sig! { fn(String): I32 });
+    stdlib.add_fn(String::from("numb"), make_fn_sig! { fn(Bool): I32 });
+    stdlib.add_fn(String::from("booln"), make_fn_sig! { fn(I32): Bool });
+    stdlib.add_fn(String::from("strn"), make_fn_sig! { fn(I32): String });
+    stdlib.add_fn(String::from("strb"), make_fn_sig! { fn(Bool): String });
+    stdlib
 }

@@ -1,6 +1,6 @@
 
 pub mod ast;
-pub use ast::{Ast, AstNode, UnaryOperation, BinaryOperation, TypeSignature, VariableSignature, FunctionSignature};
+pub use ast::{Ast, AstNode, UnaryOperation, BinaryOperation, TypeSignature, VariableSignature, FunctionSignature, PrimitiveType};
 pub mod semantic;
 
 use serde::{Serialize, Deserialize};

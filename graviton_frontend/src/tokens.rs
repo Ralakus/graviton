@@ -55,6 +55,8 @@ pub enum TokenType {
     KwFalse,
     KwNil,
 
+    KwAs,
+
     Err,
     Eof
 }
