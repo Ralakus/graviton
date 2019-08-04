@@ -163,20 +163,16 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &ast::AstNode) -> ast::TypeSignat
                     BOOL_TYPE_SIGNATURE.clone()
                 },
                 ast::BinaryOperation::Assign => {
+                    let return_type = analyze(sa, &**l);
+                    if return_type != analyze(sa, &**r) {
+                        sa.make_err(ast, format!("Binary operands are not the same type"));
+                    }
                     if let ast::Ast::Identifier(s) = &l.node {
                         if let None = sa.check_if_var_in_scopes(s) {
                             sa.make_err(l, format!("Variable {} not found in scope", s));
                         }
-                        let return_type = analyze(sa, &**l);
-                        if return_type != analyze(sa, &**r) {
-                            sa.make_err(ast, format!("Binary operands are not the same type"));
-                        }
                         return_type
                     } else {
-                        let return_type = analyze(sa, &**l);
-                        if return_type != analyze(sa, &**r) {
-                            sa.make_err(ast, format!("Binary operands are not the same type"));
-                        }
                         sa.make_err(ast, format!("Binary assign not assigning variable"));
                         NIL_TYPE_SIGNATURE.clone()
                     }
@@ -304,6 +300,7 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &ast::AstNode) -> ast::TypeSignat
                         sa.last_scope().variables.insert(name.clone(), (sig.mutable, expr_type));
                     } else {
                         sa.make_err(ast, format!("Cannot infer type without an assign expression"));
+                        sa.last_scope().variables.insert(name.clone(), (sig.mutable, NIL_TYPE_SIGNATURE.clone()));
                     }
                 }
                 return_type

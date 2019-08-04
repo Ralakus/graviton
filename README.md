@@ -27,7 +27,9 @@ println("Iterative Fibonacci example");
 print("Enter a number: ");
 let n = read_num();
 
-let output = if (let fib_number = {
+let mut fib_number: I32;
+
+let output = if (fib_number = {
 
         let mut prevprevn = 0;
         let mut prevn = 0;
@@ -55,7 +57,7 @@ let output = if (let fib_number = {
         -fib_number
     };
 
-println("Fibonacci of " + str(n) + " is " + str(output));
+println("Fibonacci of " + strn(n) + " is " + strn(output));
 ```
 
 ## How can follow the progress?
