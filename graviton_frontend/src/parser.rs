@@ -134,7 +134,8 @@ impl<'a> Parser<'a> {
 
             prefix_node: AstNode {
                 node: Ast::Block(Vec::new()),
-                pos: Position { line: 1, col: 1 }
+                pos: Position { line: 1, col: 1 },
+                type_sig: None
             }
         };
 
@@ -198,7 +199,8 @@ impl<'a> Parser<'a> {
     fn new_node(&self, ast: Ast) -> AstNode {
         AstNode {
             node: ast,
-            pos: self.previous.pos.clone()
+            pos: self.previous.pos.clone(),
+            type_sig: None,
         }
     }
 
@@ -206,6 +208,48 @@ impl<'a> Parser<'a> {
 
 fn nil_func<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     Err(p.make_error("Invalid parser function call"))
+}
+
+fn type_signature<'a>(p: &mut Parser<'a>) -> Result<(bool, TypeSignature), ParseError> {
+
+    let mutable = if p.check(TokenType::KwMut) {
+            p.advance();
+            true
+        } else {
+            false
+        };
+
+    let type_sig = if p.check(TokenType::Identifier) {
+        p.advance();
+        TypeSignature::new(match &p.previous.data {
+                TokenData::String(s) => s.as_str(),
+                _ => return Err(p.make_error("Could not read identifier name from token"))
+            })
+        } else if p.check(TokenType::KwFn) {
+            p.advance();
+            p.consume(TokenType::LParen, "Expected opening left parenthesis for function parameters")?;
+            let mut params: Vec<VariableSignature> = Vec::new();
+            if p.check(TokenType::Identifier) || p.check(TokenType::KwFn) {
+
+                let mut type_sig = type_signature(p)?;
+
+                params.push(VariableSignature { mutable: type_sig.0,  type_sig: Some(type_sig.1) });
+
+                while p.check(TokenType::Comma) {
+                    p.advance();
+                    type_sig = type_signature(p)?;
+                    params.push(VariableSignature { mutable: type_sig.0,  type_sig: Some(type_sig.1) });
+                }
+            }
+            p.consume(TokenType::RParen, "Expected closing right parenthesis for function parameters")?;
+            p.consume(TokenType::Colon, "Expected colon before function return type")?;
+            let return_type = type_signature(p)?;
+            TypeSignature::Function(FunctionSignature{ params: params, return_type: Some(Box::new(return_type.1)) })
+        } else {
+            return Err(p.make_error("Expected identifier or function signature for type signature"));
+        };
+
+    Ok((mutable, type_sig))
 }
 
 fn variable_signature<'a>(p: &mut Parser<'a>) -> Result<(String, VariableSignature), ParseError> {
@@ -220,15 +264,9 @@ fn variable_signature<'a>(p: &mut Parser<'a>) -> Result<(String, VariableSignatu
     let type_sig: Option<TypeSignature> = 
     if p.check(TokenType::Colon) {
         p.advance();
-        if p.check(TokenType::KwMut) {
-            mutable = true;
-            p.advance();
-        }
-        p.consume(TokenType::Identifier, "Expected identifier for type")?;
-        Some(TypeSignature::new(match &p.previous.data {
-                TokenData::String(s) => s.as_str(),
-                _ => return Err(p.make_error("Could not read identifier name from token"))
-            }))
+        let type_sig = type_signature(p)?;
+        mutable = type_sig.0;
+        Some(type_sig.1)
     } else {
         None
     };
@@ -277,19 +315,6 @@ fn maybe_statement_else_expression<'a>(p: &mut Parser<'a>) -> Result<AstNode, Pa
         Ok(expr)
     }
 }
-
-/*fn statement<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
-    let is_return = if p.check(TokenType::KwReturn) {
-        p.advance();
-        true
-    } else {
-        false
-    };
-
-    let expr = expression(p)?;
-    p.consume(TokenType::Semicolon, "Expected \';\' to end expression to make into statement")?;
-    if !is_return { Ok(p.new_node(Ast::Statement(Box::new(expr)))) } else { Ok(p.new_node(Ast::Return(Box::new(expr)))) }
-}*/
 
 fn expression<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     parse_precedence(p, Prec::Assignment)
@@ -465,13 +490,13 @@ fn fn_<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
             None
         };
 
-    p.consume(TokenType::LParen, "Expected left parenthesis for function params")?;
+    p.consume(TokenType::LParen, "Expected left parenthesis for function parameters")?;
 
     let mut params: Vec<VariableSignature> = Vec::new();
     let mut names: Vec<String> = Vec::new();
 
     if !p.check(TokenType::RParen) {
-        
+
         let mut sig = variable_signature(p)?;
         names.push(sig.0);
         params.push(sig.1);
@@ -485,16 +510,13 @@ fn fn_<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
 
     }
 
-    p.consume(TokenType::RParen, "Expected right parenthesis to close function params")?;
+    p.consume(TokenType::RParen, "Expected right parenthesis to close function parameters")?;
 
     let type_sig: Option<Box<TypeSignature>> = 
         if p.check(TokenType::Colon) {
             p.advance();
-            p.consume(TokenType::Identifier, "Expected type identifier")?;
-            Some(Box::new(TypeSignature::new(match &p.previous.data {
-                    TokenData::String(s) => s.as_str(),
-                    _ => return Err(p.make_error("Could not read identifier name from token"))
-                })))
+            let type_sig = type_signature(p)?;
+            Some(Box::new(type_sig.1))
         } else {
             None
         };

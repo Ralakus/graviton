@@ -22,5 +22,7 @@ typetag = "0.1.3"
 downcast-rs = "1.0.4"
 
 cranelift = "0.37.0"
+cranelift-module = "0.37.0"
+cranelift-simplejit = "0.37.0"
 
 crc16 = "0.4.0"

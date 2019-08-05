@@ -192,12 +192,12 @@ fn main() {
         };
 
     match ast {
-        Ok(a) => {
-            if debug_level >= 2 {
-                println!("{}\n{:#?}", "AST:".cyan(), a);
-            }
-            match graviton::ast::semantic::SemanticAnalyzer::analyze(&a, Some(graviton::backend::vm::stdlib::get_stdlib_signatures())) {
+        Ok(mut a) => {
+            match graviton::ast::semantic::SemanticAnalyzer::analyze(&mut a, Some(graviton::backend::vm::stdlib::get_stdlib_signatures())) {
                 Ok(_) => {
+                    if debug_level >= 2 {
+                        println!("{}\n{:#?}", "Typed AST:".cyan(), a);
+                    }
                     if emit_type == EmitType::Ast {
                         let mut f = File::create(output).unwrap();
                         f.write_all(&*rmp_serde::to_vec(&a).unwrap()).unwrap();
@@ -230,6 +230,9 @@ fn main() {
                     };
                 },
                 Err(errors) => {
+                    if debug_level >= 2 {
+                        println!("{}\n{:#?}", "Untyped AST:".cyan(), a);
+                    }
                     for e in errors {
                         errors::report_semantic_error(&e, if input_type == InputType::Source { Some(&*source) } else { None }, Some(input.as_str()));
                     }

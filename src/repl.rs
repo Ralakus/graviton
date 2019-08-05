@@ -49,12 +49,12 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
         let ast = graviton::frontend::parser::Parser::parse(source.as_str(), None);
 
         match ast {
-            Ok(a) => {
-                if debug_level >= 2 {
-                    println!("{}\n{:#?}", "AST:".cyan(), a);
-                }
-                match graviton::ast::semantic::SemanticAnalyzer::analyze(&a, Some(graviton::backend::vm::stdlib::get_stdlib_signatures())) {
+            Ok(mut a) => {
+                match graviton::ast::semantic::SemanticAnalyzer::analyze(&mut a, Some(graviton::backend::vm::stdlib::get_stdlib_signatures())) {
                     Ok(_) => {
+                        if debug_level >= 2 {
+                            println!("{}\n{:#?}", "Typed AST:".cyan(), a);
+                        }
                         let bytecode = graviton::backend::vm::Bytecode::new(a);
                         match bytecode {
                             Ok(bc) => {
@@ -71,6 +71,9 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                         };
                     },
                     Err(errors) => {
+                        if debug_level >= 2 {
+                            println!("{}\n{:#?}", "Untyepd AST:".cyan(), a);
+                        }
                         for e in errors {
                             errors::report_semantic_error(&e, Some(&*source), None);
                         }

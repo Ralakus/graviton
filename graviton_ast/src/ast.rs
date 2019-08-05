@@ -144,17 +144,17 @@ pub enum Ast {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AstNode {
     pub node: Ast,
-
-    pub pos: super::Position
+    pub pos: super::Position,
+    pub type_sig: Option<TypeSignature>,
 }
 
 impl std::fmt::Debug for AstNode {
 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
-            write!(f, "{}", format!("[{},{}]: {:#?}", self.pos.line, self.pos.col, self.node))
+            write!(f, "{}", format!("[{},{}]: {:?}: {:#?}", self.pos.line, self.pos.col, self.type_sig, self.node))
         } else {
-            write!(f, "{}", format!("[{},{}]: {:?}", self.pos.line, self.pos.col, self.node))
+            write!(f, "{}", format!("[{},{}]: {:?}: {:?}", self.pos.line, self.pos.col, self.type_sig, self.node))
         }
     }
 }
