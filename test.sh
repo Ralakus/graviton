@@ -62,5 +62,7 @@ rm out.gast
 
 if [ $FAILED -eq 1 ]
 then
-    exit 1
+  exit 1
+else
+  echo "All tests passed"
 fi

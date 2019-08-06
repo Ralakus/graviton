@@ -1,4 +1,3 @@
-
 #[macro_use]
 extern crate graviton_ast as ast;
 

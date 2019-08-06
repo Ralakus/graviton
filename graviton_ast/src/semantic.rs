@@ -1,12 +1,14 @@
-
 use super::ast;
 
 use std::collections::HashMap;
 
 const DEFAULT_NUM_PRIMITIVE_SIGNATURE: ast::PrimitiveType = ast::PrimitiveType::I32;
-const DEFAULT_NUM_TYPE_SIGNATURE: ast::TypeSignature = ast::TypeSignature::Primitive(DEFAULT_NUM_PRIMITIVE_SIGNATURE);
-const NIL_TYPE_SIGNATURE: ast::TypeSignature = ast::TypeSignature::Primitive(ast::PrimitiveType::Nil);
-const BOOL_TYPE_SIGNATURE: ast::TypeSignature = ast::TypeSignature::Primitive(ast::PrimitiveType::Bool);
+const DEFAULT_NUM_TYPE_SIGNATURE: ast::TypeSignature =
+    ast::TypeSignature::Primitive(DEFAULT_NUM_PRIMITIVE_SIGNATURE);
+const NIL_TYPE_SIGNATURE: ast::TypeSignature =
+    ast::TypeSignature::Primitive(ast::PrimitiveType::Nil);
+const BOOL_TYPE_SIGNATURE: ast::TypeSignature =
+    ast::TypeSignature::Primitive(ast::PrimitiveType::Bool);
 
 #[derive(Debug, Clone)]
 pub struct SemanticError {
@@ -16,18 +18,19 @@ pub struct SemanticError {
 
 #[derive(Debug, Clone)]
 pub struct SemanticStdLib {
-    variables: HashMap<String, (bool, ast::TypeSignature)>
+    variables: HashMap<String, (bool, ast::TypeSignature)>,
 }
 
 impl SemanticStdLib {
     pub fn new() -> SemanticStdLib {
         SemanticStdLib {
-            variables: HashMap::new()
+            variables: HashMap::new(),
         }
     }
 
     pub fn add_fn(&mut self, name: String, sig: ast::FunctionSignature) {
-        self.variables.insert(name, (false, ast::TypeSignature::Function(sig)));
+        self.variables
+            .insert(name, (false, ast::TypeSignature::Function(sig)));
     }
 }
 
@@ -38,29 +41,34 @@ struct Scope {
 
 pub struct SemanticAnalyzer {
     scopes: Vec<Scope>,
-    errors: Vec<SemanticError>
+    errors: Vec<SemanticError>,
+    in_function_block: bool,
 }
 
 impl<'a> SemanticAnalyzer {
-
     fn check_if_var_in_scopes(&self, var: &String) -> Option<&(bool, ast::TypeSignature)> {
         for s in self.scopes.iter().rev() {
             match s.variables.get(var) {
                 Some(ts) => return Some(ts),
-                None => continue
+                None => continue,
             }
         }
         None
     }
-    
+
     fn make_err(&mut self, pos: &super::Position, msg: String) -> SemanticError {
-        let e = SemanticError { msg: msg, pos: pos.clone() };
+        let e = SemanticError {
+            msg: msg,
+            pos: pos.clone(),
+        };
         self.errors.push(e.clone());
         e
     }
 
     fn new_scope(&mut self) {
-        self.scopes.push(Scope { variables: HashMap::new() });
+        self.scopes.push(Scope {
+            variables: HashMap::new(),
+        });
     }
 
     fn pop_scope(&mut self, pos: &super::Position) {
@@ -75,20 +83,28 @@ impl<'a> SemanticAnalyzer {
         self.scopes.last_mut().unwrap()
     }
 
-    fn check_if_type_is_defined(&mut self, type_: &ast::TypeSignature) -> Option<ast::TypeSignature> {
+    fn check_if_type_is_defined(
+        &mut self,
+        type_: &ast::TypeSignature,
+    ) -> Option<ast::TypeSignature> {
         match type_ {
             ast::TypeSignature::Primitive(_) => Some(type_.clone()),
             ast::TypeSignature::Function(_) => Some(type_.clone()),
             ast::TypeSignature::Custom(s) if s == "String" => Some(type_.clone()),
-            _ => None
+            _ => None,
         }
     }
 
-    pub fn analyze(ast: &mut ast::AstNode, stdlib: Option<SemanticStdLib>) -> Result<(), Vec<SemanticError>> {
-
+    pub fn analyze(
+        ast: &mut ast::AstNode,
+        stdlib: Option<SemanticStdLib>,
+    ) -> Result<(), Vec<SemanticError>> {
         let mut sa = SemanticAnalyzer {
-            scopes: vec!( Scope { variables: HashMap::new() } ),
-            errors: Vec::new()
+            scopes: vec![Scope {
+                variables: HashMap::new(),
+            }],
+            errors: Vec::new(),
+            in_function_block: false,
         };
 
         if let Some(lib) = stdlib {
@@ -113,90 +129,146 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
             }
             match sa.check_if_var_in_scopes(&s) {
                 Some(v) => v.1.clone(),
-                None => NIL_TYPE_SIGNATURE.clone()
+                None => NIL_TYPE_SIGNATURE.clone(),
             }
-        },
-        ast::Ast::Number(_) => { DEFAULT_NUM_TYPE_SIGNATURE.clone() },
-        ast::Ast::String(_) => {
-            ast::TypeSignature::Custom(String::from("String"))
-        },
-        ast::Ast::Bool(_) => {
-            BOOL_TYPE_SIGNATURE.clone()
-        },
+        }
+        ast::Ast::Number(_) => DEFAULT_NUM_TYPE_SIGNATURE.clone(),
+        ast::Ast::String(_) => ast::TypeSignature::Custom(String::from("String")),
+        ast::Ast::Bool(_) => BOOL_TYPE_SIGNATURE.clone(),
         ast::Ast::Statement(ref mut ast) => {
             analyze(sa, &mut **ast);
             NIL_TYPE_SIGNATURE.clone()
-        },
-        ast::Ast::Binary(ref op, ref mut l, ref mut r) => {
-            match op {
-                ast::BinaryOperation::Less |
-                ast::BinaryOperation::LessEqual |
-                ast::BinaryOperation::Greater |
-                ast::BinaryOperation::GreaterEqual |
-                ast::BinaryOperation::Equal |
-                ast::BinaryOperation::NotEqual => {
-                    if analyze(sa, &mut **l) != analyze(sa, &mut **r) {
-                        sa.make_err(&ast.pos, format!("Binary operands are not the same type"));
-                    }
-                    BOOL_TYPE_SIGNATURE.clone()
-                },
-                ast::BinaryOperation::And => {
-                    let ltype = analyze(sa, &mut **l);
-                    if ltype != BOOL_TYPE_SIGNATURE {
-                        sa.make_err(&l.pos, format!("Left binary and operand not of type Bool; found {:?}", ltype));
-                    }
-                    let rtype = analyze(sa, &mut **r);
-                    if rtype != BOOL_TYPE_SIGNATURE {
-                        sa.make_err(&r.pos, format!("Right binary and operand not of type Bool; found {:?}", rtype));
-                    }
-                    BOOL_TYPE_SIGNATURE.clone()
+        }
+        ast::Ast::Binary(ref op, ref mut l, ref mut r) => match op {
+            ast::BinaryOperation::Less
+            | ast::BinaryOperation::LessEqual
+            | ast::BinaryOperation::Greater
+            | ast::BinaryOperation::GreaterEqual
+            | ast::BinaryOperation::Equal
+            | ast::BinaryOperation::NotEqual => {
+                if analyze(sa, &mut **l) != analyze(sa, &mut **r) {
+                    sa.make_err(&ast.pos, format!("Binary operands are not the same type"));
                 }
-                ast::BinaryOperation::Or => {
-                    let ltype = analyze(sa, &mut **l);
-                    if ltype != BOOL_TYPE_SIGNATURE {
-                        sa.make_err(&l.pos, format!("Left binary or operand not of type Bool; found {:?}", ltype));
-                    }
-                    let rtype = analyze(sa, &mut **r);
-                    if rtype != BOOL_TYPE_SIGNATURE {
-                        sa.make_err(&r.pos, format!("Right binary or operand not of type Bool; found {:?}", rtype));
-                    }
-                    BOOL_TYPE_SIGNATURE.clone()
-                },
-                ast::BinaryOperation::Assign => {
-                    let return_type = analyze(sa, &mut **l);
-                    if return_type != analyze(sa, &mut **r) {
-                        sa.make_err(&r.pos, format!("Binary operands are not the same type"));
-                    }
-                    if let ast::Ast::Identifier(s) = &l.node {
-                        if let Some(v) = sa.check_if_var_in_scopes(s) {
-                            if !v.0 {
-                                sa.make_err(&l.pos, format!("Variable {} not mutable", s));
-                            } 
-                        } else {
-                            sa.make_err(&l.pos, format!("Variable {} not found in scope", s));
+                BOOL_TYPE_SIGNATURE.clone()
+            }
+            ast::BinaryOperation::And => {
+                let ltype = analyze(sa, &mut **l);
+                if ltype != BOOL_TYPE_SIGNATURE {
+                    sa.make_err(
+                        &l.pos,
+                        format!(
+                            "Left binary and operand not of type Bool; found {:?}",
+                            ltype
+                        ),
+                    );
+                }
+                let rtype = analyze(sa, &mut **r);
+                if rtype != BOOL_TYPE_SIGNATURE {
+                    sa.make_err(
+                        &r.pos,
+                        format!(
+                            "Right binary and operand not of type Bool; found {:?}",
+                            rtype
+                        ),
+                    );
+                }
+                BOOL_TYPE_SIGNATURE.clone()
+            }
+            ast::BinaryOperation::Or => {
+                let ltype = analyze(sa, &mut **l);
+                if ltype != BOOL_TYPE_SIGNATURE {
+                    sa.make_err(
+                        &l.pos,
+                        format!("Left binary or operand not of type Bool; found {:?}", ltype),
+                    );
+                }
+                let rtype = analyze(sa, &mut **r);
+                if rtype != BOOL_TYPE_SIGNATURE {
+                    sa.make_err(
+                        &r.pos,
+                        format!(
+                            "Right binary or operand not of type Bool; found {:?}",
+                            rtype
+                        ),
+                    );
+                }
+                BOOL_TYPE_SIGNATURE.clone()
+            }
+            ast::BinaryOperation::Assign => {
+                let return_type = analyze(sa, &mut **l);
+                if return_type != analyze(sa, &mut **r) {
+                    sa.make_err(&r.pos, format!("Binary operands are not the same type"));
+                }
+                if let ast::Ast::Identifier(s) = &l.node {
+                    if let Some(v) = sa.check_if_var_in_scopes(s) {
+                        if !v.0 {
+                            sa.make_err(&l.pos, format!("Variable {} not mutable", s));
                         }
-                        return_type
                     } else {
-                        sa.make_err(&l.pos, format!("Binary assign not assigning variable"));
-                        NIL_TYPE_SIGNATURE.clone()
-                    }
-                },
-                _ => {
-                    let return_type = analyze(sa, &mut **l);
-                    if return_type != analyze(sa, &mut **r) {
-                        sa.make_err(&ast.pos, format!("Binary operands are not the same type"));
+                        sa.make_err(&l.pos, format!("Variable {} not found in scope", s));
                     }
                     return_type
+                } else {
+                    sa.make_err(&l.pos, format!("Binary assign not assigning variable"));
+                    NIL_TYPE_SIGNATURE.clone()
                 }
             }
+            _ => {
+                let return_type = analyze(sa, &mut **l);
+                if return_type != analyze(sa, &mut **r) {
+                    sa.make_err(&ast.pos, format!("Binary operands are not the same type"));
+                }
+                return_type
+            }
         },
-        ast::Ast::Unary(_, ref mut expr) => {
-            analyze(sa, &mut **expr)
-        },
+        ast::Ast::Unary(ref op, ref mut expr) => {
+            let expr_type = analyze(sa, &mut **expr);
+            match op {
+                ast::UnaryOperation::Not => {
+                    if expr_type != BOOL_TYPE_SIGNATURE {
+                        sa.make_err(
+                            &expr.pos,
+                            format!("Unary not expression must evaluate to Bool"),
+                        );
+                    }
+                    BOOL_TYPE_SIGNATURE.clone()
+                }
+                ast::UnaryOperation::Negate => {
+                    match &expr_type {
+                        ast::TypeSignature::Primitive(primitive) => match primitive {
+                            ast::PrimitiveType::I8
+                            | ast::PrimitiveType::I16
+                            | ast::PrimitiveType::I32
+                            | ast::PrimitiveType::I64
+                            | ast::PrimitiveType::U8
+                            | ast::PrimitiveType::U16
+                            | ast::PrimitiveType::U32
+                            | ast::PrimitiveType::U64 => {}
+                            _ => {
+                                sa.make_err(
+                                    &expr.pos,
+                                    format!("Negate only supports primitive number types"),
+                                );
+                            }
+                        },
+                        _ => {
+                            sa.make_err(
+                                &expr.pos,
+                                format!("Negate only supports primitive number types"),
+                            );
+                        }
+                    }
+                    expr_type
+                }
+            }
+        }
         ast::Ast::Return(_) => {
-            sa.make_err(&ast.pos, format!("Returns may only be present within blocks"));
+            sa.make_err(
+                &ast.pos,
+                format!("Returns may only be present within function blocks"),
+            );
             NIL_TYPE_SIGNATURE.clone()
-        },
+        }
         ast::Ast::Block(ref mut exprs) => {
             sa.new_scope();
             let mut idx = 1;
@@ -210,15 +282,24 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                             let ret = analyze(sa, rexpr);
                             if let Some(t) = &return_type {
                                 if ret != *t {
-                                    sa.make_err(&rexpr.pos, format!("Not the same return type as previous returns"));
+                                    sa.make_err(
+                                        &rexpr.pos,
+                                        format!("Not the same return type as previous returns"),
+                                    );
                                 }
                             } else {
                                 return_type = Some(ret);
                             }
+                            if !sa.in_function_block {
+                                sa.make_err(
+                                    &rexpr.pos,
+                                    format!("Returns not allowed outside of function blocks"),
+                                );
+                            }
                         } else {
                             analyze(sa, expr);
                         }
-                    },
+                    }
                     ref mut e => {
                         if idx != len {
                             e_error = true;
@@ -227,10 +308,19 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                             let ret = analyze(sa, rexpr);
                             if let Some(t) = &return_type {
                                 if ret != *t {
-                                    sa.make_err(&rexpr.pos, format!("Not the same return type as previous returns"));
+                                    sa.make_err(
+                                        &rexpr.pos,
+                                        format!("Not the same return type as previous returns"),
+                                    );
                                 }
                             } else {
                                 return_type = Some(ret);
+                            }
+                            if !sa.in_function_block {
+                                sa.make_err(
+                                    &rexpr.pos,
+                                    format!("Returns not allowed outside of function blocks"),
+                                );
                             }
                         } else {
                             return_type = Some(analyze(sa, expr));
@@ -238,7 +328,10 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                     }
                 }
                 if e_error {
-                    sa.make_err(&expr.pos, format!("Only the last element in a block can be an expression"));
+                    sa.make_err(
+                        &expr.pos,
+                        format!("Only the last element in a block can be an expression"),
+                    );
                 }
                 idx += 1;
             }
@@ -253,7 +346,10 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
             sa.new_scope();
             let ifcond_type = analyze(sa, &mut **ifcond);
             if ifcond_type != BOOL_TYPE_SIGNATURE {
-                sa.make_err(&ifcond.pos, format!("If condition must evaluate to Bool; got {:?}", ifcond_type));
+                sa.make_err(
+                    &ifcond.pos,
+                    format!("If condition must evaluate to Bool; got {:?}", ifcond_type),
+                );
             }
             let expr_type = analyze(sa, &mut **ifexpr);
             sa.pop_scope(&ifexpr.pos);
@@ -261,7 +357,13 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 sa.new_scope();
                 let eifc_type = analyze(sa, &mut **eifc);
                 if eifc_type != BOOL_TYPE_SIGNATURE {
-                    sa.make_err(&eifc.pos, format!("Else if condition must evaluate to Bool; got {:?}", eifc_type));
+                    sa.make_err(
+                        &eifc.pos,
+                        format!(
+                            "Else if condition must evaluate to Bool; got {:?}",
+                            eifc_type
+                        ),
+                    );
                 }
                 let branch_type = analyze(sa, &mut **eife);
                 if branch_type != expr_type {
@@ -276,18 +378,21 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 }
             }
             expr_type
-        },
+        }
         ast::Ast::While(ref mut cond, ref mut expr) => {
             sa.new_scope();
             let cond_type = analyze(sa, &mut **cond);
             if cond_type != BOOL_TYPE_SIGNATURE {
-                sa.make_err(&cond.pos, format!("While condition must evaluate to Bool; got {:?}", cond_type));
+                sa.make_err(
+                    &cond.pos,
+                    format!("While condition must evaluate to Bool; got {:?}", cond_type),
+                );
             }
             let return_type = analyze(sa, &mut **expr);
             sa.pop_scope(&ast.pos);
             return_type
-        },
-        ast::Ast::Let(ref name, ref sig, ref mut expr) => {
+        }
+        ast::Ast::Let(ref name, ref mut sig, ref mut expr) => {
             if let None = sa.check_if_var_in_scopes(&name) {
                 let mut return_type = NIL_TYPE_SIGNATURE.clone();
                 if let Some(type_sig) = &sig.type_sig {
@@ -297,18 +402,28 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                             sa.make_err(&ast.pos, format!("Variable type and assign type do not match; expected {:?} but got {:?}", *type_sig, e_type));
                         }
                     }
-                    sa.last_scope().variables.insert(name.clone(), (sig.mutable, type_sig.clone()));
+                    sa.last_scope()
+                        .variables
+                        .insert(name.clone(), (sig.mutable, type_sig.clone()));
                     return_type = type_sig.clone();
-                    // println!("Variable {} of type {:?}, stated", sig.name, type_sig);
+                // println!("Variable {} of type {:?}, stated", sig.name, type_sig);
                 } else {
                     if let Some(e) = expr {
                         let expr_type = analyze(sa, &mut *e);
                         // println!("Variable {} of type {:?}, infer", sig.name, expr_type);
+                        sig.type_sig = Some(expr_type.clone());
                         return_type = expr_type.clone();
-                        sa.last_scope().variables.insert(name.clone(), (sig.mutable, expr_type));
+                        sa.last_scope()
+                            .variables
+                            .insert(name.clone(), (sig.mutable, expr_type));
                     } else {
-                        sa.make_err(&ast.pos, format!("Cannot infer type without an assign expression"));
-                        sa.last_scope().variables.insert(name.clone(), (sig.mutable, NIL_TYPE_SIGNATURE.clone()));
+                        sa.make_err(
+                            &ast.pos,
+                            format!("Cannot infer type without an assign expression"),
+                        );
+                        sa.last_scope()
+                            .variables
+                            .insert(name.clone(), (sig.mutable, NIL_TYPE_SIGNATURE.clone()));
                     }
                 }
                 return_type
@@ -316,48 +431,70 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 sa.make_err(&ast.pos, format!("Variable {} already defined", name));
                 NIL_TYPE_SIGNATURE.clone()
             }
-        },
-        ast::Ast::Import(_, ref mut expr) => {
-            analyze(sa, &mut **expr)
-        },
-        ast::Ast::FnDef(ref sig, ref param_names, ref mut expr) => {
-            let mut fn_return_type = sig.clone();
+        }
+        ast::Ast::Import(_, ref mut expr) => analyze(sa, &mut **expr),
+        ast::Ast::FnDef(ref mut sig, ref param_names, ref mut expr) => {
             sa.new_scope();
             for (var, name) in sig.params.iter().zip(param_names.iter()) {
                 if let Some(type_sig) = &var.type_sig {
                     if let None = sa.check_if_type_is_defined(type_sig) {
                         sa.make_err(&ast.pos, format!("Type {:?} is not defined", type_sig));
                     }
-                    sa.last_scope().variables.insert(name.clone(), (var.mutable, type_sig.clone()));
+                    sa.last_scope()
+                        .variables
+                        .insert(name.clone(), (var.mutable, type_sig.clone()));
                 } else {
-                    sa.make_err(&ast.pos, format!("Function parameter types cannot be infered; Parameter: {}", name));
-                    sa.last_scope().variables.insert(name.clone(), (var.mutable, NIL_TYPE_SIGNATURE.clone()));
+                    sa.make_err(
+                        &ast.pos,
+                        format!(
+                            "Function parameter types cannot be infered; Parameter: {}",
+                            name
+                        ),
+                    );
+                    sa.last_scope()
+                        .variables
+                        .insert(name.clone(), (var.mutable, NIL_TYPE_SIGNATURE.clone()));
                 }
             }
             if let Some(type_sig) = &sig.return_type {
                 if let None = sa.check_if_type_is_defined(type_sig) {
                     sa.make_err(&ast.pos, format!("Type {:?} is not defined", type_sig));
                 }
-                let expr_type = analyze(sa, &mut **expr);
-                if **type_sig != expr_type {
-                    sa.make_err(&expr.pos, format!("Return types not the same; expected {:?} but got {:?}", **type_sig, expr_type));
+                if let ast::Ast::Block(_) = &expr.node {
+                    sa.in_function_block = true;
                 }
-                fn_return_type.return_type = Some(Box::new((**type_sig).clone()));
+                let expr_type = analyze(sa, &mut **expr);
+                sa.in_function_block = false;
+                if **type_sig != expr_type {
+                    sa.make_err(
+                        &expr.pos,
+                        format!(
+                            "Return types not the same; expected {:?} but got {:?}",
+                            **type_sig, expr_type
+                        ),
+                    );
+                }
             } else {
-                fn_return_type.return_type = Some(Box::new(analyze(sa, &mut **expr)));
+                sig.return_type = Some(Box::new(analyze(sa, &mut **expr)));
             }
             sa.pop_scope(&ast.pos);
-            ast::TypeSignature::Function(fn_return_type)
-        },
+            ast::TypeSignature::Function(sig.clone())
+        }
         ast::Ast::FnCall(ref mut callee, ref mut args) => {
-            let mut return_type: ast::TypeSignature;
+            let mut return_type: ast::TypeSignature = NIL_TYPE_SIGNATURE.clone();
             if let ast::TypeSignature::Function(sig) = analyze(sa, &mut **callee) {
                 if sig.params.len() == args.len() {
                     for (param, arg) in sig.params.iter().zip(args.iter_mut()) {
                         if let Some(type_sig) = &param.type_sig {
                             let arg_return_type = analyze(sa, arg);
                             if *type_sig != arg_return_type {
-                                sa.make_err(&arg.pos, format!("Expected type {:?} but got type {:?}", type_sig, arg_return_type));
+                                sa.make_err(
+                                    &arg.pos,
+                                    format!(
+                                        "Expected type {:?} but got type {:?}",
+                                        type_sig, arg_return_type
+                                    ),
+                                );
                             }
                         } else {
                             unreachable!();
@@ -365,15 +502,21 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                     }
                     return_type = *sig.return_type.unwrap();
                 } else {
-                    sa.make_err(&callee.pos, format!("Function expected {} arguments but got {} arguments", sig.params.len(), args.len()));
+                    sa.make_err(
+                        &callee.pos,
+                        format!(
+                            "Function expected {} arguments but got {} arguments",
+                            sig.params.len(),
+                            args.len()
+                        ),
+                    );
                     return_type = NIL_TYPE_SIGNATURE.clone();
                 }
             } else {
                 sa.make_err(&callee.pos, format!("Not a callable expression"));
-                return_type = NIL_TYPE_SIGNATURE.clone();
             }
             return_type
-        },
+        }
         ast::Ast::As(ref mut expr, ref type_) => {
             let expr_type = analyze(sa, &mut **expr);
             if let None = sa.check_if_type_is_defined(&type_) {
@@ -382,15 +525,27 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
             match (&expr_type, &type_) {
                 (ast::TypeSignature::Primitive(_), ast::TypeSignature::Primitive(_)) => {
                     type_.clone()
-                },
+                }
                 (_, ast::TypeSignature::Primitive(_)) => {
-                    sa.make_err(&expr.pos, format!("Can only cast between primtive types; Left of as is of type {:?}", expr_type));
+                    sa.make_err(
+                        &expr.pos,
+                        format!(
+                            "Can only cast between primtive types; Left of as is of type {:?}",
+                            expr_type
+                        ),
+                    );
                     expr_type
-                },
+                }
                 (ast::TypeSignature::Primitive(_), _) => {
-                    sa.make_err(&ast.pos, format!("Can only cast between primtive types; Right of as is of type {:?}", type_));
+                    sa.make_err(
+                        &ast.pos,
+                        format!(
+                            "Can only cast between primtive types; Right of as is of type {:?}",
+                            type_
+                        ),
+                    );
                     expr_type
-                },
+                }
                 _ => {
                     sa.make_err(&ast.pos, format!("Can only cast between primtive types; {:?} and {:?} are not primitives", expr_type, type_));
                     expr_type

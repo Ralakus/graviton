@@ -1,14 +1,12 @@
-
-use std::io::{BufRead,Write};
-use graviton::frontend::tokens::{Token, TokenType, TokenData, Position};
+use graviton::frontend::tokens::{Position, Token, TokenData, TokenType};
+use std::io::{BufRead, Write};
 
 use super::graviton;
 
-use super::graviton::errors;
 use super::graviton::colored::*;
+use super::graviton::errors;
 
 pub fn repl(debug_level_in: i32) -> Result<(), String> {
-
     let mut debug_level = debug_level_in;
 
     let mut source = String::from("");
@@ -16,8 +14,12 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
 
     'repl: loop {
         source.clear();
-        print!("> "); std::io::stdout().flush().unwrap();
-        std::io::stdin().lock().read_line(&mut source).expect("Error reading input");
+        print!("> ");
+        std::io::stdout().flush().unwrap();
+        std::io::stdin()
+            .lock()
+            .read_line(&mut source)
+            .expect("Error reading input");
 
         lex = graviton::frontend::lexer::Lexer::new(source.as_str());
 
@@ -28,7 +30,11 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                         TokenData::String(s) => match s.as_str() {
                             "exit" => return Ok(()),
                             "debug" => {
-                                let val = lex.next().unwrap_or(Token { type_: TokenType::Number, data: TokenData::Number(0.0), pos: Position { line: -1, col: -1} });
+                                let val = lex.next().unwrap_or(Token {
+                                    type_: TokenType::Number,
+                                    data: TokenData::Number(0.0),
+                                    pos: Position { line: -1, col: -1 },
+                                });
                                 if let TokenData::Number(n) = val.data {
                                     debug_level = n as i32;
                                 } else {
@@ -37,7 +43,7 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                             }
                             _ => println!("Invalid command {}", s),
                         },
-                        _ => println!("Invalid token type {:?}", t.type_)
+                        _ => println!("Invalid token type {:?}", t.type_),
                     }
                 } else {
                     println!("{}", "Expected argument after \":\"".red());
@@ -50,7 +56,10 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
 
         match ast {
             Ok(mut a) => {
-                match graviton::ast::semantic::SemanticAnalyzer::analyze(&mut a, Some(graviton::backend::vm::stdlib::get_stdlib_signatures())) {
+                match graviton::ast::semantic::SemanticAnalyzer::analyze(
+                    &mut a,
+                    Some(graviton::backend::vm::stdlib::get_stdlib_signatures()),
+                ) {
                     Ok(_) => {
                         if debug_level >= 2 {
                             println!("{}\n{:#?}", "Typed AST:".cyan(), a);
@@ -66,10 +75,10 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                                     Ok(result) => println!("=> {:?}", result),
                                     Err(err) => errors::report_vm_error(&err, Some(&*source), None),
                                 }
-                            },
+                            }
                             Err(err) => errors::report_vm_error(&err, Some(&*source), None),
                         };
-                    },
+                    }
                     Err(errors) => {
                         if debug_level >= 2 {
                             println!("{}\n{:#?}", "Untyepd AST:".cyan(), a);
@@ -79,12 +88,12 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                         }
                     }
                 }
-            },
+            }
             Err(errors) => {
                 for e in errors {
                     errors::report_parser_error(&e, Some(source.as_str()));
                 }
-            },
+            }
         };
     }
 }

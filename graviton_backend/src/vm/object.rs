@@ -1,9 +1,10 @@
-
 use super::Value;
 use downcast_rs::Downcast;
 
 #[typetag::serde(tag = "StackVmObject")]
-pub trait StackVmObject: StackVmObjectClone + std::fmt::Debug + std::fmt::Display + Downcast {
+pub trait StackVmObject:
+    StackVmObjectClone + std::fmt::Debug + std::fmt::Display + Downcast
+{
     fn add(&self, r: Value) -> Result<Value, String>;
 }
 downcast_rs::impl_downcast!(StackVmObject);
@@ -31,13 +32,11 @@ impl Clone for Box<dyn StackVmObject> {
 impl StackVmObject for String {
     fn add(&self, r: Value) -> Result<Value, String> {
         let s: String = match r {
-            Value::Object(o) => {
-                match o.downcast::<String>() {
-                    Ok(s) => format!("{}{}", self, s),
-                    Err(_) => return Err(format!("Can only add two strings together", ))
-                }
+            Value::Object(o) => match o.downcast::<String>() {
+                Ok(s) => format!("{}{}", self, s),
+                Err(_) => return Err(format!("Can only add two strings together",)),
             },
-            _ => return Err(format!("Can only add two strings together"))
+            _ => return Err(format!("Can only add two strings together")),
         };
         Ok(Value::Object(Box::new(s)))
     }

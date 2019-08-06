@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 
-use serde::{Serialize, Deserialize};
-
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum BinaryOperation {
     Add,
@@ -18,16 +18,18 @@ pub enum BinaryOperation {
     And,
     Or,
 
-    Assign
+    Assign,
 }
 
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum UnaryOperation {
     Negate,
 
-    Not
+    Not,
 }
 
+#[repr(u8)]
 #[derive(Hash, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum PrimitiveType {
     Nil,
@@ -46,23 +48,23 @@ pub enum PrimitiveType {
 pub enum TypeSignature {
     Primitive(PrimitiveType),
     Function(FunctionSignature),
-    Custom(String)
+    Custom(String),
 }
 
 impl<'a> TypeSignature {
     pub fn new(t: &'a str) -> TypeSignature {
         match t {
-            "Nil"  => TypeSignature::Primitive(PrimitiveType::Nil),
+            "Nil" => TypeSignature::Primitive(PrimitiveType::Nil),
             "Bool" => TypeSignature::Primitive(PrimitiveType::Bool),
-            "I8"   => TypeSignature::Primitive(PrimitiveType::I8),
-            "I16"  => TypeSignature::Primitive(PrimitiveType::I16),
-            "I32"  => TypeSignature::Primitive(PrimitiveType::I32),
-            "I64"  => TypeSignature::Primitive(PrimitiveType::I64),
-            "U8"   => TypeSignature::Primitive(PrimitiveType::U8),
-            "U16"  => TypeSignature::Primitive(PrimitiveType::U16),
-            "U32"  => TypeSignature::Primitive(PrimitiveType::U32),
-            "U64"  => TypeSignature::Primitive(PrimitiveType::U64),
-            _ => TypeSignature::Custom(t.to_string())
+            "I8" => TypeSignature::Primitive(PrimitiveType::I8),
+            "I16" => TypeSignature::Primitive(PrimitiveType::I16),
+            "I32" => TypeSignature::Primitive(PrimitiveType::I32),
+            "I64" => TypeSignature::Primitive(PrimitiveType::I64),
+            "U8" => TypeSignature::Primitive(PrimitiveType::U8),
+            "U16" => TypeSignature::Primitive(PrimitiveType::U16),
+            "U32" => TypeSignature::Primitive(PrimitiveType::U32),
+            "U64" => TypeSignature::Primitive(PrimitiveType::U64),
+            _ => TypeSignature::Custom(t.to_string()),
         }
     }
 }
@@ -120,7 +122,12 @@ pub enum Ast {
     Block(Vec<AstNode>),
 
     // if cond, if expr, else if conds, else if exprs, optional else expr
-    IfElse(Box<AstNode>, Box<AstNode>, Vec<(Box<AstNode>, Box<AstNode>)>, Option<Box<AstNode>>),
+    IfElse(
+        Box<AstNode>,
+        Box<AstNode>,
+        Vec<(Box<AstNode>, Box<AstNode>)>,
+        Option<Box<AstNode>>,
+    ),
 
     // while cond, while expr
     While(Box<AstNode>, Box<AstNode>),
@@ -138,7 +145,7 @@ pub enum Ast {
     FnCall(Box<AstNode>, Vec<AstNode>),
 
     // expression, type to cast to
-    As(Box<AstNode>, TypeSignature)
+    As(Box<AstNode>, TypeSignature),
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -148,13 +155,35 @@ pub struct AstNode {
     pub type_sig: Option<TypeSignature>,
 }
 
-impl std::fmt::Debug for AstNode {
+impl std::hash::Hash for AstNode {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.pos.hash(state);
+        self.type_sig.hash(state);
+    }
+}
 
+impl std::fmt::Debug for AstNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if f.alternate() {
-            write!(f, "{}", format!("[{},{}]: {:?}: {:#?}", self.pos.line, self.pos.col, self.type_sig, self.node))
+        if let Some(type_sig) = &self.type_sig {
+            if f.alternate() {
+                write!(
+                    f,
+                    "[{},{}]: {:?}: {:#?}",
+                    self.pos.line, self.pos.col, type_sig, self.node
+                )
+            } else {
+                write!(
+                    f,
+                    "[{},{}]: {:?}: {:?}",
+                    self.pos.line, self.pos.col, type_sig, self.node
+                )
+            }
         } else {
-            write!(f, "{}", format!("[{},{}]: {:?}: {:?}", self.pos.line, self.pos.col, self.type_sig, self.node))
+            if f.alternate() {
+                write!(f, "[{},{}]: {:#?}", self.pos.line, self.pos.col, self.node)
+            } else {
+                write!(f, "[{},{}]: {:?}", self.pos.line, self.pos.col, self.node)
+            }
         }
     }
 }

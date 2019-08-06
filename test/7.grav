@@ -1,6 +1,6 @@
 
 fn add(x: I32, y: I32): I32 {
-    x + y
+    return x + y;
 };
 
 let add2 = fn(x: I32, y: I32): I32 x + y;
