@@ -14,7 +14,5 @@ z = {
     {
         z = 672;
     };
-    return z / 2;
+    z / 2
 };
-
-return z;

@@ -222,6 +222,7 @@ fn main() {
                     if debug_level >= 2 {
                         println!("{}\n{:#?}", "Typed AST:".cyan(), a);
                     }
+
                     if emit_type == EmitType::Ast {
                         let mut f = File::create(output).unwrap();
                         f.write_all(&*rmp_serde::to_vec(&a).unwrap()).unwrap();

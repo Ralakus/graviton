@@ -2,25 +2,28 @@ use super::ast;
 
 use cranelift::frontend::*;
 use cranelift::prelude::*;
-use cranelift_module::{DataContext, Linkage, Module};
 use cranelift_faerie::{FaerieBackend, FaerieBuilder, FaerieTrapCollection};
+use cranelift_module::{DataContext, Linkage, Module};
 use std::error::Error;
 
 #[derive(Debug, Clone)]
 pub struct NativeError {
-   msg: String,
-   pos: ast::Position 
+    msg: String,
+    pos: ast::Position,
 }
 
 pub struct Native {
     context: codegen::Context,
     module: Module<FaerieBackend>,
     builder_ctx: FunctionBuilderContext,
-    errors: Vec<NativeError>
+    errors: Vec<NativeError>,
 }
 
 impl Native {
-    pub fn compile(name: String, ast: &ast::AstNode) -> Result<cranelift_faerie::FaerieProduct, Vec<NativeError>> {
+    pub fn compile(
+        name: String,
+        ast: &ast::AstNode,
+    ) -> Result<cranelift_faerie::FaerieProduct, Vec<NativeError>> {
         let mut flag_builder = settings::builder();
         flag_builder.enable("is_pic").unwrap();
 
@@ -41,10 +44,14 @@ impl Native {
             context: module.make_context(),
             module,
             builder_ctx: FunctionBuilderContext::new(),
-            errors: Vec::new()
+            errors: Vec::new(),
         };
 
-        ntv.context.func.signature.returns.push(AbiParam::new(types::I32));
+        ntv.context
+            .func
+            .signature
+            .returns
+            .push(AbiParam::new(types::I32));
 
         let mut builder = FunctionBuilder::new(&mut ntv.context.func, &mut ntv.builder_ctx);
 
@@ -62,18 +69,28 @@ impl Native {
 
         builder.finalize();
 
-        let main_id = match ntv.module.declare_function("main", Linkage::Export, &ntv.context.func.signature) {
+        let main_id =
+            match ntv
+                .module
+                .declare_function("main", Linkage::Export, &ntv.context.func.signature)
+            {
                 Ok(id) => id,
                 Err(e) => {
-                    ntv.errors.push(NativeError { msg: format!("{:?}", e), pos: ast::Position { line: -1, col: -1 } });
+                    ntv.errors.push(NativeError {
+                        msg: format!("{:?}", e),
+                        pos: ast::Position { line: -1, col: -1 },
+                    });
                     return Err(ntv.errors);
                 }
             };
 
         match ntv.module.define_function(main_id, &mut ntv.context) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => {
-                ntv.errors.push(NativeError { msg: format!("{:?}", e), pos: ast::Position { line: -1, col: -1 } });
+                ntv.errors.push(NativeError {
+                    msg: format!("{:?}", e),
+                    pos: ast::Position { line: -1, col: -1 },
+                });
                 return Err(ntv.errors);
             }
         }
@@ -87,7 +104,6 @@ impl Native {
         } else {
             Ok(result)
         }
-
     }
 }
 
