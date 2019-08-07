@@ -2,7 +2,7 @@
 // println("Iterative Fibonacci example");
 
 // print("Enter a number: ");
-let n = 11; // read_num();
+let n = read_num();
 
 let mut fib_number: I32;
 

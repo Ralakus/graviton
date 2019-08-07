@@ -22,9 +22,9 @@ Graviton is still under heavy development so it is bound to have breaking change
 ## Examples
 [Iterative fibonacci example](./examples/fib.grav) 
 ```rust
-println("Iterative Fibonacci example");
+// println("Iterative Fibonacci example"); Not supported yet
 
-print("Enter a number: ");
+// print("Enter a number: "); Not supported yet
 let n = read_num();
 
 let mut fib_number: I32;
@@ -53,11 +53,11 @@ let output = if (fib_number = {
     }) != 377 {
         fib_number
     } else {
-        println("Input was 14 so result will be negated for demonstration");
+        // println("Input was 14 so result will be negated for demonstration"); // Not supported yet
         -fib_number
     };
 
-println("Fibonacci of " + strn(n) + " is " + strn(output));
+// println("Fibonacci of " + strn(n) + " is " + strn(output)); // Not supported yet
 ```
 
 ## How can follow the progress?
