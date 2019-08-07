@@ -1,39 +1,77 @@
-
-use super::frontend::parser::ParseError;
-use super::backend::vm::VmError;
+use super::ast::semantic::SemanticError;
+use super::backend::native::NativeError;
 use super::colored::*;
+use super::frontend::parser::ParseError;
 
 pub fn report_parser_error<'a>(e: &ParseError, source: Option<&'a str>) {
-    report_error_msg_with_pos(&e.msg, e.pos, source, if let Some(name) = &e.file { Some(&name) } else { None })
+    report_error_msg_with_pos(
+        &e.msg,
+        e.pos,
+        source,
+        if let Some(name) = &e.file {
+            Some(&name)
+        } else {
+            None
+        },
+    )
 }
 
-#[cfg(feature = "node_code_pos")]
-pub fn report_vm_error<'a>(e: &VmError, source: Option<&'a str>, file: Option<&'a str>) {
-    report_error_msg_with_pos(&e.msg, e.pos, source, file)
+pub fn report_semantic_error<'a>(e: &SemanticError, source: Option<&'a str>) {
+    report_error_msg_with_pos(
+        &e.msg,
+        e.pos,
+        source,
+        if let Some(name) = &e.file {
+            Some(&name)
+        } else {
+            None
+        },
+    )
 }
 
-#[cfg(not(feature = "node_code_pos"))]
-pub fn report_vm_error<'a>(e: &VmError, _source: Option<&'a str>, _file: Option<&'a str>) {
-    println!("{}: {}", "Error".red(), e.msg);
+pub fn report_native_error<'a>(e: &NativeError, source: Option<&'a str>) {
+    report_error_msg_with_pos(
+        &e.msg,
+        e.pos,
+        source,
+        if let Some(name) = &e.file {
+            Some(&name)
+        } else {
+            None
+        },
+    )
 }
 
-pub fn report_error_msg_with_pos<'a>(msg: &String, pos: ast::Position, source: Option<&'a str>, file: Option<&'a str>) {
-    if pos.line != -1 {
+pub fn report_error_msg_with_pos<'a>(
+    msg: &String,
+    pos: ast::Position,
+    source: Option<&'a str>,
+    file: Option<&'a str>,
+) {
+    if pos.line > 0 {
         if let Some(s) = source {
             if let Some(f) = file {
                 let mut line = 1;
                 for l in s.lines() {
                     if line == pos.line {
-                        println!("{}: {}\n\tat: {}\n\t{}\n\t{}{}{}",
+                        eprintln!(
+                            "{}: {}\n\tat: {}\n\t{}\n\t{}{}{}",
                             "Error".red(),
                             msg,
                             format!("{}{}:{}:{}{}", "[".bold(), f, pos.line, pos.col, "]".bold()),
                             l,
-                            if pos.col > 1 { String::from("~").repeat((pos.col - 1) as usize).red() } else { "".red() },
+                            if pos.col > 1 {
+                                String::from("~").repeat((pos.col - 1) as usize).red()
+                            } else {
+                                "".red()
+                            },
                             "^".red(),
-                            if (pos.col as usize) < l.len() { String::from("~").repeat(l.len() - pos.col as usize ).red() } else { "".red() },
+                            if (pos.col as usize) < l.len() {
+                                String::from("~").repeat(l.len() - pos.col as usize).red()
+                            } else {
+                                "".red()
+                            },
                         );
-
                     }
                     line += 1;
                 }
@@ -41,34 +79,104 @@ pub fn report_error_msg_with_pos<'a>(msg: &String, pos: ast::Position, source: O
                 let mut line = 1;
                 for l in s.lines() {
                     if line == pos.line {
-                        println!("{}: {}\n\tat: {}\n\t{}\n\t{}{}{}",
+                        eprintln!(
+                            "{}: {}\n\tat: {}\n\t{}\n\t{}{}{}",
                             "Error".red(),
                             msg,
-                            format!("{}Line: {}, Col: {}{}", "[".bold(), pos.line, pos.col, "]".bold()),
+                            format!(
+                                "{}Line: {}, Col: {}{}",
+                                "[".bold(),
+                                pos.line,
+                                pos.col,
+                                "]".bold()
+                            ),
                             l,
-                            if pos.col > 1 { String::from("~").repeat((pos.col - 1) as usize).red() } else { "".red() },
+                            if pos.col > 1 {
+                                String::from("~").repeat((pos.col - 1) as usize).red()
+                            } else {
+                                "".red()
+                            },
                             "^".red(),
-                            if (pos.col as usize) < l.len() { String::from("~").repeat(l.len() - pos.col as usize ).red() } else { "".red() },
+                            if (pos.col as usize) < l.len() {
+                                String::from("~").repeat(l.len() - pos.col as usize).red()
+                            } else {
+                                "".red()
+                            },
                         );
-
                     }
                     line += 1;
                 }
             }
         } else {
             if let Some(f) = file {
-                println!("{}: {}\n\tat: {}",
+                eprintln!(
+                    "{}: {}\n\tat: {}",
                     "Error".red(),
                     msg,
                     format!("{}{}:{}:{}{}", "[".bold(), f, pos.line, pos.col, "]".bold()),
                 );
             } else {
-                println!("{}: {}\n\tat: {}",
+                eprintln!(
+                    "{}: {}\n\tat: {}",
                     "Error".red(),
                     msg,
-                    format!("{}Line: {}, Col: {}{}", "[".bold(), pos.line, pos.col, "]".bold()),
+                    format!(
+                        "{}Line: {}, Col: {}{}",
+                        "[".bold(),
+                        pos.line,
+                        pos.col,
+                        "]".bold()
+                    ),
                 );
             }
+        }
+    } else if pos.line == -1 {
+        if let Some(f) = file {
+            eprintln!(
+                "{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}{}:EOF{}", "[".bold(), f, "]".bold()),
+            );
+        } else {
+            eprintln!(
+                "{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}EOF{}", "[".bold(), "]".bold()),
+            );
+        }
+    } else if pos.line == -2 {
+        if let Some(f) = file {
+            eprintln!(
+                "{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}{}:module{}", "[".bold(), f, "]".bold()),
+            );
+        } else {
+            eprintln!(
+                "{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}module{}", "[".bold(), "]".bold()),
+            );
+        }
+    } else {
+        if let Some(f) = file {
+            eprintln!(
+                "{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}{}:??{}", "[".bold(), f, "]".bold()),
+            );
+        } else {
+            eprintln!(
+                "{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}??{}", "[".bold(), "]".bold()),
+            );
         }
     }
 }

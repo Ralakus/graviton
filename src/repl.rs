@@ -1,43 +1,40 @@
-
-use std::io::{BufRead,Write};
-use graviton::frontend::tokens::{Token, TokenType, TokenData, Position};
-
-use super::graviton;
-
-use super::graviton::errors;
-use super::graviton::colored::*;
+use super::*;
+use std::io::{BufRead, Write};
 
 pub fn repl(debug_level_in: i32) -> Result<(), String> {
-
     let mut debug_level = debug_level_in;
 
-    let mut source = String::from("");
-    let mut lex: graviton::frontend::lexer::Lexer;
+    let mut source = String::new();
 
     'repl: loop {
         source.clear();
-        print!("> "); std::io::stdout().flush().unwrap();
-        std::io::stdin().lock().read_line(&mut source).expect("Error reading input");
+        print!("> ");
+        std::io::stdout().flush().unwrap();
+        std::io::stdin()
+            .lock()
+            .read_line(&mut source)
+            .expect("Error reading input");
 
-        lex = graviton::frontend::lexer::Lexer::new(source.as_str());
-
-        if let Some(tok) = lex.next() {
-            if tok.type_ == TokenType::Colon {
-                if let Some(t) = lex.next() {
-                    match t.data {
-                        TokenData::String(s) => match s.as_str() {
-                            "exit" => return Ok(()),
-                            "debug" => {
-                                let val = lex.next().unwrap_or(Token { type_: TokenType::Number, data: TokenData::Number(0.0), pos: Position { line: -1, col: -1} });
-                                if let TokenData::Number(n) = val.data {
-                                    debug_level = n as i32;
-                                } else {
-                                    debug_level = 0;
+        if source.len() > 0 {
+            if source.chars().next().unwrap() == ':' {
+                if source.len() > 1 {
+                    let args: Vec<&str> = source[1..].split_ascii_whitespace().collect();
+                    match args[0] {
+                        "exit" => return Ok(()),
+                        "debug" => {
+                            if args.len() > 1 {
+                                match args[1].parse::<i32>() {
+                                    Ok(v) => debug_level = v,
+                                    Err(e) => {
+                                        eprintln!("{}: {}", "Error".red(), e.description());
+                                        continue 'repl;
+                                    }
                                 }
+                            } else {
+                                debug_level = 0;
                             }
-                            _ => println!("Invalid command {}", s),
-                        },
-                        _ => println!("Invalid token type {:?}", t.type_)
+                        }
+                        s => println!("Invalid command {}", s),
                     }
                 } else {
                     println!("{}", "Expected argument after \":\"".red());
@@ -46,33 +43,93 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
             }
         }
 
-        let ast = graviton::frontend::parser::Parser::parse(source.as_str(), None);
+        let obj = match grav::compile_source(&source, None, debug_level) {
+            Ok(o) => o,
+            Err(e) => {
+                e.report(Some(&source));
+                continue 'repl;
+            }
+        };
 
-        match ast {
-            Ok(a) => {
-                if debug_level >= 2 {
-                    println!("{}\n{:#?}", "AST:".cyan(), a);
+        match obj.write_file(&String::from("grav_repl_tmp.o")) {
+            Ok(_) => {}
+            Err(e) => {
+                grav::errors::report_native_error(&e, Some(&source));
+                std::process::exit(1);
+            }
+        };
+
+        if !cfg!(windows) && debug_level >= 3 {
+            match std::process::Command::new("objdump")
+                .arg("-d")
+                .arg("grav_repl_tmp.o")
+                .spawn()
+            {
+                Ok(mut c) => match c.wait() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("{}: {}", "Error".red(), e.description());
+                        std::process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("{}: {}", "Error".red(), e.description());
+                    std::process::exit(1);
                 }
-                let bytecode = graviton::backend::vm::Bytecode::new(a);
-                match bytecode {
-                    Ok(bc) => {
-                        if debug_level >= 1 {
-                            println!("{:#?}", bc);
-                        }
-                        let mut vm = graviton::backend::vm::StackVm::new();
-                        match vm.run(bc, debug_level) {
-                            Ok(result) => println!("Result: {:?}", result),
-                            Err(err) => errors::report_vm_error(&err, Some(&*source), None),
-                        }
-                    },
-                    Err(err) => errors::report_vm_error(&err, Some(&*source), None),
-                };
-            },
-            Err(errors) => {
-                for e in errors {
-                    errors::report_parser_error(&e, Some(source.as_str()));
+            };
+        }
+
+        match std::process::Command::new("cc")
+            .arg("grav_repl_tmp.o")
+            .arg("stdlib/graviton_driver.c")
+            .arg("stdlib/graviton_lib.c")
+            .arg("-o")
+            .arg("grav_repl_tmp")
+            .spawn()
+        {
+            Ok(mut c) => match c.wait() {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}: {}", "Error".red(), e.description());
+                    std::process::exit(1);
                 }
             },
+            Err(e) => {
+                eprintln!("{}: {}", "Error".red(), e.description());
+                std::process::exit(1);
+            }
+        };
+
+        match std::process::Command::new("./grav_repl_tmp").spawn() {
+            Ok(mut c) => match c.wait() {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}: {}", "Error".red(), e.description());
+                    std::process::exit(1);
+                }
+            },
+            Err(e) => {
+                eprintln!("{}: {}", "Error".red(), e.description());
+                std::process::exit(1);
+            }
+        };
+
+        match std::process::Command::new("rm")
+            .arg("grav_repl_tmp.o")
+            .arg("grav_repl_tmp")
+            .spawn()
+        {
+            Ok(mut c) => match c.wait() {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}: {}", "Error".red(), e.description());
+                    std::process::exit(1);
+                }
+            },
+            Err(e) => {
+                eprintln!("{}: {}", "Error".red(), e.description());
+                std::process::exit(1);
+            }
         };
     }
 }

@@ -1,13 +1,12 @@
 
-import "1.tyon";
+import "1.grav";
 
-fn add (x: i32, y: i32): i32 {
+fn add (x: I32, y: I32): I32 {
     return x + y;
 };
 
 let x = 5;
 
-if let y = 5 {
-    return let z = add(x, y);
+if (let y = 5) > 0 {
+    let z = add(x, y);
 };
-

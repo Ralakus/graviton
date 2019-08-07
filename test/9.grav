@@ -1,0 +1,16 @@
+
+let mut x: I32;
+
+let y = if false 1 else if false 2 else if true 3 else 4;
+
+x = if y == 1 {
+    1
+} else if y == 2 {
+    2
+} else if y == 3 {
+    3
+} else {
+    4
+};
+
+x

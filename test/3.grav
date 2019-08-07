@@ -4,7 +4,7 @@ let mut y = 48;
 
 while x < y {
     x = x + 1;
-    print(x);
+    // println(strn(x));
 };
 
 let mut z = 14;
@@ -14,7 +14,5 @@ z = {
     {
         z = 672;
     };
-    return z / 2;
+    z / 2
 };
-
-return z;

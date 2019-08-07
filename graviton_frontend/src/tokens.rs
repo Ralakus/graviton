@@ -1,5 +1,3 @@
-
-
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
 pub enum TokenType {
@@ -55,8 +53,10 @@ pub enum TokenType {
     KwFalse,
     KwNil,
 
+    KwAs,
+
     Err,
-    Eof
+    Eof,
 }
 
 pub use ast::Position;
@@ -66,29 +66,27 @@ pub enum TokenData {
     None,
     String(String),
     Number(f64),
-    Str(&'static str)
+    Str(&'static str),
 }
 
 #[derive(Debug, Clone)]
 pub struct Token {
     pub type_: TokenType,
     pub data: TokenData,
-    pub pos: Position
+    pub pos: Position,
 }
-
 
 impl Token {
     pub fn new(type_: TokenType, data: TokenData, pos: Position) -> Self {
-        Token {
-            type_,
-            data,
-            pos
-        }
+        Token { type_, data, pos }
     }
 }
 
 impl ToString for Token {
-    fn to_string(&self) -> String { 
-        format!("{:?}, {:?}, line: {}, col: {}", self.type_, self.data, self.pos.line, self.pos.col)
+    fn to_string(&self) -> String {
+        format!(
+            "{:?}, {:?}, line: {}, col: {}",
+            self.type_, self.data, self.pos.line, self.pos.col
+        )
     }
 }

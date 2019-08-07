@@ -1,12 +1,14 @@
-
 pub mod ast;
-pub use ast::{Ast, AstNode, UnaryOperation, BinaryOperation, TypeSignature, VariableSignature, FunctionSignature};
+pub use ast::{
+    Ast, AstNode, BinaryOperation, FunctionSignature, PrimitiveType, TypeSignature, UnaryOperation,
+    VariableSignature,
+};
 pub mod semantic;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Position {
     pub line: i32,
-    pub col: i32
+    pub col: i32,
 }
