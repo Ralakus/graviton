@@ -6,11 +6,45 @@ use cranelift::prelude::*;
 use cranelift_faerie::{FaerieBackend, FaerieBuilder, FaerieTrapCollection};
 use cranelift_module::{DataContext, Linkage, Module};
 use std::collections::HashMap;
+use std::error::Error;
+
+pub mod stdlib;
 
 #[derive(Debug, Clone)]
 pub struct NativeError {
-    msg: String,
-    pos: ast::Position,
+    pub msg: String,
+    pub pos: ast::Position,
+    pub file: Option<String>,
+}
+
+pub struct NativeObject {
+    artifact: cranelift_faerie::FaerieProduct,
+}
+
+impl NativeObject {
+    pub fn write_file(&self, filename: &String) -> Result<(), NativeError> {
+        let file = match std::fs::File::create(filename) {
+            Ok(f) => f,
+            Err(e) => {
+                return Err(NativeError {
+                    msg: String::from(e.description()),
+                    pos: ast::Position { line: -1, col: -1 },
+                    file: None,
+                })
+            }
+        };
+        match self.artifact.artifact.write(file) {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(NativeError {
+                    msg: format!("{}", e),
+                    pos: ast::Position { line: -1, col: -1 },
+                    file: None,
+                })
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -31,7 +65,8 @@ impl Native {
     pub fn compile(
         name: String,
         ast: &ast::AstNode,
-    ) -> Result<cranelift_faerie::FaerieProduct, Vec<NativeError>> {
+        debug_level: i32,
+    ) -> Result<NativeObject, Vec<NativeError>> {
         let mut flag_builder = settings::builder();
         flag_builder.enable("is_pic").unwrap();
 
@@ -94,40 +129,44 @@ impl Native {
 
         translator.builder.finalize();
 
-        let main_id =
-            match ntv
-                .module
-                .declare_function("main", Linkage::Export, &ntv.context.func.signature)
-            {
-                Ok(id) => id,
-                Err(e) => {
-                    ntv.errors.push(NativeError {
-                        msg: format!("{:?}", e),
-                        pos: ast::Position { line: -1, col: -1 },
-                    });
-                    return Err(ntv.errors);
-                }
-            };
+        let main_id = match ntv.module.declare_function(
+            "graviton_main",
+            Linkage::Export,
+            &ntv.context.func.signature,
+        ) {
+            Ok(id) => id,
+            Err(e) => {
+                ntv.errors.push(NativeError {
+                    msg: format!("{}", e),
+                    pos: ast::Position { line: -1, col: -1 },
+                    file: None,
+                });
+                return Err(ntv.errors);
+            }
+        };
 
         match ntv.module.define_function(main_id, &mut ntv.context) {
             Ok(_) => {}
             Err(e) => {
                 ntv.errors.push(NativeError {
-                    msg: format!("{:?}", e),
+                    msg: format!("{}", e),
                     pos: ast::Position { line: -1, col: -1 },
+                    file: None,
                 });
                 return Err(ntv.errors);
             }
         }
 
-        println!("{}", ntv.context.func.display(None));
+        if debug_level >= 3 {
+            println!("{}", ntv.context.func.display(None));
+        }
 
         let result = ntv.module.finish();
 
         if ntv.errors.len() > 0 {
             Err(ntv.errors)
         } else {
-            Ok(result)
+            Ok(NativeObject { artifact: result })
         }
     }
 }
@@ -154,6 +193,7 @@ impl<'a> AstTranslator<'a> {
         let ne = NativeError {
             msg,
             pos: pos.clone(),
+            file: None,
         };
         self.errors.push(ne.clone());
         ne
@@ -169,7 +209,7 @@ impl<'a> AstTranslator<'a> {
         None
     }
 
-    fn new_scope(&mut self) {
+    /*fn new_scope(&mut self) {
         self.scopes.push(Scope {
             variables: HashMap::new(),
         });
@@ -181,7 +221,7 @@ impl<'a> AstTranslator<'a> {
         } else {
             self.scopes.pop();
         }
-    }
+    }*/
 
     fn last_scope(&mut self) -> &mut Scope {
         self.scopes.last_mut().unwrap()
@@ -262,10 +302,10 @@ impl<'a> AstTranslator<'a> {
                         Ok(self.builder.ins().bint(types::I32, c))
                     }
                     ast::BinaryOperation::LessEqual => {
-                        let c =
-                            self.builder
-                                .ins()
-                                .icmp(IntCC::SignedLessThanOrEqual, lval, rval);
+                        let c = self
+                            .builder
+                            .ins()
+                            .icmp(IntCC::SignedLessThanOrEqual, lval, rval);
                         Ok(self.builder.ins().bint(types::I32, c))
                     }
                     ast::BinaryOperation::Greater => {
@@ -321,7 +361,7 @@ impl<'a> AstTranslator<'a> {
                     ast::UnaryOperation::Negate => Ok(self.builder.ins().irsub_imm(e, 0)),
                 }
             }
-            ast::Ast::Return(expr) => Err(self.make_error(&ast.pos, format!("Not implemented"))),
+            ast::Ast::Return(_expr) => Err(self.make_error(&ast.pos, format!("Not implemented"))),
             ast::Ast::Block(exprs) => {
                 let mut last_ins: Option<Value> = None;
                 for e in exprs {
@@ -443,16 +483,41 @@ impl<'a> AstTranslator<'a> {
 
                 Ok(self.builder.use_var(var))
             }
-            ast::Ast::Import(_import_name, expr) => {
+            ast::Ast::Import(_import_name, _expr) => {
                 Err(self.make_error(&ast.pos, format!("Not implemented")))
             }
             ast::Ast::FnDef(_sig, _param_names, _return_type) => {
                 Err(self.make_error(&ast.pos, format!("Not implemented")))
             }
             ast::Ast::FnCall(callee, args) => {
-                Err(self.make_error(&ast.pos, format!("Not implemented")))
+                if let ast::Ast::Identifier(name) = &callee.node {
+                    let mut sig = self.module.make_signature();
+                    for _ in args {
+                        sig.params.push(AbiParam::new(types::I32));
+                    }
+                    if ast.type_sig != Some(ast::TypeSignature::new("Nil")) {
+                        sig.returns.push(AbiParam::new(types::I32));
+                    } else {
+                        sig.returns.push(AbiParam::new(types::I32));
+                    }
+                    let id = self
+                        .module
+                        .declare_function(&name, Linkage::Import, &sig)
+                        .unwrap();
+                    let local_id = self.module.declare_func_in_func(id, &mut self.builder.func);
+
+                    let mut arg_values = Vec::new();
+                    for arg in args {
+                        arg_values.push(self.ast_to_cranelift(&*arg)?);
+                    }
+
+                    let call = self.builder.ins().call(local_id, &arg_values);
+                    Ok(self.builder.inst_results(call)[0])
+                } else {
+                    Err(self.make_error(&ast.pos, format!("Not implemented")))
+                }
             }
-            ast::Ast::As(castee, cast_type) => {
+            ast::Ast::As(_castee, _cast_type) => {
                 Err(self.make_error(&ast.pos, format!("Not implemented")))
             }
         }

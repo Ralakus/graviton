@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.grav": "rust",
+        "cstdint": "cpp"
+    }
+}

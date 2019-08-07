@@ -14,6 +14,7 @@ const BOOL_TYPE_SIGNATURE: ast::TypeSignature =
 pub struct SemanticError {
     pub msg: String,
     pub pos: super::Position,
+    pub file: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -43,6 +44,7 @@ pub struct SemanticAnalyzer {
     scopes: Vec<Scope>,
     errors: Vec<SemanticError>,
     in_function_block: bool,
+    file: Option<String>,
 }
 
 impl<'a> SemanticAnalyzer {
@@ -60,6 +62,7 @@ impl<'a> SemanticAnalyzer {
         let e = SemanticError {
             msg: msg,
             pos: pos.clone(),
+            file: self.file.clone(),
         };
         self.errors.push(e.clone());
         e
@@ -97,6 +100,7 @@ impl<'a> SemanticAnalyzer {
 
     pub fn analyze(
         ast: &mut ast::AstNode,
+        filename: Option<String>,
         stdlib: Option<SemanticStdLib>,
     ) -> Result<(), Vec<SemanticError>> {
         let mut sa = SemanticAnalyzer {
@@ -105,6 +109,7 @@ impl<'a> SemanticAnalyzer {
             }],
             errors: Vec::new(),
             in_function_block: false,
+            file: filename,
         };
 
         if let Some(lib) = stdlib {
@@ -443,7 +448,10 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 NIL_TYPE_SIGNATURE.clone()
             }
         }
-        ast::Ast::Import(_, ref mut expr) => analyze(sa, &mut **expr),
+        ast::Ast::Import(ref name, ref mut expr) => {
+            sa.file = Some(name.clone());
+            analyze(sa, &mut **expr)
+        }
         ast::Ast::FnDef(ref mut sig, ref param_names, ref mut expr) => {
             sa.new_scope();
             for (var, name) in sig.params.iter().zip(param_names.iter()) {

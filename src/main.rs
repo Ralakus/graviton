@@ -1,47 +1,48 @@
+extern crate graviton as grav;
+
+use clap::{App, Arg, SubCommand};
+use colored::*;
+use memmap::Mmap;
 use std::error::Error;
-use std::fs::*;
+use std::fs::File;
 use std::io::Write;
 
-extern crate graviton;
-use graviton::colored::*;
-use graviton::errors;
-
-use memmap::Mmap;
-
-extern crate clap;
-use clap::{App, Arg, SubCommand};
-
 mod repl;
+mod run;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &'static str = env!("CARGO_PKG_AUTHORS");
 const DESCRIPTION: &'static str = env!("CARGO_PKG_DESCRIPTION");
 
+fn strip_extension(name: &String) -> String {
+    let pos = match name.rfind('.') {
+        Some(i) => i,
+        None => return name.clone(),
+    };
+
+    String::from(&name[0..pos])
+}
+
 fn main() {
     let debug_arg = Arg::with_name("Debug Level")
-        .help("Sets debug level to run the compiler in")
+        .help("Sets debug level to run the compiler in [0, 1, 2, 3]")
         .short("d")
         .long("debug")
         .takes_value(true);
+
+    let input_arg = Arg::with_name("Input")
+        .help("Input file to process")
+        .index(1);
 
     let args = App::new("Graviton")
         .version(VERSION)
         .author(AUTHOR)
         .about(DESCRIPTION)
-        .arg(
-            Arg::with_name("Input")
-                .help("Input file to process")
-                .index(1),
-        )
+        .arg(input_arg.clone())
         .arg(debug_arg.clone())
         .arg(
-            Arg::with_name("no_run")
-                .help("Doesn't run inputted code")
-                .long("no_run"),
-        )
-        .arg(
             Arg::with_name("emit")
-                .help("Emits the specified format [ast, bc, bytecode, none]")
+                .help("Emits the specified format [ast, obj, object, exe, executable, none]")
                 .long("emit")
                 .short("e")
                 .takes_value(true),
@@ -55,7 +56,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("type")
-                .help("Specifies the input format [src, source, ast, bc, bytecode]")
+                .help("Specifies the input format [src, source, ast]")
                 .long("type")
                 .short("t")
                 .takes_value(true),
@@ -65,7 +66,15 @@ fn main() {
                 .about("Live REPL environment")
                 .version(VERSION)
                 .author(AUTHOR)
-                .arg(debug_arg),
+                .arg(debug_arg.clone()),
+        )
+        .subcommand(
+            SubCommand::with_name("run")
+                .about("Run code directly without having to manually execute an executable")
+                .version(VERSION)
+                .author(AUTHOR)
+                .arg(debug_arg)
+                .arg(input_arg),
         )
         .get_matches();
 
@@ -78,21 +87,146 @@ fn main() {
             _ => 0,
         };
 
-        repl::repl(debug_level).unwrap();
+        return;
+    }
+
+    if let Some(run_args) = args.subcommand_matches("run") {
+        let debug_level = match run_args.value_of("Debug Level").unwrap_or("0") {
+            "0" => 0,
+            "1" => 1,
+            "2" => 2,
+            "3" => 3,
+            _ => 0,
+        };
+
+        let input = if let Some(input) = run_args.value_of("Input") {
+            match input {
+                s if !s.contains(".") => format!("{}.grav", s),
+                s => s.to_string(),
+            }
+        } else {
+            eprintln!("{}: Expects at least one argument for input", "Error".red());
+            std::process::exit(1);
+        };
+
+        let file = match File::open(input.as_str()) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                std::process::exit(1);
+            }
+        };
+
+        let mapped_file = unsafe {
+            match Mmap::map(&file) {
+                Ok(f) => f,
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            }
+        };
+
+        let source = match std::str::from_utf8(&mapped_file[..]) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                std::process::exit(1);
+            }
+        };
+
+        let obj = match grav::compile_source(source, Some(&input), debug_level) {
+            Ok(obj) => obj,
+            Err(e) => {
+                e.report(Some(source));
+                std::process::exit(1);
+            }
+        };
+
+        match obj.write_file(&String::from("grav_tmp.o")) {
+            Ok(_) => {}
+            Err(e) => {
+                grav::errors::report_native_error(&e, Some(source));
+                std::process::exit(1);
+            }
+        }
+
+        match std::process::Command::new("cc")
+            .arg("grav_tmp.o")
+            .arg("stdlib/graviton_driver.c")
+            .arg("stdlib/graviton_lib.c")
+            .arg("-o")
+            .arg("grav_tmp")
+            .spawn()
+        {
+            Ok(mut c) => match c.wait() {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            },
+            Err(e) => {
+                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                std::process::exit(1);
+            }
+        };
+
+        match std::process::Command::new("./grav_tmp").spawn() {
+            Ok(mut c) => match c.wait() {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            },
+            Err(e) => {
+                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                std::process::exit(1);
+            }
+        };
+
+        match std::process::Command::new("rm")
+            .arg("grav_tmp")
+            .arg("grav_tmp.o")
+            .spawn()
+        {
+            Ok(mut c) => match c.wait() {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            },
+            Err(e) => {
+                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                std::process::exit(1);
+            }
+        };
 
         return;
     }
 
-    #[derive(PartialEq, Eq)]
-    enum EmitType {
-        Ast,
-        Bytecode,
-        None,
+    let debug_level = match args.value_of("Debug Level").unwrap_or("0") {
+        "0" => 0,
+        "1" => 1,
+        "2" => 2,
+        "3" => 3,
+        _ => 0,
     };
 
-    let emit_type = match args.value_of("emit").unwrap_or("none") {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum EmitType {
+        Ast,
+        Object,
+        Executable,
+        None,
+    }
+
+    let emit_type = match args.value_of("emit").unwrap_or("exe") {
         "ast" => EmitType::Ast,
-        "bytecode" | "bc" => EmitType::Bytecode,
+        "object" | "obj" => EmitType::Object,
+        "executable" | "exe" => EmitType::Executable,
         "none" => {
             if let None = args.value_of("output") {
                 EmitType::None
@@ -107,12 +241,11 @@ fn main() {
         }
     };
 
-    #[derive(PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum InputType {
         Source,
         Ast,
-        Bytecode,
-    };
+    }
 
     let input_type = match args.value_of("type").unwrap_or("source") {
         "src" | "source" => InputType::Source,
@@ -127,47 +260,17 @@ fn main() {
                 InputType::Ast
             }
         }
-        "bytecode" | "bc" => {
-            if emit_type == EmitType::Ast {
-                eprintln!("{}: Cannot emit AST from bytecode", "Error".red());
-                std::process::exit(1);
-            } else {
-                InputType::Bytecode
-            }
-        }
         s => {
             eprintln!("{}: Invalid input type {}", "Error".red(), s);
             return;
         }
     };
 
-    let output: String = match args.value_of("output").unwrap_or(match emit_type {
-        EmitType::Ast => "out.gast",
-        EmitType::Bytecode | EmitType::None => "out.gabc",
-    }) {
-        s if !s.contains(".") => match emit_type {
-            EmitType::Ast => format!("{}.gast", s),
-            EmitType::Bytecode | EmitType::None => format!("{}.gabc", s),
-        },
-        s => s.to_string(),
-    };
-
-    let debug_level = match args.value_of("Debug Level").unwrap_or("0") {
-        "0" => 0,
-        "1" => 1,
-        "2" => 2,
-        "3" => 3,
-        _ => 0,
-    };
-
-    let run_code = !args.is_present("no_run");
-
     let input = if let Some(input) = args.value_of("Input") {
         match input {
             s if !s.contains(".") => match input_type {
                 InputType::Source => format!("{}.grav", s),
                 InputType::Ast => format!("{}.gast", s),
-                InputType::Bytecode => format!("{}.gabc", s),
             },
             s => s.to_string(),
         }
@@ -175,7 +278,21 @@ fn main() {
         eprintln!("{}: Expects at least one argument for input", "Error".red());
         std::process::exit(1);
     };
-    let mapped_file: memmap::Mmap;
+
+    let tmp_out = match emit_type {
+        EmitType::Ast => format!("{}.gast", strip_extension(&input)),
+        EmitType::Object | EmitType::None => format!("{}.o", strip_extension(&input)),
+        EmitType::Executable => strip_extension(&input),
+    };
+
+    let output: String = match args.value_of("output").unwrap_or(&tmp_out) {
+        s if !s.contains(".") => match emit_type {
+            EmitType::Ast => format!("{}.gast", s),
+            EmitType::Object | EmitType::None => format!("{}.o", s),
+            EmitType::Executable => s.to_string(),
+        },
+        s => s.to_string(),
+    };
 
     let file = match File::open(input.as_str()) {
         Ok(f) => f,
@@ -184,145 +301,223 @@ fn main() {
             std::process::exit(1);
         }
     };
-    mapped_file = unsafe { Mmap::map(&file).expect("failed to map file") };
 
-    let source = if input_type == InputType::Source {
-        std::str::from_utf8(&mapped_file[..]).unwrap()
-    } else {
-        ""
-    };
-
-    let ast = if input_type == InputType::Source {
-        graviton::frontend::parser::Parser::parse(source, Some(&*input))
-    } else if input_type == InputType::Ast {
-        Ok(rmp_serde::from_slice(&mapped_file[..]).unwrap())
-    } else {
-        let bc: graviton::backend::vm::Bytecode = rmp_serde::from_slice(&mapped_file[..]).unwrap();
-        if debug_level >= 1 {
-            println!("{:#?}", bc);
-        }
-        if run_code {
-            let mut vm = graviton::backend::vm::StackVm::new();
-            match vm.run(bc, debug_level) {
-                Ok(graviton::backend::vm::Value::Nil) => {}
-                Ok(result) => println!("=> {:?}", result),
-                Err(err) => errors::report_vm_error(&err, None, Some(input.as_str())),
+    let mapped_file = unsafe {
+        match Mmap::map(&file) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                std::process::exit(1);
             }
         }
-        return;
     };
 
-    match ast {
-        Ok(mut a) => {
-            match graviton::ast::semantic::SemanticAnalyzer::analyze(
-                &mut a,
-                Some(graviton::backend::vm::stdlib::get_stdlib_signatures()),
-            ) {
-                Ok(_) => {
-                    if debug_level >= 2 {
-                        println!("{}\n{:#?}", "Typed AST:".cyan(), a);
-                    }
-
-                    if emit_type == EmitType::Ast {
-                        let mut f = File::create(output).unwrap();
-                        f.write_all(&*rmp_serde::to_vec(&a).unwrap()).unwrap();
-                        return;
-                    }
-
-                    // Link with musl `ld -o grav -s grav.o /usr/lib64/musl/crt1.o /usr/lib64/musl/crti.o /usr/lib64/musl/crtn.o /usr/lib64/musl/libc.a`
-                    let result =
-                        graviton::backend::native::Native::compile(String::from("grav"), &a)
-                            .unwrap();
-                    let file = std::fs::File::create("grav.o").unwrap();
-                    result.artifact.write(file).unwrap();
-
-                    if !cfg!(windows) && debug_level >= 3 {
-                        std::process::Command::new("objdump")
-                            .arg("-M")
-                            .arg("intel")
-                            .arg("-d")
-                            .arg("grav.o")
-                            .spawn()
-                            .unwrap()
-                            .wait()
-                            .unwrap();
-                    }
-
-                    std::process::Command::new("cc")
-                            .arg("grav.o")
-                            .arg("-o")
-                            .arg("grav")
-                            .spawn()
-                            .unwrap()
-                            .wait()
-                            .unwrap();
-                    
-                    /*std::process::Command::new("ld")
-                        .arg("-o")
-                        .arg("grav")
-                        .arg("grav.o")
-                        .arg("/usr/lib64/musl/crt1.o")
-                        .arg("/usr/lib64/musl/crti.o")
-                        .arg("/usr/lib64/musl/crtn.o")
-                        .arg("/usr/lib64/musl/libc.a")
-                        .spawn()
-                        .unwrap()
-                        .wait()
-                        .unwrap();*/
-
-                    if run_code {
-                        println!("Running program...");
-                        let exit_code = std::process::Command::new("./grav")
-                            .spawn()
-                            .unwrap()
-                            .wait()
-                            .unwrap()
-                            .code();
-                        if let Some(code) = exit_code {
-                            println!("Exit code: {}", code);
-                        }
-
-                        std::process::Command::new("rm")
-                            .arg("grav.o")
-                            .arg("grav")
-                            .spawn()
-                            .unwrap()
-                            .wait()
-                            .unwrap();
-                    } else {
-                        std::process::Command::new("rm")
-                            .arg("grav.o")
-                            .spawn()
-                            .unwrap()
-                            .wait()
-                            .unwrap();
-                    }
-                    
+    let ast = match input_type {
+        InputType::Source => {
+            let source = match std::str::from_utf8(&mapped_file[..]) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
                 }
-                Err(errors) => {
-                    if debug_level >= 2 {
-                        println!("{}\n{:#?}", "Untyped AST:".cyan(), a);
-                    }
-                    for e in errors {
-                        errors::report_semantic_error(
-                            &e,
-                            if input_type == InputType::Source {
-                                Some(&*source)
-                            } else {
-                                None
-                            },
-                            Some(input.as_str()),
-                        );
-                    }
+            };
+
+            match grav::parse_source(source, Some(&input)) {
+                Ok(obj) => obj,
+                Err(e) => {
+                    e.report(Some(source));
                     std::process::exit(1);
                 }
             }
         }
-        Err(errors) => {
-            for e in errors {
-                errors::report_parser_error(&e, Some(source));
+        InputType::Ast => match rmp_serde::from_slice(&mapped_file[..]) {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                std::process::exit(1);
             }
-            std::process::exit(1);
-        }
+        },
     };
+
+    match emit_type {
+        EmitType::Ast => {
+            let mut file = match File::create(output) {
+                Ok(f) => f,
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            };
+            match file.write_all(match &rmp_serde::to_vec(&ast) {
+                Ok(vec) => vec,
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            }) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            }
+        }
+        EmitType::Object => {
+            let obj = match grav::compile_ast(input.clone(), &ast, debug_level) {
+                Ok(o) => o,
+                Err(e) => {
+                    e.report(if input_type == InputType::Source {
+                        match std::str::from_utf8(&mapped_file[..]) {
+                            Ok(s) => Some(s),
+                            Err(e) => {
+                                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                                std::process::exit(1);
+                            }
+                        }
+                    } else {
+                        None
+                    });
+                    std::process::exit(1);
+                }
+            };
+
+            match obj.write_file(&String::from("grav_tmp.o")) {
+                Ok(_) => {}
+                Err(e) => {
+                    grav::errors::report_native_error(
+                        &e,
+                        if input_type == InputType::Source {
+                            match std::str::from_utf8(&mapped_file[..]) {
+                                Ok(s) => Some(s),
+                                Err(e) => {
+                                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                                    std::process::exit(1);
+                                }
+                            }
+                        } else {
+                            None
+                        },
+                    );
+                    std::process::exit(1);
+                }
+            };
+
+            match std::process::Command::new("cc")
+                .arg("grav_tmp.o")
+                .arg("-c")
+                .arg("stdlib/graviton_lib.c")
+                .arg("-o")
+                .arg(output)
+                .spawn()
+            {
+                Ok(mut c) => match c.wait() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        std::process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            };
+
+            match std::process::Command::new("rm")
+                .arg("grav_tmp.o")
+                .spawn()
+            {
+                Ok(mut c) => match c.wait() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        std::process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            };
+        }
+        EmitType::Executable => {
+            let obj = match grav::compile_ast(input.clone(), &ast, debug_level) {
+                Ok(o) => o,
+                Err(e) => {
+                    e.report(if input_type == InputType::Source {
+                        match std::str::from_utf8(&mapped_file[..]) {
+                            Ok(s) => Some(s),
+                            Err(e) => {
+                                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                                std::process::exit(1);
+                            }
+                        }
+                    } else {
+                        None
+                    });
+                    std::process::exit(1);
+                }
+            };
+
+            match obj.write_file(&String::from("grav_tmp.o")) {
+                Ok(_) => {}
+                Err(e) => {
+                    grav::errors::report_native_error(
+                        &e,
+                        if input_type == InputType::Source {
+                            match std::str::from_utf8(&mapped_file[..]) {
+                                Ok(s) => Some(s),
+                                Err(e) => {
+                                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                                    std::process::exit(1);
+                                }
+                            }
+                        } else {
+                            None
+                        },
+                    );
+                    std::process::exit(1);
+                }
+            };
+
+            match std::process::Command::new("cc")
+                .arg("grav_tmp.o")
+                .arg("stdlib/graviton_driver.c")
+                .arg("stdlib/graviton_lib.c")
+                .arg("-o")
+                .arg(output)
+                .spawn()
+            {
+                Ok(mut c) => match c.wait() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        std::process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            };
+
+            match std::process::Command::new("rm")
+                .arg("grav_tmp.o")
+                .spawn()
+            {
+                Ok(mut c) => match c.wait() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        std::process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            };
+        }
+        EmitType::None => {}
+    }
 }

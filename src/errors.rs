@@ -1,5 +1,5 @@
 use super::ast::semantic::SemanticError;
-use super::backend::vm::VmError;
+use super::backend::native::NativeError;
 use super::colored::*;
 use super::frontend::parser::ParseError;
 
@@ -16,16 +16,30 @@ pub fn report_parser_error<'a>(e: &ParseError, source: Option<&'a str>) {
     )
 }
 
-pub fn report_semantic_error<'a>(
-    e: &SemanticError,
-    source: Option<&'a str>,
-    file: Option<&'a str>,
-) {
-    report_error_msg_with_pos(&e.msg, e.pos, source, file)
+pub fn report_semantic_error<'a>(e: &SemanticError, source: Option<&'a str>) {
+    report_error_msg_with_pos(
+        &e.msg,
+        e.pos,
+        source,
+        if let Some(name) = &e.file {
+            Some(&name)
+        } else {
+            None
+        },
+    )
 }
 
-pub fn report_vm_error<'a>(e: &VmError, source: Option<&'a str>, file: Option<&'a str>) {
-    report_error_msg_with_pos(&e.msg, e.pos, source, file)
+pub fn report_native_error<'a>(e: &NativeError, source: Option<&'a str>) {
+    report_error_msg_with_pos(
+        &e.msg,
+        e.pos,
+        source,
+        if let Some(name) = &e.file {
+            Some(&name)
+        } else {
+            None
+        },
+    )
 }
 
 pub fn report_error_msg_with_pos<'a>(
