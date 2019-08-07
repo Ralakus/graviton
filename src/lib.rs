@@ -89,7 +89,7 @@ pub fn compile_source<'a>(
         if let Some(f) = filename {
             String::from(f)
         } else {
-            String::from("grav.out")
+            String::from("graviton")
         },
         &ast,
         debug_level,

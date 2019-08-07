@@ -8,7 +8,6 @@ use std::fs::File;
 use std::io::Write;
 
 mod repl;
-mod run;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &'static str = env!("CARGO_PKG_AUTHORS");
@@ -21,6 +20,15 @@ fn strip_extension(name: &String) -> String {
     };
 
     String::from(&name[0..pos])
+}
+
+fn strip_filepath(name: &String) -> String {
+    let pos = match name.rfind('/') {
+        Some(i) => i,
+        None => return name.clone(),
+    };
+
+    String::from(&name[pos + 1..])
 }
 
 fn main() {
@@ -87,6 +95,14 @@ fn main() {
             _ => 0,
         };
 
+        match repl::repl(debug_level) {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("{}: {}", "Error".red(), e);
+                std::process::exit(1);
+            }
+        }
+
         return;
     }
 
@@ -149,6 +165,26 @@ fn main() {
                 grav::errors::report_native_error(&e, Some(source));
                 std::process::exit(1);
             }
+        }
+
+        if !cfg!(windows) && debug_level >= 3 {
+            match std::process::Command::new("objdump")
+                .arg("-d")
+                .arg("grav_tmp.o")
+                .spawn()
+            {
+                Ok(mut c) => match c.wait() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        std::process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            };
         }
 
         match std::process::Command::new("cc")
@@ -280,9 +316,11 @@ fn main() {
     };
 
     let tmp_out = match emit_type {
-        EmitType::Ast => format!("{}.gast", strip_extension(&input)),
-        EmitType::Object | EmitType::None => format!("{}.o", strip_extension(&input)),
-        EmitType::Executable => strip_extension(&input),
+        EmitType::Ast => format!("{}.gast", strip_filepath(&strip_extension(&input))),
+        EmitType::Object | EmitType::None => {
+            format!("{}.o", strip_filepath(&strip_extension(&input)))
+        }
+        EmitType::Executable => strip_filepath(&strip_extension(&input)),
     };
 
     let output: String = match args.value_of("output").unwrap_or(&tmp_out) {
@@ -402,12 +440,51 @@ fn main() {
                 }
             };
 
+            if !cfg!(windows) && debug_level >= 3 {
+                match std::process::Command::new("objdump")
+                    .arg("-d")
+                    .arg("grav_tmp.o")
+                    .spawn()
+                {
+                    Ok(mut c) => match c.wait() {
+                        Ok(_) => {}
+                        Err(e) => {
+                            eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                            std::process::exit(1);
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        std::process::exit(1);
+                    }
+                };
+            }
+
             match std::process::Command::new("cc")
-                .arg("grav_tmp.o")
                 .arg("-c")
                 .arg("stdlib/graviton_lib.c")
                 .arg("-o")
+                .arg("grav_lib.o")
+                .spawn()
+            {
+                Ok(mut c) => match c.wait() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        std::process::exit(1);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    std::process::exit(1);
+                }
+            };
+
+            match std::process::Command::new("ar")
+                .arg("-rcs")
                 .arg(output)
+                .arg("grav_lib.o")
+                .arg("grav_tmp.o")
                 .spawn()
             {
                 Ok(mut c) => match c.wait() {
@@ -425,6 +502,7 @@ fn main() {
 
             match std::process::Command::new("rm")
                 .arg("grav_tmp.o")
+                .arg("grav_lib.o")
                 .spawn()
             {
                 Ok(mut c) => match c.wait() {
@@ -480,6 +558,26 @@ fn main() {
                 }
             };
 
+            if !cfg!(windows) && debug_level >= 3 {
+                match std::process::Command::new("objdump")
+                    .arg("-d")
+                    .arg("grav_tmp.o")
+                    .spawn()
+                {
+                    Ok(mut c) => match c.wait() {
+                        Ok(_) => {}
+                        Err(e) => {
+                            eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                            std::process::exit(1);
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        std::process::exit(1);
+                    }
+                };
+            }
+
             match std::process::Command::new("cc")
                 .arg("grav_tmp.o")
                 .arg("stdlib/graviton_driver.c")
@@ -501,10 +599,7 @@ fn main() {
                 }
             };
 
-            match std::process::Command::new("rm")
-                .arg("grav_tmp.o")
-                .spawn()
-            {
+            match std::process::Command::new("rm").arg("grav_tmp.o").spawn() {
                 Ok(mut c) => match c.wait() {
                     Ok(_) => {}
                     Err(e) => {
