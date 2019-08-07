@@ -7,35 +7,35 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'tachyon'",
+            "name": "Debug executable 'graviton'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=tachyon",
-                    "--package=tachyon"
+                    "--bin=graviton",
+                    "--package=graviton"
                 ],
                 "filter": {
-                    "name": "tachyon",
+                    "name": "graviton",
                     "kind": "bin"
                 }
             },
-            "args": [ "test/fib.tyon" ],
+            "args": [ "test/8.grav" ],
             "cwd": "${workspaceFolder}",
             "terminal": "integrated"
         },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'tachyon'",
+            "name": "Debug unit tests in executable 'graviton'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=tachyon",
-                    "--package=tachyon"
+                    "--bin=graviton",
+                    "--package=graviton"
                 ],
                 "filter": {
-                    "name": "tachyon",
+                    "name": "graviton",
                     "kind": "bin"
                 }
             },

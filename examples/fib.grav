@@ -1,8 +1,8 @@
 
-println("Iterative Fibonacci example");
+// println("Iterative Fibonacci example");
 
-print("Enter a number: ");
-let n = read_num();
+// print("Enter a number: ");
+let n = 11; // read_num();
 
 let mut fib_number: I32;
 
@@ -30,8 +30,10 @@ let output = if (fib_number = {
     }) != 377 {
         fib_number
     } else {
-        println("Input was 14 so result will be negated for demonstration");
+        // println("Input was 14 so result will be negated for demonstration");
         -fib_number
     };
 
-println("Fibonacci of " + strn(n) + " is " + strn(output));
+// println("Fibonacci of " + strn(n) + " is " + strn(output));
+
+output

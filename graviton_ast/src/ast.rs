@@ -67,6 +67,69 @@ impl<'a> TypeSignature {
             _ => TypeSignature::Custom(t.to_string()),
         }
     }
+    pub fn is_number(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::Nil | PrimitiveType::Bool => false,
+                _ => true,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_bool(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::Bool => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_nil(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::Nil => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_signed(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64 => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_unsigned(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64 => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_function(&self) -> bool {
+        match self {
+            TypeSignature::Function(_) => true,
+            _ => false,
+        }
+    }
+    pub fn is_custom(&self) -> bool {
+        match self {
+            TypeSignature::Custom(_) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Hash, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]

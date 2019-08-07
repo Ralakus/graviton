@@ -228,47 +228,76 @@ fn main() {
                         f.write_all(&*rmp_serde::to_vec(&a).unwrap()).unwrap();
                         return;
                     }
-                    let bytecode = graviton::backend::vm::Bytecode::new(a);
-                    match bytecode {
-                        Ok(bc) => {
-                            if debug_level >= 1 {
-                                println!("{:#?}", bc);
-                            }
-                            if emit_type == EmitType::Bytecode {
-                                let mut f = File::create(output).unwrap();
-                                f.write_all(&*rmp_serde::to_vec(&bc).unwrap()).unwrap();
-                                return;
-                            }
-                            if run_code {
-                                let mut vm = graviton::backend::vm::StackVm::new();
-                                match vm.run(bc, debug_level) {
-                                    Ok(graviton::backend::vm::Value::Nil) => {}
-                                    Ok(result) => println!("=> {:?}", result),
-                                    Err(err) => errors::report_vm_error(
-                                        &err,
-                                        if input_type == InputType::Source {
-                                            Some(&*source)
-                                        } else {
-                                            None
-                                        },
-                                        Some(input.as_str()),
-                                    ),
-                                }
-                            }
+
+                    // Link with musl `ld -o grav -s grav.o /usr/lib64/musl/crt1.o /usr/lib64/musl/crti.o /usr/lib64/musl/crtn.o /usr/lib64/musl/libc.a`
+                    let result =
+                        graviton::backend::native::Native::compile(String::from("grav"), &a)
+                            .unwrap();
+                    let file = std::fs::File::create("grav.o").unwrap();
+                    result.artifact.write(file).unwrap();
+
+                    if !cfg!(windows) && debug_level >= 3 {
+                        std::process::Command::new("objdump")
+                            .arg("-M")
+                            .arg("intel")
+                            .arg("-d")
+                            .arg("grav.o")
+                            .spawn()
+                            .unwrap()
+                            .wait()
+                            .unwrap();
+                    }
+
+                    std::process::Command::new("cc")
+                            .arg("grav.o")
+                            .arg("-o")
+                            .arg("grav")
+                            .spawn()
+                            .unwrap()
+                            .wait()
+                            .unwrap();
+                    
+                    /*std::process::Command::new("ld")
+                        .arg("-o")
+                        .arg("grav")
+                        .arg("grav.o")
+                        .arg("/usr/lib64/musl/crt1.o")
+                        .arg("/usr/lib64/musl/crti.o")
+                        .arg("/usr/lib64/musl/crtn.o")
+                        .arg("/usr/lib64/musl/libc.a")
+                        .spawn()
+                        .unwrap()
+                        .wait()
+                        .unwrap();*/
+
+                    if run_code {
+                        println!("Running program...");
+                        let exit_code = std::process::Command::new("./grav")
+                            .spawn()
+                            .unwrap()
+                            .wait()
+                            .unwrap()
+                            .code();
+                        if let Some(code) = exit_code {
+                            println!("Exit code: {}", code);
                         }
-                        Err(err) => {
-                            errors::report_vm_error(
-                                &err,
-                                if input_type == InputType::Source {
-                                    Some(&*source)
-                                } else {
-                                    None
-                                },
-                                Some(input.as_str()),
-                            );
-                            std::process::exit(1);
-                        }
-                    };
+
+                        std::process::Command::new("rm")
+                            .arg("grav.o")
+                            .arg("grav")
+                            .spawn()
+                            .unwrap()
+                            .wait()
+                            .unwrap();
+                    } else {
+                        std::process::Command::new("rm")
+                            .arg("grav.o")
+                            .spawn()
+                            .unwrap()
+                            .wait()
+                            .unwrap();
+                    }
+                    
                 }
                 Err(errors) => {
                     if debug_level >= 2 {

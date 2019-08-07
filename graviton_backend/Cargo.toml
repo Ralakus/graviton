@@ -21,9 +21,9 @@ typetag = "0.1.3"
 
 downcast-rs = "1.0.4"
 
-cranelift = "0.37.0"
-cranelift-module = "0.37.0"
-cranelift-faerie = "0.37.0"
-cranelift-native = "0.37.0"
+cranelift = "0.38.0"
+cranelift-module = "0.38.0"
+cranelift-faerie = "0.38.0"
+cranelift-native = "0.38.0"
 
 crc16 = "0.4.0"

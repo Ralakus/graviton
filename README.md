@@ -49,7 +49,7 @@ let output = if (fib_number = {
 
         };
 
-        return curn;
+        curn
     }) != 377 {
         fib_number
     } else {

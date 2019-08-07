@@ -64,20 +64,64 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                         if debug_level >= 2 {
                             println!("{}\n{:#?}", "Typed AST:".cyan(), a);
                         }
-                        let bytecode = graviton::backend::vm::Bytecode::new(a);
-                        match bytecode {
-                            Ok(bc) => {
-                                if debug_level >= 1 {
-                                    println!("{:#?}", bc);
-                                }
-                                let mut vm = graviton::backend::vm::StackVm::new();
-                                match vm.run(bc, debug_level) {
-                                    Ok(result) => println!("=> {:?}", result),
-                                    Err(err) => errors::report_vm_error(&err, Some(&*source), None),
-                                }
+
+                        let result =
+                            graviton::backend::native::Native::compile(String::from("grav"), &a)
+                                .unwrap();
+                        let file = std::fs::File::create("grav.o").unwrap();
+                        result.artifact.write(file).unwrap();
+
+                        if !cfg!(windows) && debug_level >= 3 {
+                            std::process::Command::new("objdump")
+                                .arg("-M")
+                                .arg("intel")
+                                .arg("-d")
+                                .arg("grav.o")
+                                .spawn()
+                                .unwrap()
+                                .wait()
+                                .unwrap();
+                        }
+
+                        std::process::Command::new("cc")
+                                .arg("grav.o")
+                                .arg("-o")
+                                .arg("grav")
+                                .spawn()
+                                .unwrap()
+                                .wait()
+                                .unwrap();
+                        
+                        /*std::process::Command::new("ld")
+                            .arg("-o")
+                            .arg("grav")
+                            .arg("grav.o")
+                            .arg("/usr/lib64/musl/crt1.o")
+                            .arg("/usr/lib64/musl/crti.o")
+                            .arg("/usr/lib64/musl/crtn.o")
+                            .arg("/usr/lib64/musl/libc.a")
+                            .spawn()
+                            .unwrap()
+                            .wait()
+                            .unwrap();*/
+
+                            let exit_code = std::process::Command::new("./grav")
+                                .spawn()
+                                .unwrap()
+                                .wait()
+                                .unwrap()
+                                .code();
+                            if let Some(code) = exit_code {
+                                println!("Exit code: {}", code);
                             }
-                            Err(err) => errors::report_vm_error(&err, Some(&*source), None),
-                        };
+
+                            std::process::Command::new("rm")
+                                .arg("grav.o")
+                                .arg("grav")
+                                .spawn()
+                                .unwrap()
+                                .wait()
+                                .unwrap();
                     }
                     Err(errors) => {
                         if debug_level >= 2 {

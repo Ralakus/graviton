@@ -146,8 +146,16 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
             | ast::BinaryOperation::GreaterEqual
             | ast::BinaryOperation::Equal
             | ast::BinaryOperation::NotEqual => {
-                if analyze(sa, &mut **l) != analyze(sa, &mut **r) {
-                    sa.make_err(&ast.pos, format!("Binary operands are not the same type"));
+                let ltype = analyze(sa, &mut **l);
+                let rtype = analyze(sa, &mut **r);
+                if ltype != rtype {
+                    sa.make_err(
+                        &ast.pos,
+                        format!(
+                            "Binary operands are not the same type; {:?} != {:?}",
+                            ltype, rtype
+                        ),
+                    );
                 }
                 BOOL_TYPE_SIGNATURE.clone()
             }
@@ -214,11 +222,24 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 }
             }
             _ => {
-                let return_type = analyze(sa, &mut **l);
-                if return_type != analyze(sa, &mut **r) {
-                    sa.make_err(&ast.pos, format!("Binary operands are not the same type"));
+                let ltype = analyze(sa, &mut **l);
+                let rtype = analyze(sa, &mut **r);
+                if ltype.is_nil() || ltype.is_bool() {
+                    sa.make_err(&ast.pos, format!("Bool and Nil are not valid binary math operand types; Got type {:?} on the left", ltype));
                 }
-                return_type
+                if rtype.is_nil() || rtype.is_bool() {
+                    sa.make_err(&ast.pos, format!("Bool and Nil are not valid binary math operand types; Got type {:?} on the right", rtype));
+                }
+                if ltype != rtype {
+                    sa.make_err(
+                        &ast.pos,
+                        format!(
+                            "Binary operands are not the same type; {:?} != {:?}",
+                            ltype, rtype
+                        ),
+                    );
+                }
+                ltype
             }
         },
         ast::Ast::Unary(ref op, ref mut expr) => {
@@ -234,29 +255,11 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                     BOOL_TYPE_SIGNATURE.clone()
                 }
                 ast::UnaryOperation::Negate => {
-                    match &expr_type {
-                        ast::TypeSignature::Primitive(primitive) => match primitive {
-                            ast::PrimitiveType::I8
-                            | ast::PrimitiveType::I16
-                            | ast::PrimitiveType::I32
-                            | ast::PrimitiveType::I64
-                            | ast::PrimitiveType::U8
-                            | ast::PrimitiveType::U16
-                            | ast::PrimitiveType::U32
-                            | ast::PrimitiveType::U64 => {}
-                            _ => {
-                                sa.make_err(
-                                    &expr.pos,
-                                    format!("Negate only supports primitive number types"),
-                                );
-                            }
-                        },
-                        _ => {
-                            sa.make_err(
-                                &expr.pos,
-                                format!("Negate only supports primitive number types"),
-                            );
-                        }
+                    if !expr_type.is_number() {
+                        sa.make_err(
+                            &expr.pos,
+                            format!("Negate only supports primitive number types"),
+                        );
                     }
                     expr_type
                 }
@@ -352,6 +355,14 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 );
             }
             let expr_type = analyze(sa, &mut **ifexpr);
+            if expr_type != NIL_TYPE_SIGNATURE {
+                if let None = elseexpr {
+                    sa.make_err(
+                        &ifcond.pos,
+                        format!("If condition must have an else branch if a value is returned"),
+                    );
+                }
+            }
             sa.pop_scope(&ifexpr.pos);
             for (eifc, eife) in elseifs {
                 sa.new_scope();
