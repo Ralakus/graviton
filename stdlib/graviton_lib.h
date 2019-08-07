@@ -16,6 +16,8 @@ typedef uint16_t U16;
 typedef uint32_t U32;
 typedef uint64_t U64;
 
+typedef char* String;
+
 /* Stdlib */
 Nil printn(I32);
 Nil printb(Bool);
@@ -23,3 +25,6 @@ Nil printnln(I32);
 Nil printbln(Bool);
 
 I32 read_num(Nil);
+
+Nil print(String);
+Nil println(String);

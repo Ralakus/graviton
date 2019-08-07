@@ -8,6 +8,9 @@ macro_rules! stdlib_fn {
 
 pub fn get_stdlib_signatures() -> SemanticStdLib {
     let mut stdlib = SemanticStdLib::new();
+    stdlib_fn!(stdlib, print, make_fn_sig! { fn(String): Nil });
+    stdlib_fn!(stdlib, println, make_fn_sig! { fn(String): Nil });
+    stdlib_fn!(stdlib, read_num, make_fn_sig! { fn(): I32 });
     stdlib_fn!(stdlib, printn, make_fn_sig! { fn(I32): Nil });
     stdlib_fn!(stdlib, printb, make_fn_sig! { fn(Bool): Nil });
     stdlib_fn!(stdlib, printnln, make_fn_sig! { fn(I32): Nil });

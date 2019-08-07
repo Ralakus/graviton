@@ -3,6 +3,7 @@ pub extern crate graviton_backend as backend;
 pub extern crate graviton_frontend as frontend;
 
 pub extern crate colored;
+use colored::*;
 
 pub mod errors;
 
@@ -85,6 +86,9 @@ pub fn compile_source<'a>(
     debug_level: i32,
 ) -> Result<backend::native::NativeObject, GravitonError> {
     let ast = parse_source(source, filename)?;
+    if debug_level >=2 {
+        println!("{}: {:#?}", "Typed AST".cyan(), ast);
+    }
     compile_ast(
         if let Some(f) = filename {
             String::from(f)

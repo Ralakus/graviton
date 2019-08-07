@@ -377,6 +377,10 @@ fn main() {
         },
     };
 
+    if debug_level >=2 {
+        println!("{}: {:#?}", "Typed AST".cyan(), ast);
+    }
+
     match emit_type {
         EmitType::Ast => {
             let mut file = match File::create(output) {

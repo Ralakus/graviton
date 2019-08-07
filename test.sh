@@ -72,6 +72,14 @@ then
   FAILED=1
 fi
 
+cargo run run test/11.grav
+if [ $? -eq 1 ]
+then
+  echo "Failed test 10"
+  FAILED=1
+fi
+
+
 echo "14" | cargo run run examples/fib.grav
 if [ $? -eq 1 ]
 then

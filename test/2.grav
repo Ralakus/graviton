@@ -14,4 +14,4 @@ else {
     0
 };
 
-printbln(x == 1);
+printbln(x > 0);
