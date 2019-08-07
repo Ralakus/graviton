@@ -59,7 +59,6 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
             }
         };
 
-
         if !cfg!(windows) && debug_level >= 3 {
             match std::process::Command::new("objdump")
                 .arg("-d")

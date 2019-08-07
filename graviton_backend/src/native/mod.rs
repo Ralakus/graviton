@@ -483,9 +483,7 @@ impl<'a> AstTranslator<'a> {
 
                 Ok(self.builder.use_var(var))
             }
-            ast::Ast::Import(_import_name, expr) => {
-                self.ast_to_cranelift(&*expr)
-            }
+            ast::Ast::Import(_import_name, expr) => self.ast_to_cranelift(&*expr),
             ast::Ast::FnDef(_sig, _param_names, _return_type) => {
                 Err(self.make_error(&ast.pos, format!("Not implemented")))
             }

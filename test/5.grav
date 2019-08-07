@@ -1,8 +1,8 @@
 
 let x = 14;
 
-println(strb(let is_x_greater_than_five = if x > 5 true else false));
+printbln(let is_x_greater_than_five = if x > 5 true else false);
 
-println(strb(is_x_greater_than_five));
+printbln(is_x_greater_than_five);
 
 1 + 2
