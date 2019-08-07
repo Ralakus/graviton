@@ -8,5 +8,5 @@ fn add (x: I32, y: I32): I32 {
 let x = 5;
 
 if (let y = 5) > 0 {
-    let z = add(x, y)
+    let z = add(x, y);
 };

@@ -51,6 +51,27 @@ then
   FAILED=1
 fi
 
+cargo run test/8.grav -e=ast --no_run
+if [ $? -eq 1 ]
+then
+  echo "Failed test 8"
+  FAILED=1
+fi
+
+cargo run test/9.grav -e=ast --no_run
+if [ $? -eq 1 ]
+then
+  echo "Failed test 9"
+  FAILED=1
+fi
+
+cargo run test/10.grav -e=ast --no_run
+if [ $? -eq 1 ]
+then
+  echo "Failed test 10"
+  FAILED=1
+fi
+
 echo "14" | cargo run examples/fib.grav
 if [ $? -eq 1 ]
 then

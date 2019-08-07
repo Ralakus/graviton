@@ -91,19 +91,6 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                                 .unwrap()
                                 .wait()
                                 .unwrap();
-                        
-                        /*std::process::Command::new("ld")
-                            .arg("-o")
-                            .arg("grav")
-                            .arg("grav.o")
-                            .arg("/usr/lib64/musl/crt1.o")
-                            .arg("/usr/lib64/musl/crti.o")
-                            .arg("/usr/lib64/musl/crtn.o")
-                            .arg("/usr/lib64/musl/libc.a")
-                            .spawn()
-                            .unwrap()
-                            .wait()
-                            .unwrap();*/
 
                             let exit_code = std::process::Command::new("./grav")
                                 .spawn()
