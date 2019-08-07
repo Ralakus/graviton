@@ -377,7 +377,7 @@ fn main() {
         },
     };
 
-    if debug_level >=2 {
+    if debug_level >= 2 {
         println!("{}: {:#?}", "Typed AST".cyan(), ast);
     }
 

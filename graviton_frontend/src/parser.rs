@@ -352,7 +352,7 @@ impl<'a> Parser<'a> {
             Position { line: -2, col: -2 },
         );
 
-        Ok(p.new_node(Ast::Block(exprs)))
+        Ok(p.new_node(Ast::Module(exprs)))
     }
 
     fn make_error(&mut self, msg: &'static str) -> ParseError {

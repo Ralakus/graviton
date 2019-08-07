@@ -157,6 +157,9 @@ macro_rules! make_fn_sig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Ast {
+    // expressions
+    Module(Vec<AstNode>),
+
     // identifier name
     Identifier(String),
 

@@ -128,6 +128,43 @@ impl<'a> SemanticAnalyzer {
 
 pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSignature {
     let node_type = match ast.node {
+        ast::Ast::Module(ref mut exprs) => {
+            let mut idx = 1;
+            let len = exprs.len();
+            let mut return_type: Option<ast::TypeSignature> = None;
+            for expr in (&mut **exprs).iter_mut() {
+                let mut e_error = false;
+                match expr.node {
+                    ast::Ast::Statement(_) => {
+                        analyze(sa, expr);
+                    }
+                    _ => {
+                        if idx != len {
+                            e_error = true;
+                        }
+                        return_type = Some(analyze(sa, expr));
+                    }
+                }
+                if e_error {
+                    sa.make_err(
+                        &expr.pos,
+                        format!("Only the last element in a block can be an expression"),
+                    );
+                }
+                idx += 1;
+            }
+            if let Some(r) = return_type {
+                if r != DEFAULT_NUM_TYPE_SIGNATURE && r != NIL_TYPE_SIGNATURE {
+                    sa.make_err(
+                        &ast.pos,
+                        format!("Modules may only return I32 or Nil; found {:?}", r),
+                    );
+                }
+                r
+            } else {
+                NIL_TYPE_SIGNATURE.clone()
+            }
+        }
         ast::Ast::Identifier(ref s) => {
             if let None = sa.check_if_var_in_scopes(&s) {
                 sa.make_err(&ast.pos, format!("Variable {} not found in scope", s));

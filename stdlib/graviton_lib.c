@@ -4,14 +4,14 @@
 #include "graviton_lib.h"
 
 Nil printn(I32 n) {
-    printf("Number: %d", n);
+    printf("%d", n);
     fflush(stdout);
 }
 Nil printb(Bool b) {
     if(b) {
-        printf("Bool: true");
+        printf("true");
     } else {
-        printf("Bool: false");
+        printf("false");
     }
     fflush(stdout);
 }

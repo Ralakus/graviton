@@ -48,7 +48,7 @@ pub fn report_error_msg_with_pos<'a>(
     source: Option<&'a str>,
     file: Option<&'a str>,
 ) {
-    if pos.line != -1 {
+    if pos.line > 0 {
         if let Some(s) = source {
             if let Some(f) = file {
                 let mut line = 1;
@@ -152,14 +152,30 @@ pub fn report_error_msg_with_pos<'a>(
                 "{}: {}\n\tat: {}",
                 "Error".red(),
                 msg,
-                format!("{}{}:begining of file{}", "[".bold(), f, "]".bold()),
+                format!("{}{}:module{}", "[".bold(), f, "]".bold()),
             );
         } else {
             eprintln!(
                 "{}: {}\n\tat: {}",
                 "Error".red(),
                 msg,
-                format!("{}begining of file{}", "[".bold(), "]".bold()),
+                format!("{}module{}", "[".bold(), "]".bold()),
+            );
+        }
+    } else {
+        if let Some(f) = file {
+            eprintln!(
+                "{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}{}:??{}", "[".bold(), f, "]".bold()),
+            );
+        } else {
+            eprintln!(
+                "{}: {}\n\tat: {}",
+                "Error".red(),
+                msg,
+                format!("{}??{}", "[".bold(), "]".bold()),
             );
         }
     }

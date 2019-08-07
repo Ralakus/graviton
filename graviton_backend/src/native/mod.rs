@@ -8,8 +8,8 @@ use cranelift_module::{DataContext, Linkage, Module};
 use std::collections::HashMap;
 use std::error::Error;
 
-pub mod stdlib;
 pub mod gravtypes;
+pub mod stdlib;
 
 #[derive(Debug, Clone)]
 pub struct NativeError {
@@ -260,6 +260,21 @@ impl<'a> AstTranslator<'a> {
     }
     fn ast_to_cranelift(&mut self, ast: &ast::AstNode) -> Result<Value, NativeError> {
         match &ast.node {
+            ast::Ast::Module(exprs) => {
+                let mut last_ins: Option<Value> = None;
+                for e in exprs {
+                    last_ins = Some(self.ast_to_cranelift(e)?);
+                }
+                if let Some(ast::TypeSignature::Primitive(ast::PrimitiveType::Nil)) = ast.type_sig {
+                    Ok(self.builder.ins().iconst(types::I32, 0))
+                } else {
+                    if let Some(ins) = last_ins {
+                        Ok(ins)
+                    } else {
+                        Ok(self.builder.ins().iconst(types::I32, 0))
+                    }
+                }
+            }
             ast::Ast::Identifier(ident) => {
                 let var = match AstTranslator::check_if_var_in_scopes(self.scopes, ident) {
                     Some(var) => var,
@@ -292,16 +307,10 @@ impl<'a> AstTranslator<'a> {
                 let lval = self.ast_to_cranelift(&*l)?;
                 let rval = self.ast_to_cranelift(&*r)?;
                 match op {
-                    ast::BinaryOperation::Add => {
-                        Ok(self.builder.ins().iadd(lval, rval))
-                    }
-                    ast::BinaryOperation::Subtract => { 
-                        Ok(self.builder.ins().isub(lval, rval)) 
-                    }
-                    ast::BinaryOperation::Multiply => { 
-                        Ok(self.builder.ins().imul(lval, rval)) 
-                    }
-                    ast::BinaryOperation::Divide => { 
+                    ast::BinaryOperation::Add => Ok(self.builder.ins().iadd(lval, rval)),
+                    ast::BinaryOperation::Subtract => Ok(self.builder.ins().isub(lval, rval)),
+                    ast::BinaryOperation::Multiply => Ok(self.builder.ins().imul(lval, rval)),
+                    ast::BinaryOperation::Divide => {
                         if ast.type_sig.as_ref().unwrap().is_unsigned() {
                             Ok(self.builder.ins().udiv(lval, rval))
                         } else {
@@ -318,23 +327,35 @@ impl<'a> AstTranslator<'a> {
                     }
                     ast::BinaryOperation::LessEqual => {
                         Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            self.builder.ins().icmp(IntCC::UnsignedLessThanOrEqual, lval, rval)
+                            self.builder
+                                .ins()
+                                .icmp(IntCC::UnsignedLessThanOrEqual, lval, rval)
                         } else {
-                            self.builder.ins().icmp(IntCC::SignedLessThanOrEqual, lval, rval)
+                            self.builder
+                                .ins()
+                                .icmp(IntCC::SignedLessThanOrEqual, lval, rval)
                         })
                     }
                     ast::BinaryOperation::Greater => {
                         Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            self.builder.ins().icmp(IntCC::UnsignedGreaterThan, lval, rval)
+                            self.builder
+                                .ins()
+                                .icmp(IntCC::UnsignedGreaterThan, lval, rval)
                         } else {
-                            self.builder.ins().icmp(IntCC::SignedGreaterThan, lval, rval)
+                            self.builder
+                                .ins()
+                                .icmp(IntCC::SignedGreaterThan, lval, rval)
                         })
                     }
                     ast::BinaryOperation::GreaterEqual => {
                         Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            self.builder.ins().icmp(IntCC::UnsignedGreaterThanOrEqual, lval, rval)
+                            self.builder
+                                .ins()
+                                .icmp(IntCC::UnsignedGreaterThanOrEqual, lval, rval)
                         } else {
-                            self.builder.ins().icmp(IntCC::SignedGreaterThanOrEqual, lval, rval)
+                            self.builder
+                                .ins()
+                                .icmp(IntCC::SignedGreaterThanOrEqual, lval, rval)
                         })
                     }
                     ast::BinaryOperation::Equal => {
@@ -392,7 +413,10 @@ impl<'a> AstTranslator<'a> {
             }
             ast::Ast::IfElse(ifcond, ifexpr, elseifs, elseexpr) => {
                 let exitebb = self.builder.create_ebb();
-                self.builder.append_ebb_param(exitebb, gravtypes::type_to_cranelift(&ast.type_sig, &self.module));
+                self.builder.append_ebb_param(
+                    exitebb,
+                    gravtypes::type_to_cranelift(&ast.type_sig, &self.module),
+                );
 
                 let mut elifebb = if elseifs.len() > 0 {
                     Some(self.builder.create_ebb())
@@ -413,7 +437,10 @@ impl<'a> AstTranslator<'a> {
                 } else if let Some(eebb) = elseebb {
                     self.builder.ins().brz(ifcondval, eebb, &[]);
                 } else {
-                    let zero = self.builder.ins().iconst(gravtypes::type_to_cranelift(&ast.type_sig, &self.module), 0);
+                    let zero = self
+                        .builder
+                        .ins()
+                        .iconst(gravtypes::type_to_cranelift(&ast.type_sig, &self.module), 0);
                     self.builder.ins().brz(ifcondval, exitebb, &[zero]);
                 }
 
@@ -435,7 +462,10 @@ impl<'a> AstTranslator<'a> {
                         } else if let Some(eebb) = elseebb {
                             self.builder.ins().brz(elifcondval, eebb, &[]);
                         } else {
-                            let zero = self.builder.ins().iconst(gravtypes::type_to_cranelift(&ast.type_sig, &self.module), 0);
+                            let zero = self.builder.ins().iconst(
+                                gravtypes::type_to_cranelift(&ast.type_sig, &self.module),
+                                0,
+                            );
                             self.builder.ins().brz(elifcondval, exitebb, &[zero]);
                         }
                         let elifreturn = self.ast_to_cranelift(&*elife)?;
@@ -481,14 +511,20 @@ impl<'a> AstTranslator<'a> {
             ast::Ast::Let(name, var_sig, set_expr) => {
                 let var = Variable::new(self.last_scope().variables.len());
 
-                self.builder.declare_var(var, gravtypes::type_to_cranelift(&var_sig.type_sig, &self.module));
+                self.builder.declare_var(
+                    var,
+                    gravtypes::type_to_cranelift(&var_sig.type_sig, &self.module),
+                );
 
                 self.last_scope().variables.insert(name.clone(), var);
 
                 let set = if let Some(expr) = set_expr {
                     self.ast_to_cranelift(expr)?
                 } else {
-                    self.builder.ins().iconst(gravtypes::type_to_cranelift(&var_sig.type_sig, &self.module), 0)
+                    self.builder.ins().iconst(
+                        gravtypes::type_to_cranelift(&var_sig.type_sig, &self.module),
+                        0,
+                    )
                 };
 
                 self.builder.def_var(var, set);
@@ -503,11 +539,17 @@ impl<'a> AstTranslator<'a> {
                 if let ast::Ast::Identifier(name) = &callee.node {
                     let mut sig = self.module.make_signature();
                     for arg in args {
-                        sig.params.push(AbiParam::new(gravtypes::type_to_cranelift(&arg.type_sig, &self.module)));
+                        sig.params.push(AbiParam::new(gravtypes::type_to_cranelift(
+                            &arg.type_sig,
+                            &self.module,
+                        )));
                     }
 
-                    sig.returns.push(AbiParam::new(gravtypes::type_to_cranelift(&ast.type_sig, &self.module)));
-                    
+                    sig.returns.push(AbiParam::new(gravtypes::type_to_cranelift(
+                        &ast.type_sig,
+                        &self.module,
+                    )));
+
                     let id = self
                         .module
                         .declare_function(&name, Linkage::Import, &sig)
@@ -525,8 +567,28 @@ impl<'a> AstTranslator<'a> {
                     Err(self.make_error(&ast.pos, format!("Not implemented")))
                 }
             }
-            ast::Ast::As(castee, _cast_type) => {
-                self.ast_to_cranelift(&*castee)
+            ast::Ast::As(castee, cast_type) => {
+                let val = self.ast_to_cranelift(&*castee)?;
+                if castee.type_sig.as_ref().unwrap().is_number() && cast_type.is_bool() {
+                    if castee.type_sig.as_ref().unwrap().is_unsigned() {
+                        Ok(self
+                            .builder
+                            .ins()
+                            .icmp_imm(IntCC::UnsignedGreaterThan, val, 0))
+                    } else {
+                        Ok(self
+                            .builder
+                            .ins()
+                            .icmp_imm(IntCC::SignedGreaterThan, val, 0))
+                    }
+                } else if castee.type_sig.as_ref().unwrap().is_bool() && cast_type.is_number() {
+                    Ok(self.builder.ins().bint(
+                        gravtypes::type_to_cranelift(&ast.type_sig, &self.module),
+                        val,
+                    ))
+                } else {
+                    Ok(val)
+                }
             }
         }
     }

@@ -86,7 +86,7 @@ pub fn compile_source<'a>(
     debug_level: i32,
 ) -> Result<backend::native::NativeObject, GravitonError> {
     let ast = parse_source(source, filename)?;
-    if debug_level >=2 {
+    if debug_level >= 2 {
         println!("{}: {:#?}", "Typed AST".cyan(), ast);
     }
     compile_ast(
