@@ -169,6 +169,8 @@ fn main() {
 
         if !cfg!(windows) && debug_level >= 3 {
             match std::process::Command::new("objdump")
+                .arg("-M")
+                .arg("intel")
                 .arg("-d")
                 .arg("grav_tmp.o")
                 .spawn()
@@ -446,6 +448,8 @@ fn main() {
 
             if !cfg!(windows) && debug_level >= 3 {
                 match std::process::Command::new("objdump")
+                    .arg("-M")
+                    .arg("intel")
                     .arg("-d")
                     .arg("grav_tmp.o")
                     .spawn()

@@ -1,0 +1,14 @@
+
+let mut add = fn(x: I32, y: I32) x + y;
+
+printnln(add(14, 48));
+
+add = fn(x: I32, y: I32) x * y;
+
+printnln(add(14, 48));
+
+fn add2(x: I32, y: I32): I32 {
+    x + y
+};
+
+printnln(add2(14, 48));

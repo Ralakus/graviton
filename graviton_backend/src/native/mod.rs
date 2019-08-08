@@ -1,6 +1,6 @@
 use super::ast;
 
-use cranelift::codegen::ir::Value;
+use cranelift::codegen::ir::{Value, Function};
 use cranelift::frontend::*;
 use cranelift::prelude::*;
 use cranelift_faerie::{FaerieBackend, FaerieBuilder, FaerieTrapCollection};
@@ -110,25 +110,25 @@ impl Native {
         builder.seal_block(main_ebb);
 
         let mut translator = AstTranslator {
-            builder: &mut builder,
             scopes: &mut ntv.scopes,
             module: &mut ntv.module,
             data_ctx: &mut ntv.data_ctx,
             errors: &mut ntv.errors,
+            debug_level,
         };
 
-        let tmp = match translator.ast_to_cranelift(ast) {
+        let tmp = match translator.ast_to_cranelift(ast, &mut builder) {
             Ok(v) => v,
             Err(e) => {
                 translator.errors.push(e);
-                translator.builder.ins().iconst(types::I32, 14)
+                builder.ins().iconst(types::I32, 14)
             }
         };
 
         // let tmp = translator.builder.ins().iconst(types::I32, 0);
-        translator.builder.ins().return_(&[tmp]);
+        builder.ins().return_(&[tmp]);
 
-        translator.builder.finalize();
+        builder.finalize();
 
         let main_id = match ntv.module.declare_function(
             "graviton_main",
@@ -182,11 +182,11 @@ fn hash<T: Hash>(obj: T) -> u64 {
 }
 
 struct AstTranslator<'a> {
-    builder: &'a mut FunctionBuilder<'a>,
     scopes: &'a mut Vec<Scope>,
     module: &'a mut Module<FaerieBackend>,
     data_ctx: &'a mut DataContext,
     errors: &'a mut Vec<NativeError>,
+    debug_level: i32,
 }
 
 impl<'a> AstTranslator<'a> {
@@ -200,17 +200,17 @@ impl<'a> AstTranslator<'a> {
         ne
     }
 
-    fn check_if_var_in_scopes(scopes: &'a Vec<Scope>, var: &String) -> Option<&'a Variable> {
+    fn check_if_var_in_scopes(scopes: &Vec<Scope>, var: &String) -> Option<Variable> {
         for s in scopes.iter().rev() {
             match s.variables.get(var) {
-                Some(ts) => return Some(ts),
+                Some(ts) => return Some(*ts),
                 None => continue,
             }
         }
         None
     }
 
-    /*fn new_scope(&mut self) {
+    fn new_scope(&mut self) {
         self.scopes.push(Scope {
             variables: HashMap::new(),
         });
@@ -222,7 +222,7 @@ impl<'a> AstTranslator<'a> {
         } else {
             self.scopes.pop();
         }
-    }*/
+    }
 
     fn last_scope(&mut self) -> &mut Scope {
         self.scopes.last_mut().unwrap()
@@ -258,20 +258,24 @@ impl<'a> AstTranslator<'a> {
         self.module.finalize_definitions();
         Ok(id)
     }
-    fn ast_to_cranelift(&mut self, ast: &ast::AstNode) -> Result<Value, NativeError> {
+    fn ast_to_cranelift<'b>(
+        &mut self,
+        ast: &ast::AstNode,
+        builder: &mut FunctionBuilder<'b>,
+    ) -> Result<Value, NativeError> {
         match &ast.node {
             ast::Ast::Module(exprs) => {
                 let mut last_ins: Option<Value> = None;
                 for e in exprs {
-                    last_ins = Some(self.ast_to_cranelift(e)?);
+                    last_ins = Some(self.ast_to_cranelift(e, builder)?);
                 }
                 if let Some(ast::TypeSignature::Primitive(ast::PrimitiveType::Nil)) = ast.type_sig {
-                    Ok(self.builder.ins().iconst(types::I32, 0))
+                    Ok(builder.ins().iconst(types::I32, 0))
                 } else {
                     if let Some(ins) = last_ins {
                         Ok(ins)
                     } else {
-                        Ok(self.builder.ins().iconst(types::I32, 0))
+                        Ok(builder.ins().iconst(types::I32, 0))
                     }
                 }
             }
@@ -285,88 +289,80 @@ impl<'a> AstTranslator<'a> {
                         ))
                     }
                 };
-                Ok(self.builder.use_var(*var))
+                Ok(builder.use_var(var))
             }
-            ast::Ast::Number(n) => Ok(self.builder.ins().iconst(types::I32, *n as i64)),
+            ast::Ast::Number(n) => Ok(builder.ins().iconst(types::I32, *n as i64)),
             ast::Ast::String(s) => {
                 let id = self.make_data(
                     &format!("s{}", hash(ast)),
                     format!("{}\0", s).as_bytes().to_vec(),
                     false,
                 )?;
-                let local_id = self.module.declare_data_in_func(id, &mut self.builder.func);
+                let local_id = self.module.declare_data_in_func(id, &mut builder.func);
                 let type_ = gravtypes::type_to_cranelift(&ast.type_sig, &self.module);
-                Ok(self.builder.ins().symbol_value(type_, local_id))
+                Ok(builder.ins().symbol_value(type_, local_id))
             }
-            ast::Ast::Bool(b) => Ok(self.builder.ins().bconst(types::B1, *b)),
+            ast::Ast::Bool(b) => Ok(builder.ins().bconst(types::B1, *b)),
             ast::Ast::Statement(expr) => {
-                self.ast_to_cranelift(expr)?;
-                Ok(self.builder.ins().iconst(types::I32, 0))
+                self.ast_to_cranelift(expr, builder)?;
+                Ok(builder.ins().iconst(types::I32, 0))
             }
             ast::Ast::Binary(op, l, r) => {
-                let lval = self.ast_to_cranelift(&*l)?;
-                let rval = self.ast_to_cranelift(&*r)?;
+                let lval = self.ast_to_cranelift(&*l, builder)?;
+                let rval = self.ast_to_cranelift(&*r, builder)?;
                 match op {
-                    ast::BinaryOperation::Add => Ok(self.builder.ins().iadd(lval, rval)),
-                    ast::BinaryOperation::Subtract => Ok(self.builder.ins().isub(lval, rval)),
-                    ast::BinaryOperation::Multiply => Ok(self.builder.ins().imul(lval, rval)),
+                    ast::BinaryOperation::Add => Ok(builder.ins().iadd(lval, rval)),
+                    ast::BinaryOperation::Subtract => Ok(builder.ins().isub(lval, rval)),
+                    ast::BinaryOperation::Multiply => Ok(builder.ins().imul(lval, rval)),
                     ast::BinaryOperation::Divide => {
                         if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            Ok(self.builder.ins().udiv(lval, rval))
+                            Ok(builder.ins().udiv(lval, rval))
                         } else {
-                            Ok(self.builder.ins().sdiv(lval, rval))
+                            Ok(builder.ins().sdiv(lval, rval))
                         }
                     }
 
                     ast::BinaryOperation::Less => {
                         Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            self.builder.ins().icmp(IntCC::UnsignedLessThan, lval, rval)
+                            builder.ins().icmp(IntCC::UnsignedLessThan, lval, rval)
                         } else {
-                            self.builder.ins().icmp(IntCC::SignedLessThan, lval, rval)
+                            builder.ins().icmp(IntCC::SignedLessThan, lval, rval)
                         })
                     }
                     ast::BinaryOperation::LessEqual => {
                         Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            self.builder
+                            builder
                                 .ins()
                                 .icmp(IntCC::UnsignedLessThanOrEqual, lval, rval)
                         } else {
-                            self.builder
-                                .ins()
-                                .icmp(IntCC::SignedLessThanOrEqual, lval, rval)
+                            builder.ins().icmp(IntCC::SignedLessThanOrEqual, lval, rval)
                         })
                     }
                     ast::BinaryOperation::Greater => {
                         Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            self.builder
-                                .ins()
-                                .icmp(IntCC::UnsignedGreaterThan, lval, rval)
+                            builder.ins().icmp(IntCC::UnsignedGreaterThan, lval, rval)
                         } else {
-                            self.builder
-                                .ins()
-                                .icmp(IntCC::SignedGreaterThan, lval, rval)
+                            builder.ins().icmp(IntCC::SignedGreaterThan, lval, rval)
                         })
                     }
                     ast::BinaryOperation::GreaterEqual => {
                         Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            self.builder
+                            builder
                                 .ins()
                                 .icmp(IntCC::UnsignedGreaterThanOrEqual, lval, rval)
                         } else {
-                            self.builder
+                            builder
                                 .ins()
                                 .icmp(IntCC::SignedGreaterThanOrEqual, lval, rval)
                         })
                     }
-                    ast::BinaryOperation::Equal => {
-                        Ok(self.builder.ins().icmp(IntCC::Equal, lval, rval))
-                    }
+                    ast::BinaryOperation::Equal => Ok(builder.ins().icmp(IntCC::Equal, lval, rval)),
                     ast::BinaryOperation::NotEqual => {
-                        Ok(self.builder.ins().icmp(IntCC::NotEqual, lval, rval))
+                        Ok(builder.ins().icmp(IntCC::NotEqual, lval, rval))
                     }
 
-                    ast::BinaryOperation::And => Ok(self.builder.ins().band(lval, rval)),
-                    ast::BinaryOperation::Or => Ok(self.builder.ins().bor(lval, rval)),
+                    ast::BinaryOperation::And => Ok(builder.ins().band(lval, rval)),
+                    ast::BinaryOperation::Or => Ok(builder.ins().bor(lval, rval)),
 
                     ast::BinaryOperation::Assign => {
                         if let ast::Ast::Identifier(ident) = &l.node {
@@ -380,8 +376,8 @@ impl<'a> AstTranslator<'a> {
                                         ))
                                     }
                                 };
-                            self.builder.def_var(*var, rval);
-                            Ok(self.builder.use_var(*var))
+                            builder.def_var(var, rval);
+                            Ok(builder.use_var(var))
                         } else {
                             Err(self.make_error(&ast.pos, format!("Not implemented")))
                         }
@@ -389,129 +385,133 @@ impl<'a> AstTranslator<'a> {
                 }
             }
             ast::Ast::Unary(op, expr) => {
-                let e = self.ast_to_cranelift(expr)?;
+                let e = self.ast_to_cranelift(expr, builder)?;
                 match op {
-                    ast::UnaryOperation::Not => Ok(self.builder.ins().bnot(e)),
-                    ast::UnaryOperation::Negate => Ok(self.builder.ins().irsub_imm(e, 0)),
+                    ast::UnaryOperation::Not => Ok(builder.ins().bnot(e)),
+                    ast::UnaryOperation::Negate => Ok(builder.ins().irsub_imm(e, 0)),
                 }
             }
-            ast::Ast::Return(_expr) => Err(self.make_error(&ast.pos, format!("Not implemented"))),
+            ast::Ast::Return(expr) => {
+                /*let return_ins = self.ast_to_cranelift(expr, builder)?;
+                builder.ins().return_(&[return_ins]);
+                Ok(builder.ins().iconst(types::I32, 0))*/
+                Err(self.make_error(&ast.pos, format!("Not implemented")))
+            }
             ast::Ast::Block(exprs) => {
                 let mut last_ins: Option<Value> = None;
                 for e in exprs {
-                    last_ins = Some(self.ast_to_cranelift(e)?);
+                    last_ins = Some(self.ast_to_cranelift(e, builder)?);
                 }
                 if let Some(ast::TypeSignature::Primitive(ast::PrimitiveType::Nil)) = ast.type_sig {
-                    Ok(self.builder.ins().iconst(types::I32, 0))
+                    Ok(builder.ins().iconst(types::I32, 0))
                 } else {
                     if let Some(ins) = last_ins {
                         Ok(ins)
                     } else {
-                        Ok(self.builder.ins().iconst(types::I32, 0))
+                        Ok(builder.ins().iconst(types::I32, 0))
                     }
                 }
             }
             ast::Ast::IfElse(ifcond, ifexpr, elseifs, elseexpr) => {
-                let exitebb = self.builder.create_ebb();
-                self.builder.append_ebb_param(
+                let exitebb = builder.create_ebb();
+                builder.append_ebb_param(
                     exitebb,
                     gravtypes::type_to_cranelift(&ast.type_sig, &self.module),
                 );
 
                 let mut elifebb = if elseifs.len() > 0 {
-                    Some(self.builder.create_ebb())
+                    Some(builder.create_ebb())
                 } else {
                     None
                 };
 
                 let elseebb = if let Some(_) = elseexpr {
-                    Some(self.builder.create_ebb())
+                    Some(builder.create_ebb())
                 } else {
                     None
                 };
 
-                let ifcondval = self.ast_to_cranelift(&*ifcond)?;
+                let ifcondval = self.ast_to_cranelift(&*ifcond, builder)?;
 
                 if let Some(eiebb) = elifebb {
-                    self.builder.ins().brz(ifcondval, eiebb, &[]);
+                    builder.ins().brz(ifcondval, eiebb, &[]);
                 } else if let Some(eebb) = elseebb {
-                    self.builder.ins().brz(ifcondval, eebb, &[]);
+                    builder.ins().brz(ifcondval, eebb, &[]);
                 } else {
-                    let zero = self
-                        .builder
+                    let zero = builder
                         .ins()
                         .iconst(gravtypes::type_to_cranelift(&ast.type_sig, &self.module), 0);
-                    self.builder.ins().brz(ifcondval, exitebb, &[zero]);
+                    builder.ins().brz(ifcondval, exitebb, &[zero]);
                 }
 
-                let ifreturn = self.ast_to_cranelift(&*ifexpr)?;
-                self.builder.ins().jump(exitebb, &[ifreturn]);
+                let ifreturn = self.ast_to_cranelift(&*ifexpr, builder)?;
+                builder.ins().jump(exitebb, &[ifreturn]);
 
                 let len = elseifs.len();
                 let mut idx = 1;
                 for (elifc, elife) in elseifs {
                     if let Some(ebb) = elifebb {
-                        self.builder.switch_to_block(ebb);
-                        self.builder.seal_block(ebb);
+                        builder.switch_to_block(ebb);
+                        builder.seal_block(ebb);
 
-                        let elifcondval = self.ast_to_cranelift(&*elifc)?;
+                        let elifcondval = self.ast_to_cranelift(&*elifc, builder)?;
                         if idx < len {
-                            let tebb = self.builder.create_ebb();
-                            self.builder.ins().brz(elifcondval, tebb, &[]);
+                            let tebb = builder.create_ebb();
+                            builder.ins().brz(elifcondval, tebb, &[]);
                             elifebb = Some(tebb);
                         } else if let Some(eebb) = elseebb {
-                            self.builder.ins().brz(elifcondval, eebb, &[]);
+                            builder.ins().brz(elifcondval, eebb, &[]);
                         } else {
-                            let zero = self.builder.ins().iconst(
+                            let zero = builder.ins().iconst(
                                 gravtypes::type_to_cranelift(&ast.type_sig, &self.module),
                                 0,
                             );
-                            self.builder.ins().brz(elifcondval, exitebb, &[zero]);
+                            builder.ins().brz(elifcondval, exitebb, &[zero]);
                         }
-                        let elifreturn = self.ast_to_cranelift(&*elife)?;
-                        self.builder.ins().jump(exitebb, &[elifreturn]);
+                        let elifreturn = self.ast_to_cranelift(&*elife, builder)?;
+                        builder.ins().jump(exitebb, &[elifreturn]);
                     }
 
                     idx += 1;
                 }
 
                 if let (Some(eebb), Some(eexpr)) = (elseebb, elseexpr) {
-                    self.builder.switch_to_block(eebb);
-                    self.builder.seal_block(eebb);
+                    builder.switch_to_block(eebb);
+                    builder.seal_block(eebb);
 
-                    let else_return = self.ast_to_cranelift(&*eexpr)?;
-                    self.builder.ins().jump(exitebb, &[else_return]);
+                    let else_return = self.ast_to_cranelift(&*eexpr, builder)?;
+                    builder.ins().jump(exitebb, &[else_return]);
                 }
 
-                self.builder.switch_to_block(exitebb);
-                self.builder.seal_block(exitebb);
+                builder.switch_to_block(exitebb);
+                builder.seal_block(exitebb);
 
-                Ok(self.builder.ebb_params(exitebb)[0])
+                Ok(builder.ebb_params(exitebb)[0])
             }
             ast::Ast::While(cond, expr) => {
-                let body_block = self.builder.create_ebb();
-                let exit_block = self.builder.create_ebb();
-                self.builder.ins().jump(body_block, &[]);
-                self.builder.switch_to_block(body_block);
+                let body_block = builder.create_ebb();
+                let exit_block = builder.create_ebb();
+                builder.ins().jump(body_block, &[]);
+                builder.switch_to_block(body_block);
 
-                let condition_value = self.ast_to_cranelift(&*cond)?;
-                self.builder.ins().brz(condition_value, exit_block, &[]);
+                let condition_value = self.ast_to_cranelift(&*cond, builder)?;
+                builder.ins().brz(condition_value, exit_block, &[]);
 
-                self.ast_to_cranelift(&*expr)?;
+                self.ast_to_cranelift(&*expr, builder)?;
 
-                self.builder.ins().jump(body_block, &[]);
+                builder.ins().jump(body_block, &[]);
 
-                self.builder.switch_to_block(exit_block);
+                builder.switch_to_block(exit_block);
 
-                self.builder.seal_block(body_block);
-                self.builder.seal_block(exit_block);
+                builder.seal_block(body_block);
+                builder.seal_block(exit_block);
 
-                Ok(self.builder.ins().iconst(types::I32, 0))
+                Ok(builder.ins().iconst(types::I32, 0))
             }
             ast::Ast::Let(name, var_sig, set_expr) => {
                 let var = Variable::new(self.last_scope().variables.len());
 
-                self.builder.declare_var(
+                builder.declare_var(
                     var,
                     gravtypes::type_to_cranelift(&var_sig.type_sig, &self.module),
                 );
@@ -519,21 +519,25 @@ impl<'a> AstTranslator<'a> {
                 self.last_scope().variables.insert(name.clone(), var);
 
                 let set = if let Some(expr) = set_expr {
-                    self.ast_to_cranelift(expr)?
+                    if let ast::Ast::FnDef(sig, param_names, body_expr) = &expr.node {
+                        self.make_function(name, sig, param_names, body_expr, &ast.pos, builder)?
+                    } else {
+                        self.ast_to_cranelift(expr, builder)?
+                    }
                 } else {
-                    self.builder.ins().iconst(
+                    builder.ins().iconst(
                         gravtypes::type_to_cranelift(&var_sig.type_sig, &self.module),
                         0,
                     )
                 };
 
-                self.builder.def_var(var, set);
+                builder.def_var(var, set);
 
-                Ok(self.builder.use_var(var))
+                Ok(builder.use_var(var))
             }
-            ast::Ast::Import(_import_name, expr) => self.ast_to_cranelift(&*expr),
-            ast::Ast::FnDef(_sig, _param_names, _return_type) => {
-                Err(self.make_error(&ast.pos, format!("Not implemented")))
+            ast::Ast::Import(_import_name, expr) => self.ast_to_cranelift(&*expr, builder),
+            ast::Ast::FnDef(sig, param_names, body_expr) => {
+                self.make_function(&format!("{}", hash(ast)), sig, param_names, body_expr, &ast.pos, builder)
             }
             ast::Ast::FnCall(callee, args) => {
                 if let ast::Ast::Identifier(name) = &callee.node {
@@ -550,39 +554,45 @@ impl<'a> AstTranslator<'a> {
                         &self.module,
                     )));
 
-                    let id = self
-                        .module
-                        .declare_function(&name, Linkage::Import, &sig)
-                        .unwrap();
-                    let local_id = self.module.declare_func_in_func(id, &mut self.builder.func);
-
                     let mut arg_values = Vec::new();
                     for arg in args {
-                        arg_values.push(self.ast_to_cranelift(&*arg)?);
+                        arg_values.push(self.ast_to_cranelift(&*arg, builder)?);
                     }
+                    
+                    match AstTranslator::check_if_var_in_scopes(&self.scopes, &name) {
+                        Some(v) => {
+                            let function = Function::new().import_signature(sig);
+                            let fnvar_ins = builder.use_var(v);
 
-                    let call = self.builder.ins().call(local_id, &arg_values);
-                    Ok(self.builder.inst_results(call)[0])
+                            let call = builder.ins().call_indirect(function, fnvar_ins, &arg_values);
+                            Ok(builder.inst_results(call)[0])
+                        }
+                        None => {
+                            let id = self
+                                .module
+                                .declare_function(&name, Linkage::Import, &sig)
+                                .unwrap();
+                            let local_id = self.module.declare_func_in_func(id, &mut builder.func);
+
+                            let call = builder.ins().call(local_id, &arg_values);
+                            Ok(builder.inst_results(call)[0])
+                        }
+                    }
                 } else {
                     Err(self.make_error(&ast.pos, format!("Not implemented")))
                 }
             }
             ast::Ast::As(castee, cast_type) => {
-                let val = self.ast_to_cranelift(&*castee)?;
+                let val = self.ast_to_cranelift(&*castee, builder)?;
+                // Ok(builder.ins().raw_bitcast(gravtypes::type_ref_to_cranelift(cast_type, &self.module), val))
                 if castee.type_sig.as_ref().unwrap().is_number() && cast_type.is_bool() {
                     if castee.type_sig.as_ref().unwrap().is_unsigned() {
-                        Ok(self
-                            .builder
-                            .ins()
-                            .icmp_imm(IntCC::UnsignedGreaterThan, val, 0))
+                        Ok(builder.ins().icmp_imm(IntCC::UnsignedGreaterThan, val, 0))
                     } else {
-                        Ok(self
-                            .builder
-                            .ins()
-                            .icmp_imm(IntCC::SignedGreaterThan, val, 0))
+                        Ok(builder.ins().icmp_imm(IntCC::SignedGreaterThan, val, 0))
                     }
                 } else if castee.type_sig.as_ref().unwrap().is_bool() && cast_type.is_number() {
-                    Ok(self.builder.ins().bint(
+                    Ok(builder.ins().bint(
                         gravtypes::type_to_cranelift(&ast.type_sig, &self.module),
                         val,
                     ))
@@ -591,5 +601,99 @@ impl<'a> AstTranslator<'a> {
                 }
             }
         }
+    }
+
+    fn make_function(&mut self, name: &String, sig: &ast::FunctionSignature, param_names: &Vec<String>, body_expr: &Box<ast::AstNode>, pos: &ast::Position, builder: &mut FunctionBuilder<'_>) -> Result<Value, NativeError> {
+        let mut context = self.module.make_context();
+
+        for param in &sig.params {
+            context.func.signature.params.push(AbiParam::new(
+                gravtypes::type_to_cranelift(&param.type_sig, &self.module),
+            ));
+        }
+        context.func.signature.returns.push(AbiParam::new(
+            gravtypes::type_ref_to_cranelift(
+                sig.return_type.as_ref().unwrap().as_ref(),
+                &self.module,
+            ),
+        ));
+
+        let mut fnbuilder_ctx = FunctionBuilderContext::new();
+        let mut fnbuilder =
+            FunctionBuilder::new(&mut context.func, &mut fnbuilder_ctx);
+
+        let fnebb = fnbuilder.create_ebb();
+        fnbuilder.append_ebb_params_for_function_params(fnebb);
+        fnbuilder.switch_to_block(fnebb);
+        fnbuilder.seal_block(fnebb);
+
+        self.new_scope();
+
+        let mut vars: Vec<Variable> = Vec::new();
+        for i in 0..sig.params.len() {
+            let var = Variable::new(i);
+            fnbuilder.declare_var(
+                var,
+                gravtypes::type_ref_to_cranelift(
+                    &sig.params[i].type_sig.as_ref().unwrap(),
+                    &self.module,
+                ),
+            );
+
+            let vtmp = fnbuilder.ebb_params(fnebb)[i];
+            fnbuilder.def_var(var, vtmp);
+
+            self.last_scope().variables.insert(param_names[i].clone(), var);
+            vars.push(Variable::new(i));
+        }
+
+        let return_ins = self.ast_to_cranelift(body_expr, &mut fnbuilder)?;
+        fnbuilder.ins().return_(&[return_ins]);
+        fnbuilder.finalize();
+
+        let functionid = self
+            .module
+            .declare_function(
+                &format!("gfn{}", name),
+                Linkage::Export,
+                &context.func.signature,
+            )
+            .unwrap();
+
+        self.module
+            .define_function(functionid, &mut context)
+            .unwrap();
+
+        if self.debug_level >= 3 {
+            println!("{}", context.func.display(None));
+        }
+
+        let mut fnsig = self.module.make_signature();
+        for param in &sig.params {
+            fnsig.params.push(AbiParam::new(
+                gravtypes::type_to_cranelift(&param.type_sig, &self.module),
+            ));
+        }
+        fnsig.returns.push(AbiParam::new(
+            gravtypes::type_ref_to_cranelift(
+                sig.return_type.as_ref().unwrap().as_ref(),
+                &self.module,
+            ),
+        ));
+
+        self.module.clear_context(&mut context);
+
+        self.pop_scope(&pos);
+
+        let id = self
+            .module
+            .declare_function(&format!("gfn{}", name), Linkage::Import, &fnsig)
+            .unwrap();
+        let local_id = self.module.declare_func_in_func(id, &mut builder.func);
+
+        Ok(builder.ins().func_addr(
+            gravtypes::type_ref_to_cranelift(&ast::TypeSignature::Function(sig.clone()), &self.module),
+            local_id,
+        ))
     }
 }
