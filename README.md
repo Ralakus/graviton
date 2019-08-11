@@ -24,33 +24,34 @@ Graviton is still under heavy development so it is bound to have breaking change
 ```rust
 println("Iterative Fibonacci example");
 
+let fib = (n: I32) {
+    let mut prevprevn = 0;
+    let mut prevn = 0;
+    let mut curn = 1;
+
+    let mut i = 2;
+
+    while i <= n {
+
+        prevprevn = prevn;
+
+        prevn = curn;
+
+        curn = prevprevn + prevn;
+
+        i = i + 1;
+
+    };
+
+    curn
+};
+
 print("Enter a number: ");
 let n = read_num();
 
 let mut fib_number: I32;
 
-let output = if (fib_number = {
-
-        let mut prevprevn = 0;
-        let mut prevn = 0;
-        let mut curn = 1;
-
-        let mut i = 2;
-
-        while i <= n {
-
-            prevprevn = prevn;
-
-            prevn = curn;
-
-            curn = prevprevn + prevn;
-
-            i = i + 1;
-
-        };
-
-        curn
-    }) != 377 {
+let output = if (fib_number = fib(n)) != 377 {
         fib_number
     } else {
         println("Input was 14 so result will be negated for demonstration");

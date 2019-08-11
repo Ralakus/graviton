@@ -50,7 +50,7 @@ impl NativeObject {
 
 #[derive(Debug, Clone)]
 struct Scope {
-    variables: HashMap<String, Variable>,
+    variables: HashMap<String, (Variable, types::Type)>,
 }
 
 pub struct Native {
@@ -119,8 +119,8 @@ impl Native {
 
         let tmp = match translator.ast_to_cranelift(ast, &mut builder) {
             Ok(v) => v,
-            Err(e) => {
-                translator.errors.push(e);
+            Err(_e) => {
+                // translator.errors.push(e);
                 builder.ins().iconst(types::I32, 14)
             }
         };
@@ -200,7 +200,10 @@ impl<'a> AstTranslator<'a> {
         ne
     }
 
-    fn check_if_var_in_scopes(scopes: &Vec<Scope>, var: &String) -> Option<Variable> {
+    fn check_if_var_in_scopes(
+        scopes: &Vec<Scope>,
+        var: &String,
+    ) -> Option<(Variable, types::Type)> {
         for s in scopes.iter().rev() {
             match s.variables.get(var) {
                 Some(ts) => return Some(*ts),
@@ -289,7 +292,7 @@ impl<'a> AstTranslator<'a> {
                         ))
                     }
                 };
-                Ok(builder.use_var(var))
+                Ok(builder.use_var(var.0))
             }
             ast::Ast::Number(n) => Ok(builder.ins().iconst(types::I32, *n as i64)),
             ast::Ast::String(s) => {
@@ -376,8 +379,8 @@ impl<'a> AstTranslator<'a> {
                                         ))
                                     }
                                 };
-                            builder.def_var(var, rval);
-                            Ok(builder.use_var(var))
+                            builder.def_var(var.0, rval);
+                            Ok(builder.use_var(var.0))
                         } else {
                             Err(self.make_error(&ast.pos, format!("Not implemented")))
                         }
@@ -510,13 +513,13 @@ impl<'a> AstTranslator<'a> {
             }
             ast::Ast::Let(name, var_sig, set_expr) => {
                 let var = Variable::new(self.last_scope().variables.len());
+                let var_type = gravtypes::type_to_cranelift(&var_sig.type_sig, &self.module);
 
-                builder.declare_var(
-                    var,
-                    gravtypes::type_to_cranelift(&var_sig.type_sig, &self.module),
-                );
+                builder.declare_var(var, var_type);
 
-                self.last_scope().variables.insert(name.clone(), var);
+                self.last_scope()
+                    .variables
+                    .insert(name.clone(), (var, var_type));
 
                 let set = if let Some(expr) = set_expr {
                     if let ast::Ast::FnDef(sig, param_names, body_expr) = &expr.node {
@@ -545,29 +548,30 @@ impl<'a> AstTranslator<'a> {
                 builder,
             ),
             ast::Ast::FnCall(callee, args) => {
-                if let ast::Ast::Identifier(name) = &callee.node {
-                    let mut sig = self.module.make_signature();
-                    for arg in args {
-                        sig.params.push(AbiParam::new(gravtypes::type_to_cranelift(
-                            &arg.type_sig,
-                            &self.module,
-                        )));
-                    }
-
-                    sig.returns.push(AbiParam::new(gravtypes::type_to_cranelift(
-                        &ast.type_sig,
+                let mut sig = self.module.make_signature();
+                for arg in args {
+                    sig.params.push(AbiParam::new(gravtypes::type_to_cranelift(
+                        &arg.type_sig,
                         &self.module,
                     )));
+                }
 
-                    let mut arg_values = Vec::new();
-                    for arg in args {
-                        arg_values.push(self.ast_to_cranelift(&*arg, builder)?);
-                    }
+                sig.returns.push(AbiParam::new(gravtypes::type_to_cranelift(
+                    &ast.type_sig,
+                    &self.module,
+                )));
+
+                let mut arg_values = Vec::new();
+                for arg in args {
+                    arg_values.push(self.ast_to_cranelift(&*arg, builder)?);
+                }
+
+                if let ast::Ast::Identifier(name) = &callee.node {
 
                     match AstTranslator::check_if_var_in_scopes(&self.scopes, &name) {
                         Some(v) => {
                             let function = builder.func.import_signature(sig);
-                            let fnvar_ins = builder.use_var(v);
+                            let fnvar_ins = builder.use_var(v.0);
 
                             let call =
                                 builder
@@ -590,6 +594,12 @@ impl<'a> AstTranslator<'a> {
                         }
                     }
                 } else {
+
+                    /*let fn_ref = builder.func.import_signature(sig);
+                    let fn_ptr = self.ast_to_cranelift(&*callee, builder)?;
+
+                    let call = builder.ins().call_indirect(fn_ref, fn_ptr, &arg_values);
+                    Ok(builder.inst_results(call)[0])*/
                     Err(self.make_error(&ast.pos, format!("Not implemented")))
                 }
             }
@@ -656,16 +666,20 @@ impl<'a> AstTranslator<'a> {
 
         self.new_scope();
 
+        let last_scope_ref = &self.scopes[self.scopes.len() - 2].variables;
+
+        for (_name, var) in last_scope_ref {
+            fnbuilder.declare_var(var.0, var.1);
+        }
+
         for i in 0..sig.params.len() {
             let var = Variable::new(i);
-
-            fnbuilder.declare_var(
-                var,
-                gravtypes::type_ref_to_cranelift(
-                    &sig.params[i].type_sig.as_ref().unwrap(),
-                    &self.module,
-                ),
+            let var_type = gravtypes::type_ref_to_cranelift(
+                &sig.params[i].type_sig.as_ref().unwrap(),
+                &self.module,
             );
+
+            fnbuilder.declare_var(var, var_type);
 
             match sig.params[i].type_sig.as_ref().unwrap() {
                 ast::TypeSignature::Function(func) => {
@@ -708,7 +722,7 @@ impl<'a> AstTranslator<'a> {
 
             self.last_scope()
                 .variables
-                .insert(param_names[i].clone(), var);
+                .insert(param_names[i].clone(), (var, var_type));
         }
 
         let return_ins = self.ast_to_cranelift(body_expr, &mut fnbuilder)?;

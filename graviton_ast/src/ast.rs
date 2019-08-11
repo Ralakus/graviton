@@ -192,7 +192,7 @@ pub struct FunctionSignature {
 impl std::fmt::Debug for FunctionSignature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
-            write!(f, "fn(")?;
+            write!(f, "(")?;
             let len = self.params.len();
             let mut idx = 1;
             for p in &self.params {
@@ -200,12 +200,12 @@ impl std::fmt::Debug for FunctionSignature {
                 idx += 1;
             }
             if let Some(rt) = &self.return_type {
-                write!(f, "): {:#?}", rt)
+                write!(f, ") -> {:#?}", rt)
             } else {
-                write!(f, "): Untyped")
+                write!(f, ") -> Untyped")
             }
         } else {
-            write!(f, "fn(")?;
+            write!(f, "(")?;
             let len = self.params.len();
             let mut idx = 1;
             for p in &self.params {
@@ -213,9 +213,9 @@ impl std::fmt::Debug for FunctionSignature {
                 idx += 1;
             }
             if let Some(rt) = &self.return_type {
-                write!(f, "): {:?}", rt)
+                write!(f, ") -> {:?}", rt)
             } else {
-                write!(f, "): Untyped")
+                write!(f, ") -> Untyped")
             }
         }
     }
