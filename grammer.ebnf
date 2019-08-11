@@ -52,7 +52,7 @@ let = "let" ["mut"] variable_signature ["=" expression] ;
 
 import = "import" STRING ;
 
-function_signature = "fn" [IDENTIFIER] "(" [variable_signature {"," variable_signature}] ")" [type_signature] ;
+function_signature = "(" [variable_signature {"," variable_signature}] ")" ["->" type_signature] ;
 
 fn_def = function_signature expression ;
 

@@ -567,7 +567,6 @@ impl<'a> AstTranslator<'a> {
                 }
 
                 if let ast::Ast::Identifier(name) = &callee.node {
-
                     match AstTranslator::check_if_var_in_scopes(&self.scopes, &name) {
                         Some(v) => {
                             let function = builder.func.import_signature(sig);
@@ -594,7 +593,6 @@ impl<'a> AstTranslator<'a> {
                         }
                     }
                 } else {
-
                     /*let fn_ref = builder.func.import_signature(sig);
                     let fn_ptr = self.ast_to_cranelift(&*callee, builder)?;
 
@@ -666,9 +664,9 @@ impl<'a> AstTranslator<'a> {
 
         self.new_scope();
 
-        let last_scope_ref = &self.scopes[self.scopes.len() - 2].variables;
+        let outer_scope_ref = &self.scopes[self.scopes.len() - 2].variables;
 
-        for (_name, var) in last_scope_ref {
+        for (_name, var) in outer_scope_ref {
             fnbuilder.declare_var(var.0, var.1);
         }
 
