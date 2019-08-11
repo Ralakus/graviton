@@ -1,5 +1,5 @@
 
-package = {statement} (expression) EOF ;
+module = {statement} (expression) EOF ;
 
 statement = expression ";" ;
 
