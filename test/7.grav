@@ -1,13 +1,13 @@
 
-fn add(x: I32, y: I32): I32 {
-    return x + y;
+let add = (x: I32, y: I32) -> I32 {
+    x + y
 };
 
-let add2 = fn(x: I32, y: I32): I32 x + y;
+let add2 = (x: I32, y: I32) -> I32 x + y;
 
-let add3: fn(I32, I32, I32): I32 = fn(x: I32, y: I32, z: I32): I32 x + y + z;
+let add3: (I32, I32, I32) -> I32 = (x: I32, y: I32, z: I32) -> I32 x + y + z;
 
-fn addfunctions(fn1: fn(I32, I32): I32, fn2: fn(I32, I32): I32, x: I32, y: I32): I32 {
+let addfunctions = (fn1: (I32, I32) -> I32, fn2: (I32, I32) -> I32, x: I32, y: I32) -> I32 {
     fn1(x, y) + fn2(x, y)
 };
 
@@ -15,10 +15,12 @@ let x = add(1, 2);
 let y = add2(3, 4);
 let z = addfunctions(add, add2, x, y);
 
-fn to_bool(x: I32): Bool {
+let to_bool = (x: I32) -> Bool {
     x > 0
 };
 
 let w = true and to_bool(1) or false;
 
-let yes = 14 as U64;
+let yes = 14;
+
+printnln(z);

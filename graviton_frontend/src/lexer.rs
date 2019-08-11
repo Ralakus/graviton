@@ -2,6 +2,7 @@ use super::tokens::{Position, Token, TokenData, TokenType};
 use std::iter::Peekable;
 use std::str::Chars;
 
+#[derive(Debug, Clone)]
 pub struct Lexer<'a> {
     source: Peekable<Chars<'a>>,
     start_pos: Position,
@@ -54,7 +55,7 @@ impl<'a> Lexer<'a> {
             "return" => TokenType::KwReturn,
             "import" => TokenType::KwImport,
             "let" => TokenType::KwLet,
-            "fn" => TokenType::KwFn,
+            // "fn" => TokenType::KwFn,
             "mut" => TokenType::KwMut,
 
             "if" => TokenType::KwIf,
@@ -131,11 +132,21 @@ impl<'a> Iterator for Lexer<'a> {
             )),
 
             Some('+') => Some(Token::new(TokenType::Plus, TokenData::None, self.start_pos)),
-            Some('-') => Some(Token::new(
-                TokenType::Minus,
-                TokenData::None,
-                self.start_pos,
-            )),
+            Some('-') => match self.peek() {
+                Some('>') => {
+                    self.advance();
+                    Some(Token::new(
+                        TokenType::RArrow,
+                        TokenData::None,
+                        self.start_pos,
+                    ))
+                }
+                _ => Some(Token::new(
+                    TokenType::Minus,
+                    TokenData::None,
+                    self.start_pos,
+                )),
+            },
             Some('*') => Some(Token::new(TokenType::Star, TokenData::None, self.start_pos)),
             Some('/') => match self.peek() {
                 Some('/') => {

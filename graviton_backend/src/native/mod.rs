@@ -696,9 +696,11 @@ impl<'a> AstTranslator<'a> {
                         }
                     };
 
-                    let _ = self.module.declare_func_in_func(local_id, &mut fnbuilder.func);
+                    let _ = self
+                        .module
+                        .declare_func_in_func(local_id, &mut fnbuilder.func);
                 }
-                _ => {},
+                _ => {}
             };
 
             let vtmp = fnbuilder.ebb_params(fnebb)[i];

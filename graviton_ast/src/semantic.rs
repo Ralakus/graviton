@@ -45,6 +45,8 @@ pub struct SemanticAnalyzer {
     errors: Vec<SemanticError>,
     in_function_block: bool,
     file: Option<String>,
+    supress_errors: bool,
+    current_fn: (String, ast::TypeSignature),
 }
 
 impl<'a> SemanticAnalyzer {
@@ -64,7 +66,9 @@ impl<'a> SemanticAnalyzer {
             pos: pos.clone(),
             file: self.file.clone(),
         };
-        self.errors.push(e.clone());
+        if !self.supress_errors {
+            self.errors.push(e.clone());
+        }
         e
     }
 
@@ -110,6 +114,8 @@ impl<'a> SemanticAnalyzer {
             errors: Vec::new(),
             in_function_block: false,
             file: filename,
+            supress_errors: false,
+            current_fn: (String::new(), NIL_TYPE_SIGNATURE.clone()),
         };
 
         if let Some(lib) = stdlib {
@@ -148,7 +154,7 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 if e_error {
                     sa.make_err(
                         &expr.pos,
-                        format!("Only the last element in a block can be an expression"),
+                        format!("Only the last element in a module can be an expression"),
                     );
                 }
                 idx += 1;
@@ -167,7 +173,25 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
         }
         ast::Ast::Identifier(ref s) => {
             if let None = sa.check_if_var_in_scopes(&s) {
-                sa.make_err(&ast.pos, format!("Variable {} not found in scope", s));
+                if sa.current_fn.0 == **s {
+                    if let ast::TypeSignature::Function(ast::FunctionSignature {
+                        params: _,
+                        return_type: None,
+                    }) = sa.current_fn.1
+                    {
+                        sa.make_err(
+                            &ast.pos,
+                            format!(
+                                "Recursive function {} must have an explicit return type",
+                                sa.current_fn.0
+                            ),
+                        );
+                    } else {
+                        return sa.current_fn.1.clone();
+                    }
+                } else {
+                    sa.make_err(&ast.pos, format!("Variable {} not found in scope", s));
+                }
             }
             match sa.check_if_var_in_scopes(&s) {
                 Some(v) => v.1.clone(),
@@ -450,6 +474,18 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 let mut return_type = NIL_TYPE_SIGNATURE.clone();
                 if let Some(type_sig) = &sig.type_sig {
                     if let Some(e) = expr {
+                        match &e.node {
+                            ast::Ast::FnDef(sig, _, _) => {
+                                sa.current_fn =
+                                    (name.clone(), ast::TypeSignature::Function(sig.clone()));
+                                /*if let Some(rt) = &sig.return_type {
+                                    sa.current_fn = (name.clone(), *rt.clone());
+                                } else {
+                                    sa.current_fn = (name.clone(), NIL_TYPE_SIGNATURE.clone());
+                                }*/
+                            }
+                            _ => {}
+                        };
                         let e_type = analyze(sa, &mut *e);
                         if *type_sig != e_type {
                             sa.make_err(&ast.pos, format!("Variable type and assign type do not match; expected {:?} but got {:?}", *type_sig, e_type));
@@ -462,6 +498,17 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 // println!("Variable {} of type {:?}, stated", sig.name, type_sig);
                 } else {
                     if let Some(e) = expr {
+                        match &e.node {
+                            ast::Ast::FnDef(sig, _, _) => {
+                                sa.current_fn =
+                                    (name.clone(), ast::TypeSignature::Function(sig.clone()));
+                                /*if let Some(rt) = &sig.return_type {
+                                } else {
+                                    sa.current_fn = (name.clone(), sig.clone());
+                                }*/
+                            }
+                            _ => {}
+                        };
                         let expr_type = analyze(sa, &mut *e);
                         // println!("Variable {} of type {:?}, infer", sig.name, expr_type);
                         sig.type_sig = Some(expr_type.clone());
@@ -479,8 +526,10 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                             .insert(name.clone(), (sig.mutable, NIL_TYPE_SIGNATURE.clone()));
                     }
                 }
+                sa.current_fn = (String::new(), NIL_TYPE_SIGNATURE.clone());
                 return_type
             } else {
+                sa.current_fn = (String::new(), NIL_TYPE_SIGNATURE.clone());
                 sa.make_err(&ast.pos, format!("Variable {} already defined", name));
                 NIL_TYPE_SIGNATURE.clone()
             }
@@ -538,7 +587,8 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
         }
         ast::Ast::FnCall(ref mut callee, ref mut args) => {
             let mut return_type: ast::TypeSignature = NIL_TYPE_SIGNATURE.clone();
-            if let ast::TypeSignature::Function(sig) = analyze(sa, &mut **callee) {
+            let callee_type = analyze(sa, &mut **callee);
+            if let ast::TypeSignature::Function(sig) = callee_type {
                 if sig.params.len() == args.len() {
                     for (param, arg) in sig.params.iter().zip(args.iter_mut()) {
                         if let Some(type_sig) = &param.type_sig {

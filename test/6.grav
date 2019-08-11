@@ -1,4 +1,4 @@
 
-let add = fn(x: I64, y: I64) x + y;
+let add = (x: I64, y: I64) x + y;
 
 let result: I64 = add(1 as I64, 2 as I64);

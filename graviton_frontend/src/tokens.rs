@@ -27,6 +27,7 @@ pub enum TokenType {
     LessEqual,
 
     Colon,
+    RArrow,
 
     Identifier,
     String,
@@ -40,7 +41,7 @@ pub enum TokenType {
     KwReturn,
     KwImport,
     KwLet,
-    KwFn,
+    //KwFn,
     KwMut,
 
     KwIf,

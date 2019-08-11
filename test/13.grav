@@ -1,10 +1,9 @@
 
-
-let add = fn(x: I32, y: I32) x + y;
+let add = (x: I32, y: I32) x + y;
 
 // Note, does NOT fit naming convention, it should be `yes_it_finally_works`
 // But the creator was overjoyed when he finally got it working
-fn YES_IT_FINALLY_WORKS(f: fn(I32, I32): I32, x: I32, y: I32) f(x + y, x + y);
+let YES_IT_FINALLY_WORKS = (f: (I32, I32) -> I32, x: I32, y: I32) -> I32 f(x + y, x + y);
 
 printnln(YES_IT_FINALLY_WORKS(add, 14, 48));
 println("It took forever just to find the problem with the function pointers");
