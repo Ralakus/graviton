@@ -9,6 +9,8 @@ const NIL_TYPE_SIGNATURE: ast::TypeSignature =
     ast::TypeSignature::Primitive(ast::PrimitiveType::Nil);
 const BOOL_TYPE_SIGNATURE: ast::TypeSignature =
     ast::TypeSignature::Primitive(ast::PrimitiveType::Bool);
+const FLOAT_TYPE_SIGNATURE: ast::TypeSignature =
+    ast::TypeSignature::Primitive(ast::PrimitiveType::F32);
 
 #[derive(Debug, Clone)]
 pub struct SemanticError {
@@ -198,7 +200,8 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 None => NIL_TYPE_SIGNATURE.clone(),
             }
         }
-        ast::Ast::Number(_) => DEFAULT_NUM_TYPE_SIGNATURE.clone(),
+        ast::Ast::Integer(_) => DEFAULT_NUM_TYPE_SIGNATURE.clone(),
+        ast::Ast::Float(_) => FLOAT_TYPE_SIGNATURE.clone(),
         ast::Ast::String(_) => ast::TypeSignature::Custom(String::from("String")),
         ast::Ast::Bool(_) => BOOL_TYPE_SIGNATURE.clone(),
         ast::Ast::Statement(ref mut ast) => {

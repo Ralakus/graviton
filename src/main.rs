@@ -49,21 +49,21 @@ fn main() {
         .arg(input_arg.clone())
         .arg(debug_arg.clone())
         .arg(
-            Arg::with_name("emit")
+            Arg::with_name("Emit")
                 .help("Emits the specified format [ast, obj, object, exe, executable, none]")
                 .long("emit")
                 .short("e")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("output")
+            Arg::with_name("Output")
                 .help("Specifies where to output compiled file or specified format")
                 .long("output")
                 .short("o")
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("type")
+            Arg::with_name("Type")
                 .help("Specifies the input format [src, source, ast]")
                 .long("type")
                 .short("t")
@@ -261,12 +261,12 @@ fn main() {
         None,
     }
 
-    let emit_type = match args.value_of("emit").unwrap_or("exe") {
+    let emit_type = match args.value_of("Emit").unwrap_or("exe") {
         "ast" => EmitType::Ast,
         "object" | "obj" => EmitType::Object,
         "executable" | "exe" => EmitType::Executable,
         "none" => {
-            if let None = args.value_of("output") {
+            if let None = args.value_of("Output") {
                 EmitType::None
             } else {
                 eprintln!("{}: Cannot emit nothing when output is specified, remove the \'o\', \"output\" argument", "Error".red());
@@ -285,7 +285,7 @@ fn main() {
         Ast,
     }
 
-    let input_type = match args.value_of("type").unwrap_or("source") {
+    let input_type = match args.value_of("Type").unwrap_or("source") {
         "src" | "source" => InputType::Source,
         "ast" => {
             if emit_type == EmitType::Ast {
@@ -325,7 +325,7 @@ fn main() {
         EmitType::Executable => strip_filepath(&strip_extension(&input)),
     };
 
-    let output: String = match args.value_of("output").unwrap_or(&tmp_out) {
+    let output: String = match args.value_of("Output").unwrap_or(&tmp_out) {
         s if !s.contains(".") => match emit_type {
             EmitType::Ast => format!("{}.gast", s),
             EmitType::Object | EmitType::None => format!("{}.o", s),
@@ -362,7 +362,7 @@ fn main() {
                 }
             };
 
-            match grav::parse_source(source, Some(&input)) {
+            match grav::parse_source(source, Some(&input), debug_level) {
                 Ok(obj) => obj,
                 Err(e) => {
                     e.report(Some(source));

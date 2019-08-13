@@ -294,7 +294,8 @@ impl<'a> AstTranslator<'a> {
                 };
                 Ok(builder.use_var(var.0))
             }
-            ast::Ast::Number(n) => Ok(builder.ins().iconst(types::I32, *n as i64)),
+            ast::Ast::Integer(n) => Ok(builder.ins().iconst(types::I32, *n)),
+            ast::Ast::Float(n) => Ok(builder.ins().f32const(*n as f32)),
             ast::Ast::String(s) => {
                 let id = self.make_data(
                     &format!("gs{}", hash(ast)),
@@ -313,76 +314,130 @@ impl<'a> AstTranslator<'a> {
             ast::Ast::Binary(op, l, r) => {
                 let lval = self.ast_to_cranelift(&*l, builder)?;
                 let rval = self.ast_to_cranelift(&*r, builder)?;
-                match op {
-                    ast::BinaryOperation::Add => Ok(builder.ins().iadd(lval, rval)),
-                    ast::BinaryOperation::Subtract => Ok(builder.ins().isub(lval, rval)),
-                    ast::BinaryOperation::Multiply => Ok(builder.ins().imul(lval, rval)),
-                    ast::BinaryOperation::Divide => {
-                        if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            Ok(builder.ins().udiv(lval, rval))
-                        } else {
-                            Ok(builder.ins().sdiv(lval, rval))
+                if l.type_sig.as_ref().unwrap().is_float() {
+                    match op {
+                        ast::BinaryOperation::Add => Ok(builder.ins().fadd(lval, rval)),
+                        ast::BinaryOperation::Subtract => Ok(builder.ins().fsub(lval, rval)),
+                        ast::BinaryOperation::Multiply => Ok(builder.ins().fmul(lval, rval)),
+                        ast::BinaryOperation::Divide => Ok(builder.ins().fdiv(lval, rval)),
+
+                        ast::BinaryOperation::Less => {
+                            Ok(builder.ins().fcmp(FloatCC::LessThan, lval, rval))
+                        }
+                        ast::BinaryOperation::LessEqual => {
+                            Ok(builder.ins().fcmp(FloatCC::LessThanOrEqual, lval, rval))
+                        }
+                        ast::BinaryOperation::Greater => {
+                            Ok(builder.ins().fcmp(FloatCC::GreaterThan, lval, rval))
+                        }
+                        ast::BinaryOperation::GreaterEqual => {
+                            Ok(builder.ins().fcmp(FloatCC::GreaterThanOrEqual, lval, rval))
+                        }
+                        ast::BinaryOperation::Equal => {
+                            Ok(builder.ins().fcmp(FloatCC::Equal, lval, rval))
+                        }
+                        ast::BinaryOperation::NotEqual => {
+                            Ok(builder.ins().fcmp(FloatCC::NotEqual, lval, rval))
+                        }
+
+                        ast::BinaryOperation::And => Ok(builder.ins().band(lval, rval)),
+                        ast::BinaryOperation::Or => Ok(builder.ins().bor(lval, rval)),
+
+                        ast::BinaryOperation::Assign => {
+                            if let ast::Ast::Identifier(ident) = &l.node {
+                                let var =
+                                    match AstTranslator::check_if_var_in_scopes(self.scopes, ident)
+                                    {
+                                        Some(var) => var,
+                                        None => {
+                                            return Err(self.make_error(
+                                                &ast.pos,
+                                                format!("Variable {} not defined in scope", ident),
+                                            ))
+                                        }
+                                    };
+                                builder.def_var(var.0, rval);
+                                Ok(builder.use_var(var.0))
+                            } else {
+                                Err(self.make_error(&ast.pos, format!("Not implemented")))
+                            }
                         }
                     }
+                } else {
+                    match op {
+                        ast::BinaryOperation::Add => Ok(builder.ins().iadd(lval, rval)),
+                        ast::BinaryOperation::Subtract => Ok(builder.ins().isub(lval, rval)),
+                        ast::BinaryOperation::Multiply => Ok(builder.ins().imul(lval, rval)),
+                        ast::BinaryOperation::Divide => {
+                            if ast.type_sig.as_ref().unwrap().is_unsigned() {
+                                Ok(builder.ins().udiv(lval, rval))
+                            } else {
+                                Ok(builder.ins().sdiv(lval, rval))
+                            }
+                        }
 
-                    ast::BinaryOperation::Less => {
-                        Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            builder.ins().icmp(IntCC::UnsignedLessThan, lval, rval)
-                        } else {
-                            builder.ins().icmp(IntCC::SignedLessThan, lval, rval)
-                        })
-                    }
-                    ast::BinaryOperation::LessEqual => {
-                        Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            builder
-                                .ins()
-                                .icmp(IntCC::UnsignedLessThanOrEqual, lval, rval)
-                        } else {
-                            builder.ins().icmp(IntCC::SignedLessThanOrEqual, lval, rval)
-                        })
-                    }
-                    ast::BinaryOperation::Greater => {
-                        Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            builder.ins().icmp(IntCC::UnsignedGreaterThan, lval, rval)
-                        } else {
-                            builder.ins().icmp(IntCC::SignedGreaterThan, lval, rval)
-                        })
-                    }
-                    ast::BinaryOperation::GreaterEqual => {
-                        Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
-                            builder
-                                .ins()
-                                .icmp(IntCC::UnsignedGreaterThanOrEqual, lval, rval)
-                        } else {
-                            builder
-                                .ins()
-                                .icmp(IntCC::SignedGreaterThanOrEqual, lval, rval)
-                        })
-                    }
-                    ast::BinaryOperation::Equal => Ok(builder.ins().icmp(IntCC::Equal, lval, rval)),
-                    ast::BinaryOperation::NotEqual => {
-                        Ok(builder.ins().icmp(IntCC::NotEqual, lval, rval))
-                    }
+                        ast::BinaryOperation::Less => {
+                            Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
+                                builder.ins().icmp(IntCC::UnsignedLessThan, lval, rval)
+                            } else {
+                                builder.ins().icmp(IntCC::SignedLessThan, lval, rval)
+                            })
+                        }
+                        ast::BinaryOperation::LessEqual => {
+                            Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
+                                builder
+                                    .ins()
+                                    .icmp(IntCC::UnsignedLessThanOrEqual, lval, rval)
+                            } else {
+                                builder.ins().icmp(IntCC::SignedLessThanOrEqual, lval, rval)
+                            })
+                        }
+                        ast::BinaryOperation::Greater => {
+                            Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
+                                builder.ins().icmp(IntCC::UnsignedGreaterThan, lval, rval)
+                            } else {
+                                builder.ins().icmp(IntCC::SignedGreaterThan, lval, rval)
+                            })
+                        }
+                        ast::BinaryOperation::GreaterEqual => {
+                            Ok(if ast.type_sig.as_ref().unwrap().is_unsigned() {
+                                builder
+                                    .ins()
+                                    .icmp(IntCC::UnsignedGreaterThanOrEqual, lval, rval)
+                            } else {
+                                builder
+                                    .ins()
+                                    .icmp(IntCC::SignedGreaterThanOrEqual, lval, rval)
+                            })
+                        }
+                        ast::BinaryOperation::Equal => {
+                            Ok(builder.ins().icmp(IntCC::Equal, lval, rval))
+                        }
+                        ast::BinaryOperation::NotEqual => {
+                            Ok(builder.ins().icmp(IntCC::NotEqual, lval, rval))
+                        }
 
-                    ast::BinaryOperation::And => Ok(builder.ins().band(lval, rval)),
-                    ast::BinaryOperation::Or => Ok(builder.ins().bor(lval, rval)),
+                        ast::BinaryOperation::And => Ok(builder.ins().band(lval, rval)),
+                        ast::BinaryOperation::Or => Ok(builder.ins().bor(lval, rval)),
 
-                    ast::BinaryOperation::Assign => {
-                        if let ast::Ast::Identifier(ident) = &l.node {
-                            let var =
-                                match AstTranslator::check_if_var_in_scopes(self.scopes, ident) {
-                                    Some(var) => var,
-                                    None => {
-                                        return Err(self.make_error(
-                                            &ast.pos,
-                                            format!("Variable {} not defined in scope", ident),
-                                        ))
-                                    }
-                                };
-                            builder.def_var(var.0, rval);
-                            Ok(builder.use_var(var.0))
-                        } else {
-                            Err(self.make_error(&ast.pos, format!("Not implemented")))
+                        ast::BinaryOperation::Assign => {
+                            if let ast::Ast::Identifier(ident) = &l.node {
+                                let var =
+                                    match AstTranslator::check_if_var_in_scopes(self.scopes, ident)
+                                    {
+                                        Some(var) => var,
+                                        None => {
+                                            return Err(self.make_error(
+                                                &ast.pos,
+                                                format!("Variable {} not defined in scope", ident),
+                                            ))
+                                        }
+                                    };
+                                builder.def_var(var.0, rval);
+                                Ok(builder.use_var(var.0))
+                            } else {
+                                Err(self.make_error(&ast.pos, format!("Not implemented")))
+                            }
                         }
                     }
                 }
@@ -604,19 +659,49 @@ impl<'a> AstTranslator<'a> {
             ast::Ast::As(castee, cast_type) => {
                 let val = self.ast_to_cranelift(&*castee, builder)?;
                 // Ok(builder.ins().raw_bitcast(gravtypes::type_ref_to_cranelift(cast_type, &self.module), val))
-                if castee.type_sig.as_ref().unwrap().is_number() && cast_type.is_bool() {
-                    if castee.type_sig.as_ref().unwrap().is_unsigned() {
-                        Ok(builder.ins().icmp_imm(IntCC::UnsignedGreaterThan, val, 0))
-                    } else {
-                        Ok(builder.ins().icmp_imm(IntCC::SignedGreaterThan, val, 0))
+                let node_type = gravtypes::type_to_cranelift(&ast.type_sig, &self.module);
+                let castee_type = castee.type_sig.as_ref().unwrap();
+                match (castee_type, cast_type) {
+                    (ctee, ct) if ctee.is_integer() && ct.is_bool() => {
+                        if ctee.is_unsigned() {
+                            Ok(builder.ins().icmp_imm(IntCC::UnsignedGreaterThan, val, 0))
+                        } else {
+                            Ok(builder.ins().icmp_imm(IntCC::SignedGreaterThan, val, 0))
+                        }
                     }
-                } else if castee.type_sig.as_ref().unwrap().is_bool() && cast_type.is_number() {
-                    Ok(builder.ins().bint(
-                        gravtypes::type_to_cranelift(&ast.type_sig, &self.module),
+                    (ctee, ct) if ctee.is_bool() && ct.is_integer() => Ok(builder.ins().bint(
+                        node_type,
                         val,
-                    ))
-                } else {
-                    Ok(val)
+                    )),
+                    (
+                        ast::TypeSignature::Primitive(ast::PrimitiveType::F32),
+                        ast::TypeSignature::Primitive(ast::PrimitiveType::F64),
+                    ) => Ok(builder.ins().fpromote(
+                        node_type,
+                        val,
+                    )),
+                    (
+                        ast::TypeSignature::Primitive(ast::PrimitiveType::F64),
+                        ast::TypeSignature::Primitive(ast::PrimitiveType::F32),
+                    ) => Ok(builder.ins().fdemote(
+                        node_type,
+                        val,
+                    )),
+                    (ctee, ct) if ctee.is_float() && ct.is_integer() => {
+                        if ctee.is_unsigned() {
+                            Ok(builder.ins().fcvt_to_uint(node_type, val))
+                        } else {
+                            Ok(builder.ins().fcvt_to_sint(node_type, val))
+                        }
+                    }
+                    (ctee, ct) if ctee.is_integer() && ct.is_float() => {
+                        if ctee.is_unsigned() {
+                            Ok(builder.ins().fcvt_from_uint(node_type, val))
+                        } else {
+                            Ok(builder.ins().fcvt_from_sint(node_type, val))
+                        }
+                    }
+                    _ => Ok(val),
                 }
             }
         }

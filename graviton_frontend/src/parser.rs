@@ -550,11 +550,13 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     match p.previous.type_ {
         TokenType::Number => Ok(p.new_node(
             start_pos,
-            Ast::Number(if let TokenData::Number(n) = &p.previous.data {
-                n.clone()
+            if let TokenData::Integer(n) = &p.previous.data {
+                ast::Ast::Integer(*n)
+            } else if let TokenData::Float(n) = &p.previous.data {
+                ast::Ast::Float(*n)
             } else {
-                0.0
-            }),
+                ast::Ast::Integer(0)
+            },
         )),
         TokenType::String => Ok(p.new_node(
             start_pos,

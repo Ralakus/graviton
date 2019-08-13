@@ -140,15 +140,15 @@ pub fn add_stdlib(vm: &mut StackVm) {
 
 pub fn get_stdlib_signatures() -> SemanticStdLib {
     let mut stdlib = SemanticStdLib::new();
-    stdlib.add_fn(String::from("read_line"), make_fn_sig! { fn(): String });
-    stdlib.add_fn(String::from("read_num"), make_fn_sig! { fn(): I32 });
-    stdlib.add_fn(String::from("read_bool"), make_fn_sig! { fn(): Bool });
-    stdlib.add_fn(String::from("println"), make_fn_sig! { fn(String): Nil });
-    stdlib.add_fn(String::from("print"), make_fn_sig! { fn(String): Nil });
-    stdlib.add_fn(String::from("nums"), make_fn_sig! { fn(String): I32 });
-    stdlib.add_fn(String::from("numb"), make_fn_sig! { fn(Bool): I32 });
-    stdlib.add_fn(String::from("booln"), make_fn_sig! { fn(I32): Bool });
-    stdlib.add_fn(String::from("strn"), make_fn_sig! { fn(I32): String });
-    stdlib.add_fn(String::from("strb"), make_fn_sig! { fn(Bool): String });
+    stdlib.add_fn(String::from("read_line"), make_fn_sig! { () -> String });
+    stdlib.add_fn(String::from("read_num"), make_fn_sig! { () ->I32 });
+    stdlib.add_fn(String::from("read_bool"), make_fn_sig! { () -> Bool });
+    stdlib.add_fn(String::from("println"), make_fn_sig! { (String) -> Nil });
+    stdlib.add_fn(String::from("print"), make_fn_sig! { (String) -> Nil });
+    stdlib.add_fn(String::from("nums"), make_fn_sig! { (String) -> I32 });
+    stdlib.add_fn(String::from("numb"), make_fn_sig! { (Bool) -> I32 });
+    stdlib.add_fn(String::from("booln"), make_fn_sig! { (I32) -> Bool });
+    stdlib.add_fn(String::from("strn"), make_fn_sig! { (I32) -> String });
+    stdlib.add_fn(String::from("strb"), make_fn_sig! { (Bool) -> String });
     stdlib
 }

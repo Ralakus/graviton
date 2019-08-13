@@ -42,6 +42,8 @@ pub enum PrimitiveType {
     U16,
     U32,
     U64,
+    F32,
+    F64,
 }
 
 #[derive(Hash, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -64,6 +66,8 @@ impl<'a> TypeSignature {
             "U16" => TypeSignature::Primitive(PrimitiveType::U16),
             "U32" => TypeSignature::Primitive(PrimitiveType::U32),
             "U64" => TypeSignature::Primitive(PrimitiveType::U64),
+            "F32" => TypeSignature::Primitive(PrimitiveType::F32),
+            "F64" => TypeSignature::Primitive(PrimitiveType::F64),
             _ => TypeSignature::Custom(t.to_string()),
         }
     }
@@ -130,6 +134,31 @@ impl<'a> TypeSignature {
             _ => false,
         }
     }
+    pub fn is_integer(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
+                | PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64 => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_float(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::F32 | PrimitiveType::F64 => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Debug for TypeSignature {
@@ -146,6 +175,8 @@ impl std::fmt::Debug for TypeSignature {
                 PrimitiveType::U16 => write!(f, "U16"),
                 PrimitiveType::U32 => write!(f, "U32"),
                 PrimitiveType::U64 => write!(f, "U64"),
+                PrimitiveType::F32 => write!(f, "F32"),
+                PrimitiveType::F64 => write!(f, "F64"),
             },
             TypeSignature::Function(func) => {
                 if f.alternate() {
@@ -223,7 +254,7 @@ impl std::fmt::Debug for FunctionSignature {
 
 #[macro_export]
 macro_rules! make_fn_sig {
-    (fn ( $( $type_:ident ),* ): $ret:ident) => {
+    (( $( $type_:ident ),* ) -> $ret:ident) => {
         ast::FunctionSignature{ params: vec!(
             $(
                 ast::VariableSignature { mutable: true, type_sig: Some(ast::TypeSignature::new(stringify!($type_))) },
@@ -240,8 +271,11 @@ pub enum Ast {
     // identifier name
     Identifier(String),
 
-    // number value
-    Number(f64),
+    // integer value
+    Integer(i64),
+
+    // floating point value
+    Float(f64),
 
     // string value
     String(String),

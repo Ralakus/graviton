@@ -39,3 +39,13 @@ Nil println(String s) {
     print(s);
     printf("\n");
 }
+
+Nil printf32(F32 f) {
+    printf("%g", f);
+    fflush(stdout);
+}
+
+Nil printf32ln(F32 f) {
+    printf32(f);
+    printf("\n");
+}

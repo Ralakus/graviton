@@ -66,7 +66,8 @@ pub use ast::Position;
 pub enum TokenData {
     None,
     String(String),
-    Number(f64),
+    Integer(i64),
+    Float(f64),
     Str(&'static str),
 }
 

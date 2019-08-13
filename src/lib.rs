@@ -39,6 +39,7 @@ impl<'a> GravitonError {
 pub fn parse_source<'a>(
     source: &'a str,
     filename: Option<&'a str>,
+    debug_level: i32,
 ) -> Result<ast::AstNode, GravitonError> {
     match frontend::parser::Parser::parse(source, filename) {
         Ok(mut ast) => {
@@ -50,8 +51,18 @@ pub fn parse_source<'a>(
                 },
                 &mut ast,
             ) {
-                Ok(_) => Ok(ast),
-                Err(e) => Err(e),
+                Ok(_) => {
+                    if debug_level >= 2 {
+                        println!("{}: {:#?}", "Typed AST".cyan(), ast);
+                    }
+                    Ok(ast)
+                }
+                Err(e) => {
+                    if debug_level >= 2 {
+                        println!("{}: {:#?}", "Untyped AST".red(), ast);
+                    }
+                    Err(e)
+                }
             }
         }
         Err(e) => Err(GravitonError::ParseError(e)),
@@ -85,10 +96,7 @@ pub fn compile_source<'a>(
     filename: Option<&'a str>,
     debug_level: i32,
 ) -> Result<backend::native::NativeObject, GravitonError> {
-    let ast = parse_source(source, filename)?;
-    if debug_level >= 2 {
-        println!("{}: {:#?}", "Typed AST".cyan(), ast);
-    }
+    let ast = parse_source(source, filename, debug_level)?;
     compile_ast(
         if let Some(f) = filename {
             String::from(f)

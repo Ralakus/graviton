@@ -107,7 +107,21 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
 
             bc.emit(&ast, ByteOp::GetVar(hash));
         }
-        ast::Ast::Number(n) => {
+        ast::Ast::Integer(n) => {
+            let mut idx: usize = 0;
+            for val in &bc.constants {
+                if let Value::Number(num) = val {
+                    if *n as f64 == *num {
+                        bc.emit(&ast, ByteOp::Load(idx as u16));
+                        return Ok(());
+                    }
+                }
+                idx += 1;
+            }
+            bc.constants.push(Value::Number(*n as f64));
+            bc.emit(&ast, ByteOp::Load((bc.constants.len() - 1) as u16));
+        }
+        ast::Ast::Float(n) => {
             let mut idx: usize = 0;
             for val in &bc.constants {
                 if let Value::Number(num) = val {

@@ -21,6 +21,8 @@ pub fn type_to_cranelift<T: cranelift_module::Backend>(
                 PrimitiveType::U16 => types::I16,
                 PrimitiveType::U32 => types::I32,
                 PrimitiveType::U64 => types::I64,
+                PrimitiveType::F32 => types::F32,
+                PrimitiveType::F64 => types::F64,
             },
             TypeSignature::Function(_sig) => module.target_config().pointer_type(),
             TypeSignature::Custom(name) => match &**name {
@@ -49,6 +51,8 @@ pub fn type_ref_to_cranelift<T: cranelift_module::Backend>(
             PrimitiveType::U16 => types::I16,
             PrimitiveType::U32 => types::I32,
             PrimitiveType::U64 => types::I64,
+            PrimitiveType::F32 => types::F32,
+            PrimitiveType::F64 => types::F64,
         },
         TypeSignature::Function(_sig) => module.target_config().pointer_type(),
         TypeSignature::Custom(name) => match &**name {

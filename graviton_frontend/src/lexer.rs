@@ -244,8 +244,12 @@ impl<'a> Iterator for Lexer<'a> {
 
             Some(c) if c.is_digit(10) => {
                 let mut literal = c.to_string();
+                let mut is_float = false;
                 while let Some(c) = self.peek() {
                     if c.is_digit(10) {
+                        literal.push(c);
+                    } else if c == '.' {
+                        is_float = true;
                         literal.push(c);
                     } else {
                         break;
@@ -254,7 +258,11 @@ impl<'a> Iterator for Lexer<'a> {
                 }
                 Some(Token::new(
                     TokenType::Number,
-                    TokenData::Number(literal.parse::<f64>().unwrap()),
+                    if is_float {
+                        TokenData::Float(literal.parse::<f64>().unwrap())
+                    } else {
+                        TokenData::Integer(literal.parse::<i64>().unwrap())
+                    },
                     self.start_pos,
                 ))
             }
