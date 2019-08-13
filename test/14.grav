@@ -3,7 +3,5 @@ let float = 14.48;
 
 let float2 = 48.14;
 
-let result = float + float2;
-
 print("14.48 + 48.14 == ");
-printf32ln(result);
+printf32ln(float + float2);
