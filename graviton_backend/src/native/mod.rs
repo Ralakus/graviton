@@ -446,6 +446,15 @@ impl<'a> AstTranslator<'a> {
                 let e = self.ast_to_cranelift(expr, builder)?;
                 match op {
                     ast::UnaryOperation::Not => Ok(builder.ins().bnot(e)),
+                    ast::UnaryOperation::Negate if ast.type_sig.as_ref().unwrap().is_float() => {
+                        if ast.type_sig.as_ref().unwrap().is_32bit() {
+                            let zero = builder.ins().f32const(0f32);
+                            Ok(builder.ins().fsub(e, zero))
+                        } else {
+                            let zero = builder.ins().f64const(0f64);
+                            Ok(builder.ins().fsub(e, zero))
+                        }
+                    },
                     ast::UnaryOperation::Negate => Ok(builder.ins().irsub_imm(e, 0)),
                 }
             }

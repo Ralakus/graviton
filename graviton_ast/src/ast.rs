@@ -159,6 +159,48 @@ impl<'a> TypeSignature {
             _ => false,
         }
     }
+    pub fn is_8bit(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::I8
+                | PrimitiveType::U8 => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_16bit(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::I16
+                | PrimitiveType::U16 => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_32bit(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::I32
+                | PrimitiveType::U32
+                | PrimitiveType::F32  => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    pub fn is_64bit(&self) -> bool {
+        match self {
+            TypeSignature::Primitive(p) => match p {
+                PrimitiveType::I64
+                | PrimitiveType::U64
+                | PrimitiveType::F64 => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Debug for TypeSignature {
