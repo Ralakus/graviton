@@ -156,7 +156,7 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 if e_error {
                     sa.make_err(
                         &expr.pos,
-                        format!("Only the last element in a module can be an expression"),
+                        format!("Only the last element in a module can be an expression; consider adding a semicolon \';\' to the end of the expression"),
                     );
                 }
                 idx += 1;

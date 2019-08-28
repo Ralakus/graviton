@@ -29,6 +29,7 @@ vm_store_names = [
 graviton_ast      = { path = "graviton_ast",      version = "0.6.0" }
 graviton_frontend = { path = "graviton_frontend", version = "0.6.0" }
 graviton_backend  = { path = "graviton_backend",  version = "0.6.0" }
+graviton_ir       = { path = "graviton_ir",       version = "0.6.0"}
 
 serde = { version = "1.0.98", features = ["derive"] }
 rmp-serde = "0.13.7"
