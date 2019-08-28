@@ -1,4 +1,6 @@
 
+import "/std";
+
 let mut add = (x: I32, y: I32) x + y;
 
 printnln(add(14, 48));

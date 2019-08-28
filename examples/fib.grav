@@ -1,4 +1,6 @@
 
+import "/std";
+
 println("Iterative Fibonacci example");
 
 let fib = (n: I32) {

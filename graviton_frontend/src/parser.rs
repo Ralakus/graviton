@@ -38,7 +38,7 @@ struct ParseRule {
     precedence: Prec,
 }
 
-const PARSER_RULE_TABLE: [ParseRule; 45] = [
+const PARSER_RULE_TABLE: [ParseRule; 46] = [
     ParseRule {
         prefix: grouping_or_fn,
         infix: call,
@@ -204,11 +204,11 @@ const PARSER_RULE_TABLE: [ParseRule; 45] = [
         infix: nil_func,
         precedence: Prec::None,
     }, // TokenType::KwLet
-    /*ParseRule {
-        prefix: fn_,
+    ParseRule {
+        prefix: extern_,
         infix: nil_func,
         precedence: Prec::None,
-    }, // TokenType::KwFn*/
+    }, // TokenType::KwExtern*/
     ParseRule {
         prefix: nil_func,
         infix: nil_func,
@@ -400,7 +400,7 @@ impl<'a> Parser<'a> {
             || self.check(TokenType::Eof))
         {
             self.advance();
-            println!("previous {:?}", self.previous);
+            println!("{:?}", self.previous.to_string());
         }
         if self.check(TokenType::Semicolon) {
             self.advance();
@@ -810,9 +810,21 @@ fn import<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
         _ => return Err(p.make_error("Could not read identifier name from token")),
     };
 
-    if let Some(fname) = p.file_name {
-        let path = &fname[0..fname.rfind("/").unwrap_or(0)];
-        name = format!("{}/{}", path, name);
+    if name.chars().nth(0) == Some('/') {
+        name = name[1..].to_string();
+    } else {
+        if let Some(fname) = p.file_name {
+            let path = &fname[0..fname.rfind("/").unwrap_or(0)];
+            name = format!("{}/{}", path, name);
+        }
+    }
+
+    if name.starts_with("std") {
+        name = format!("stdlib/{}", name)
+    }
+
+    if let None = name.rfind(".") {
+        name = format!("{}.grav", name);
     }
 
     let mapped_file: memmap::Mmap;
@@ -851,35 +863,33 @@ fn import<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     }
 }
 
-/*fn fn_<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
+fn extern_<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let start_pos = p.previous.pos.clone();
-    let name: Option<String> = if p.check(TokenType::Identifier) {
-        p.advance();
-        match &p.previous.data {
-            TokenData::String(s) => Some(s.clone()),
-            _ => return Err(p.make_error("Could not read identifier name from token")),
-        }
-    } else {
-        None
+
+    p.consume(
+        TokenType::Identifier,
+        "Expected identifier for extern function name",
+    )?;
+
+    let name = match &p.previous.data {
+        TokenData::String(s) => s.clone(),
+        _ => return Err(p.make_error("Could not read identifier name from token")),
     };
 
     p.consume(
         TokenType::LParen,
-        "Expected left parenthesis for function parameters",
+        "Expected left parenthesis to open function arguments",
     )?;
 
     let mut params: Vec<VariableSignature> = Vec::new();
-    let mut names: Vec<String> = Vec::new();
 
     if !p.check(TokenType::RParen) {
         let mut sig = variable_signature(p)?;
-        names.push(sig.0);
         params.push(sig.1);
 
         while p.check(TokenType::Comma) {
             p.advance();
             sig = variable_signature(p)?;
-            names.push(sig.0);
             params.push(sig.1);
         }
     }
@@ -889,43 +899,24 @@ fn import<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
         "Expected right parenthesis to close function parameters",
     )?;
 
-    let type_sig: Option<Box<TypeSignature>> = if p.check(TokenType::Colon) {
-        p.advance();
-        let type_sig = type_signature(p)?;
-        Some(Box::new(type_sig.1))
-    } else {
-        None
-    };
+    p.consume(
+        TokenType::RArrow,
+        "Expected explicit return type for extern function",
+    )?;
 
-    let body = expression(p)?;
+    let type_sig = type_signature(p)?;
 
-    if let Some(s) = name {
-        Ok(p.new_node(start_pos, Ast::Let(
-            s,
-            VariableSignature {
-                mutable: false,
-                type_sig: None,
-            },
-            Some(Box::new(p.new_node(start_pos, Ast::FnDef(
-                FunctionSignature {
-                    params,
-                    return_type: type_sig,
-                },
-                names,
-                Box::new(body),
-            )))),
-        )))
-    } else {
-        Ok(p.new_node(start_pos, Ast::FnDef(
+    Ok(p.new_node(
+        start_pos,
+        Ast::FnExtern(
             FunctionSignature {
                 params,
-                return_type: type_sig,
+                return_type: Some(Box::new(type_sig.1)),
             },
-            names,
-            Box::new(body),
-        )))
-    }
-}*/
+            name,
+        ),
+    ))
+}
 
 fn call<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     let start_pos = p.previous.pos.clone();

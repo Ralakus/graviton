@@ -2,11 +2,10 @@ use super::ast;
 
 pub struct Module {
     functions: Vec<Function>,
-    globals: Vec<VarDecl>
+    globals: Vec<VarDecl>,
 }
 
 pub enum Instruction {
-
     Iconst(i64),
     Fconst(f64),
 
@@ -52,7 +51,6 @@ pub enum Instruction {
 
     BranchZero(Box<Instruction>, Box<BasicBlock>),
     BranchNotZero(Box<Instruction>, Box<BasicBlock>),
-
 }
 
 pub struct BasicBlock {
@@ -62,11 +60,11 @@ pub struct BasicBlock {
 
 pub struct Function {
     blocks: Vec<BasicBlock>,
-    arguments: Vec<ast::TypeSignature>
+    arguments: Vec<ast::TypeSignature>,
 }
 
 pub struct VarDecl {
     name: String,
     type_: Vec<ast::TypeSignature>,
-    assign: Box<Instruction>
+    assign: Box<Instruction>,
 }

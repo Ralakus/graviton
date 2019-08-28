@@ -1,4 +1,6 @@
 
+import "/std";
+
 let x = 14;
 
 printbln(let is_x_greater_than_five = if x > 5 true else false);

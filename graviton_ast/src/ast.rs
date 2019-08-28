@@ -162,8 +162,7 @@ impl<'a> TypeSignature {
     pub fn is_8bit(&self) -> bool {
         match self {
             TypeSignature::Primitive(p) => match p {
-                PrimitiveType::I8
-                | PrimitiveType::U8 => true,
+                PrimitiveType::I8 | PrimitiveType::U8 => true,
                 _ => false,
             },
             _ => false,
@@ -172,8 +171,7 @@ impl<'a> TypeSignature {
     pub fn is_16bit(&self) -> bool {
         match self {
             TypeSignature::Primitive(p) => match p {
-                PrimitiveType::I16
-                | PrimitiveType::U16 => true,
+                PrimitiveType::I16 | PrimitiveType::U16 => true,
                 _ => false,
             },
             _ => false,
@@ -182,9 +180,7 @@ impl<'a> TypeSignature {
     pub fn is_32bit(&self) -> bool {
         match self {
             TypeSignature::Primitive(p) => match p {
-                PrimitiveType::I32
-                | PrimitiveType::U32
-                | PrimitiveType::F32  => true,
+                PrimitiveType::I32 | PrimitiveType::U32 | PrimitiveType::F32 => true,
                 _ => false,
             },
             _ => false,
@@ -193,9 +189,7 @@ impl<'a> TypeSignature {
     pub fn is_64bit(&self) -> bool {
         match self {
             TypeSignature::Primitive(p) => match p {
-                PrimitiveType::I64
-                | PrimitiveType::U64
-                | PrimitiveType::F64 => true,
+                PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::F64 => true,
                 _ => false,
             },
             _ => false,
@@ -359,6 +353,9 @@ pub enum Ast {
 
     // function parameters, param names return type, implementation
     FnDef(FunctionSignature, Vec<String>, Box<AstNode>),
+
+    // function signature, function name
+    FnExtern(FunctionSignature, String),
 
     // expression that evaluates to function, arguments
     FnCall(Box<AstNode>, Vec<AstNode>),

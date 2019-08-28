@@ -454,7 +454,7 @@ impl<'a> AstTranslator<'a> {
                             let zero = builder.ins().f64const(0f64);
                             Ok(builder.ins().fsub(e, zero))
                         }
-                    },
+                    }
                     ast::UnaryOperation::Negate => Ok(builder.ins().irsub_imm(e, 0)),
                 }
             }
@@ -611,6 +611,40 @@ impl<'a> AstTranslator<'a> {
                 &ast.pos,
                 builder,
             ),
+            ast::Ast::FnExtern(sig, name) => {
+                let mut fnsig = self.module.make_signature();
+                for param in &sig.params {
+                    fnsig
+                        .params
+                        .push(AbiParam::new(gravtypes::type_to_cranelift(
+                            &param.type_sig,
+                            &self.module,
+                        )));
+                }
+                fnsig
+                    .returns
+                    .push(AbiParam::new(gravtypes::type_ref_to_cranelift(
+                        sig.return_type.as_ref().unwrap().as_ref(),
+                        &self.module,
+                    )));
+
+                let id = match self.module.declare_function(&name, Linkage::Import, &fnsig) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        return Err(self.make_error(&ast.pos, format!("{:#?}", e)));
+                    }
+                };
+
+                let local_id = self.module.declare_func_in_func(id, &mut builder.func);
+
+                Ok(builder.ins().func_addr(
+                    gravtypes::type_ref_to_cranelift(
+                        &ast::TypeSignature::Function(sig.clone()),
+                        &self.module,
+                    ),
+                    local_id,
+                ))
+            }
             ast::Ast::FnCall(callee, args) => {
                 let mut sig = self.module.make_signature();
                 for arg in args {
@@ -678,24 +712,17 @@ impl<'a> AstTranslator<'a> {
                             Ok(builder.ins().icmp_imm(IntCC::SignedGreaterThan, val, 0))
                         }
                     }
-                    (ctee, ct) if ctee.is_bool() && ct.is_integer() => Ok(builder.ins().bint(
-                        node_type,
-                        val,
-                    )),
+                    (ctee, ct) if ctee.is_bool() && ct.is_integer() => {
+                        Ok(builder.ins().bint(node_type, val))
+                    }
                     (
                         ast::TypeSignature::Primitive(ast::PrimitiveType::F32),
                         ast::TypeSignature::Primitive(ast::PrimitiveType::F64),
-                    ) => Ok(builder.ins().fpromote(
-                        node_type,
-                        val,
-                    )),
+                    ) => Ok(builder.ins().fpromote(node_type, val)),
                     (
                         ast::TypeSignature::Primitive(ast::PrimitiveType::F64),
                         ast::TypeSignature::Primitive(ast::PrimitiveType::F32),
-                    ) => Ok(builder.ins().fdemote(
-                        node_type,
-                        val,
-                    )),
+                    ) => Ok(builder.ins().fdemote(node_type, val)),
                     (ctee, ct) if ctee.is_float() && ct.is_integer() => {
                         if ctee.is_unsigned() {
                             Ok(builder.ins().fcvt_to_uint(node_type, val))

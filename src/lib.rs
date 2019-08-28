@@ -71,11 +71,7 @@ pub fn parse_source<'a>(
 }
 
 pub fn analyze_ast(name: Option<String>, ast: &mut ast::AstNode) -> Result<(), GravitonError> {
-    match ast::semantic::SemanticAnalyzer::analyze(
-        ast,
-        name,
-        Some(backend::native::stdlib::get_stdlib_signatures()),
-    ) {
+    match ast::semantic::SemanticAnalyzer::analyze(ast, name, None) {
         Ok(_) => Ok(()),
         Err(e) => Err(GravitonError::SemanticError(e)),
     }

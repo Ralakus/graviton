@@ -1,4 +1,6 @@
 
+import "/std";
+
 print("How many numbers? ");
 let n = read_num();
 

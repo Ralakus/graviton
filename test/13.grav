@@ -1,4 +1,6 @@
 
+import "/std";
+
 let add = (x: I32, y: I32) x + y;
 
 // Note, does NOT fit naming convention, it should be `yes_it_finally_works`

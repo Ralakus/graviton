@@ -588,6 +588,7 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
             sa.pop_scope(&ast.pos);
             ast::TypeSignature::Function(sig.clone())
         }
+        ast::Ast::FnExtern(ref sig, ref _name) => ast::TypeSignature::Function(sig.clone()),
         ast::Ast::FnCall(ref mut callee, ref mut args) => {
             let mut return_type: ast::TypeSignature = NIL_TYPE_SIGNATURE.clone();
             let callee_type = analyze(sa, &mut **callee);

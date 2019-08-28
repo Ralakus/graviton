@@ -75,10 +75,37 @@ fi
 cargo run run test/11.grav
 if [ $? -eq 1 ]
 then
-  echo "Failed test 10"
+  echo "Failed test 11"
   FAILED=1
 fi
 
+cargo run run test/12.grav
+if [ $? -eq 1 ]
+then
+  echo "Failed test 12"
+  FAILED=1
+fi
+
+cargo run run test/13.grav
+if [ $? -eq 1 ]
+then
+  echo "Failed test 13"
+  FAILED=1
+fi
+
+cargo run run test/14.grav
+if [ $? -eq 1 ]
+then
+  echo "Failed test 14"
+  FAILED=1
+fi
+
+cargo run run test/15.grav
+if [ $? -eq 1 ]
+then
+  echo "Failed test 15"
+  FAILED=1
+fi
 
 echo "14" | cargo run run examples/fib.grav
 if [ $? -eq 1 ]
@@ -93,5 +120,6 @@ if [ $FAILED -eq 1 ]
 then
   exit 1
 else
+  echo
   echo "All tests passed"
 fi
