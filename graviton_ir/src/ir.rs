@@ -1,10 +1,14 @@
 use super::ast;
 
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Module {
-    functions: Vec<Function>,
-    globals: Vec<VarDecl>,
+    pub functions: Vec<Function>,
+    pub globals: Vec<VarDecl>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Instruction {
     Iconst(i64),
     Fconst(f64),
@@ -23,48 +27,63 @@ pub enum Instruction {
 
     Fadd(Box<Instruction>, Box<Instruction>),
 
-    // Compare equal
+    // Integer compare equal
     ICmpe(Box<Instruction>, Box<Instruction>),
-    // Compare not equal
+    // Integer compare not equal
     ICmpne(Box<Instruction>, Box<Instruction>),
-    // Compare greater than
+    // Integer compare greater than
     ICmpgt(Box<Instruction>, Box<Instruction>),
-    // Compare less than
+    // Integer compare less than
     ICmplt(Box<Instruction>, Box<Instruction>),
-    // Compare greather than equal
+    // Integer compare greather than equal
     ICmpgte(Box<Instruction>, Box<Instruction>),
-    // Compare less than equal
+    // Integer compare less than equal
     ICmplte(Box<Instruction>, Box<Instruction>),
 
-    // Compare equal
+    // Floating point compare equal
     FCmpe(Box<Instruction>, Box<Instruction>),
-    // Compare not equal
+    // Floating point compare not equal
     FCmpne(Box<Instruction>, Box<Instruction>),
-    // Compare greater than
+    // Floating point compare greater than
     FCmpgt(Box<Instruction>, Box<Instruction>),
-    // Compare less than
+    // Floating point compare less than
     FCmplt(Box<Instruction>, Box<Instruction>),
-    // Compare greather than equal
+    // Floating point compare greather than equal
     FCmpgte(Box<Instruction>, Box<Instruction>),
-    // Compare less than equal
+    // Floating point compare less than equal
     FCmplte(Box<Instruction>, Box<Instruction>),
 
-    BranchZero(Box<Instruction>, Box<BasicBlock>),
-    BranchNotZero(Box<Instruction>, Box<BasicBlock>),
+    // Jump to block if instruction evaluates to zero (false) and passes arugments
+    Brz(Box<Instruction>, Box<BasicBlock>, Vec<Instruction>),
+    // Jump to block if instruction doesn't evaluates to zero (true) and passes arugments
+    Brnz(Box<Instruction>, Box<BasicBlock>, Vec<Instruction>),
+
+    // Calls a function directly
+    Call(String, Vec<Instruction>),
+    // Calls a function pointer
+    CallPtr(Box<Instruction>, Vec<Instruction>),
+
+    // Returns from function
+    Return(Box<Instruction>)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BasicBlock {
-    instructions: Vec<Instruction>,
-    arguments: Vec<ast::TypeSignature>,
+    pub instructions: Vec<Instruction>,
+    pub arguments: Vec<ast::TypeSignature>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Function {
-    blocks: Vec<BasicBlock>,
-    arguments: Vec<ast::TypeSignature>,
+    pub name: String,
+    pub blocks: Vec<BasicBlock>,
+    pub signature: ast::FunctionSignature,
+    pub variables: Vec<VarDecl>
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct VarDecl {
-    name: String,
-    type_: Vec<ast::TypeSignature>,
-    assign: Box<Instruction>,
+    pub name: String,
+    pub type_: Vec<ast::TypeSignature>,
+    pub assign: Box<Instruction>,
 }
