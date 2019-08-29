@@ -313,7 +313,10 @@ impl<'a> Parser<'a> {
         self.current.type_ == type_
     }
 
-    pub fn parse(source: &'a str, file_name: Option<&'a str>) -> Result<AstNode, Vec<ParseError>> {
+    pub fn parse(
+        source: &'a str,
+        file_name: Option<&'a str>,
+    ) -> Result<ast::Module, Vec<ParseError>> {
         let mut p = Parser {
             lex: Lexer::new(source),
             current: Token::new(
@@ -357,7 +360,15 @@ impl<'a> Parser<'a> {
             Position { line: -2, col: -2 },
         );
 
-        Ok(p.new_node(ast::Position { line: 0, col: 0 }, Ast::Module(exprs)))
+        Ok(ast::Module {
+            file: if let Some(name) = file_name {
+                Some(name.to_string())
+            } else {
+                None
+            },
+            expressions: exprs,
+            type_sig: None,
+        })
     }
 
     fn make_error(&mut self, msg: &'static str) -> ParseError {
@@ -854,7 +865,7 @@ fn import<'a>(p: &mut Parser<'a>) -> Result<AstNode, ParseError> {
     );
 
     match result {
-        Ok(ast) => Ok(p.new_node(start_pos, Ast::Import(name, Box::new(ast)))),
+        Ok(module) => Ok(p.new_node(start_pos, Ast::Import(module))),
         Err(errors) => {
             let mut e = errors.clone();
             p.errors.append(&mut e);

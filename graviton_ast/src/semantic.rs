@@ -105,7 +105,7 @@ impl<'a> SemanticAnalyzer {
     }
 
     pub fn analyze(
-        ast: &mut ast::AstNode,
+        module: &mut ast::Module,
         filename: Option<String>,
         stdlib: Option<SemanticStdLib>,
     ) -> Result<(), Vec<SemanticError>> {
@@ -124,7 +124,7 @@ impl<'a> SemanticAnalyzer {
             sa.last_scope().variables.extend(lib.variables);
         }
 
-        analyze(&mut sa, ast);
+        analyze_module(&mut sa, module);
 
         if sa.errors.len() > 0 {
             Err(sa.errors)
@@ -134,45 +134,50 @@ impl<'a> SemanticAnalyzer {
     }
 }
 
-pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSignature {
-    let node_type = match ast.node {
-        ast::Ast::Module(ref mut exprs) => {
-            let mut idx = 1;
-            let len = exprs.len();
-            let mut return_type: Option<ast::TypeSignature> = None;
-            for expr in (&mut **exprs).iter_mut() {
-                let mut e_error = false;
-                match expr.node {
-                    ast::Ast::Statement(_) => {
-                        analyze(sa, expr);
+fn analyze_module(sa: &mut SemanticAnalyzer, module: &mut ast::Module) -> ast::TypeSignature {
+    let module_type = {
+        let mut idx = 1;
+        let len = module.expressions.len();
+        let mut return_type: Option<ast::TypeSignature> = None;
+        for expr in (&mut *module.expressions).iter_mut() {
+            let mut e_error = false;
+            match expr.node {
+                ast::Ast::Statement(_) => {
+                    analyze(sa, expr);
+                }
+                _ => {
+                    if idx != len {
+                        e_error = true;
                     }
-                    _ => {
-                        if idx != len {
-                            e_error = true;
-                        }
-                        return_type = Some(analyze(sa, expr));
-                    }
+                    return_type = Some(analyze(sa, expr));
                 }
-                if e_error {
-                    sa.make_err(
-                        &expr.pos,
-                        format!("Only the last element in a module can be an expression; consider adding a semicolon \';\' to the end of the expression"),
-                    );
-                }
-                idx += 1;
             }
-            if let Some(r) = return_type {
-                if r != DEFAULT_NUM_TYPE_SIGNATURE && r != NIL_TYPE_SIGNATURE {
-                    sa.make_err(
-                        &ast.pos,
-                        format!("Modules may only return I32 or Nil; found {:?}", r),
-                    );
-                }
-                r
-            } else {
-                NIL_TYPE_SIGNATURE.clone()
+            if e_error {
+                sa.make_err(
+                    &expr.pos,
+                    format!("Only the last element in a module can be an expression; consider adding a semicolon \';\' to the end of the expression"),
+                );
             }
+            idx += 1;
         }
+        if let Some(r) = return_type {
+            if r != DEFAULT_NUM_TYPE_SIGNATURE && r != NIL_TYPE_SIGNATURE {
+                sa.make_err(
+                    &super::Position { line: 0, col: 0 },
+                    format!("Modules may only return I32 or Nil; found {:?}", r),
+                );
+            }
+            r
+        } else {
+            NIL_TYPE_SIGNATURE.clone()
+        }
+    };
+    module.type_sig = Some(module_type.clone());
+    module_type
+}
+
+fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSignature {
+    let node_type = match ast.node {
         ast::Ast::Identifier(ref s) => {
             if let None = sa.check_if_var_in_scopes(&s) {
                 if sa.current_fn.0 == **s {
@@ -537,9 +542,12 @@ pub fn analyze(sa: &mut SemanticAnalyzer, ast: &mut ast::AstNode) -> ast::TypeSi
                 NIL_TYPE_SIGNATURE.clone()
             }
         }
-        ast::Ast::Import(ref name, ref mut expr) => {
-            sa.file = Some(name.clone());
-            analyze(sa, &mut **expr)
+        ast::Ast::Import(ref mut module) => {
+            let old_file = sa.file.clone();
+            sa.file = module.file.clone();
+            let r = analyze_module(sa, &mut *module);
+            sa.file = old_file;
+            r
         }
         ast::Ast::FnDef(ref mut sig, ref param_names, ref mut expr) => {
             sa.new_scope();

@@ -97,6 +97,49 @@ impl Bytecode {
     }
 }
 
+fn module_to_bytecode(bc: &mut Bytecode, module: &ast::Module) -> Result<(), VmError> {
+    bc.ops.push(ByteOp::ScopeOpen);
+    bc.positions.push(ast::Position { line: 0, col: 0 });
+    let mut idx: usize = 1;
+    let len = module.expressions.len();
+    for e in &module.expressions {
+        match &e.node {
+            ast::Ast::Statement(expr) => {
+                if let ast::Ast::Block(_) = expr.node {
+                    ast_to_bytecode(bc, &*expr)?;
+                } else if let ast::Ast::Return(rexpr) = &expr.node {
+                    ast_to_bytecode(bc, &*rexpr)?;
+                    bc.ops.push(ByteOp::Return);
+                    bc.positions.push(ast::Position { line: 0, col: 0 });
+                } else {
+                    ast_to_bytecode(bc, &e)?
+                }
+            }
+            _ => {
+                if idx != len {
+                    return Err(VmError::new(
+                        "Only the last element in a block may be an expression".to_string(),
+                        &e,
+                    ));
+                }
+                if let ast::Ast::Return(rexpr) = &e.node {
+                    ast_to_bytecode(bc, &*rexpr)?;
+                    bc.ops.push(ByteOp::Return);
+                    bc.positions.push(ast::Position { line: 0, col: 0 });
+                } else {
+                    ast_to_bytecode(bc, &e)?;
+                    bc.ops.push(ByteOp::Return);
+                    bc.positions.push(ast::Position { line: 0, col: 0 });
+                }
+            }
+        }
+        idx += 1;
+    }
+    bc.ops.push(ByteOp::ScopeClose);
+    bc.positions.push(ast::Position { line: 0, col: 0 });
+    Ok(())
+}
+
 fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError> {
     match &ast.node {
         ast::Ast::Identifier(ident) => {
@@ -341,8 +384,8 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
                 bc.emit(&ast, ByteOp::DefVar(hash));
             }
         }
-        ast::Ast::Import(_, expr) => {
-            ast_to_bytecode(bc, &*expr)?;
+        ast::Ast::Import(module) => {
+            module_to_bytecode(bc, &module)?;
         }
         ast::Ast::FnCall(callee, args) => {
             if let ast::Ast::Identifier(name) = &callee.node {

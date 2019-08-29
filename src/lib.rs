@@ -41,26 +41,26 @@ pub fn parse_source<'a>(
     source: &'a str,
     filename: Option<&'a str>,
     debug_level: i32,
-) -> Result<ast::AstNode, GravitonError> {
+) -> Result<ast::Module, GravitonError> {
     match frontend::parser::Parser::parse(source, filename) {
-        Ok(mut ast) => {
-            match analyze_ast(
+        Ok(mut module) => {
+            match analyze_module(
                 if let Some(f) = filename {
                     Some(String::from(f))
                 } else {
                     None
                 },
-                &mut ast,
+                &mut module,
             ) {
                 Ok(_) => {
                     if debug_level >= 2 {
-                        println!("{}: {:#?}", "Typed AST".cyan(), ast);
+                        println!("{}: {:#?}", "Typed AST".cyan(), module);
                     }
-                    Ok(ast)
+                    Ok(module)
                 }
                 Err(e) => {
                     if debug_level >= 2 {
-                        println!("{}: {:#?}", "Untyped AST".red(), ast);
+                        println!("{}: {:#?}", "Untyped AST".red(), module);
                     }
                     Err(e)
                 }
@@ -70,19 +70,19 @@ pub fn parse_source<'a>(
     }
 }
 
-pub fn analyze_ast(name: Option<String>, ast: &mut ast::AstNode) -> Result<(), GravitonError> {
-    match ast::semantic::SemanticAnalyzer::analyze(ast, name, None) {
+pub fn analyze_module(name: Option<String>, module: &mut ast::Module) -> Result<(), GravitonError> {
+    match ast::semantic::SemanticAnalyzer::analyze(module, name, None) {
         Ok(_) => Ok(()),
         Err(e) => Err(GravitonError::SemanticError(e)),
     }
 }
 
-pub fn compile_ast(
+pub fn compile_module(
     name: String,
-    ast: &ast::AstNode,
+    module: &ast::Module,
     debug_level: i32,
 ) -> Result<backend::native::NativeObject, GravitonError> {
-    match backend::native::Native::compile(name, ast, debug_level) {
+    match backend::native::Native::compile(name, module, debug_level) {
         Ok(obj) => Ok(obj),
         Err(e) => Err(GravitonError::NativeError(e)),
     }
@@ -93,14 +93,14 @@ pub fn compile_source<'a>(
     filename: Option<&'a str>,
     debug_level: i32,
 ) -> Result<backend::native::NativeObject, GravitonError> {
-    let ast = parse_source(source, filename, debug_level)?;
-    compile_ast(
+    let module = parse_source(source, filename, debug_level)?;
+    compile_module(
         if let Some(f) = filename {
             String::from(f)
         } else {
             String::from("graviton")
         },
-        &ast,
+        &module,
         debug_level,
     )
 }

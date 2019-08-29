@@ -299,11 +299,57 @@ macro_rules! make_fn_sig {
     };
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Module {
+    pub file: Option<String>,
+    pub expressions: Vec<AstNode>,
+    pub type_sig: Option<TypeSignature>,
+}
+
+impl std::fmt::Debug for Module {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(file_name) = &self.file {
+            if let Some(type_sig) = &self.type_sig {
+                if f.alternate() {
+                    write!(
+                        f,
+                        "[{}]: [{:#?}]: {:#?}",
+                        file_name, type_sig, self.expressions
+                    )
+                } else {
+                    write!(
+                        f,
+                        "[{}]: [{:?}]: {:?}",
+                        file_name, type_sig, self.expressions
+                    )
+                }
+            } else {
+                if f.alternate() {
+                    write!(f, "[{}]: {:#?}", file_name, self.expressions)
+                } else {
+                    write!(f, "[{}]: {:?}", file_name, self.expressions)
+                }
+            }
+        } else {
+            if let Some(type_sig) = &self.type_sig {
+                if f.alternate() {
+                    write!(f, "[module]: [{:#?}]: {:#?}", type_sig, self.expressions)
+                } else {
+                    write!(f, "[module]: [{:?}]: {:?}", type_sig, self.expressions)
+                }
+            } else {
+                if f.alternate() {
+                    write!(f, "[module]: {:#?}", self.expressions)
+                } else {
+                    write!(f, "[module]: {:?}", self.expressions)
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Ast {
-    // expressions
-    Module(Vec<AstNode>),
-
     // identifier name
     Identifier(String),
 
@@ -349,7 +395,7 @@ pub enum Ast {
     Let(String, VariableSignature, Option<Box<AstNode>>),
 
     // import file name, file's ast
-    Import(String, Box<AstNode>),
+    Import(Module),
 
     // function parameters, param names return type, implementation
     FnDef(FunctionSignature, Vec<String>, Box<AstNode>),

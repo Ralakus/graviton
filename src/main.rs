@@ -352,7 +352,7 @@ fn main() {
         }
     };
 
-    let ast = match input_type {
+    let module = match input_type {
         InputType::Source => {
             let source = match std::str::from_utf8(&mapped_file[..]) {
                 Ok(s) => s,
@@ -380,7 +380,7 @@ fn main() {
     };
 
     if debug_level >= 2 {
-        println!("{}: {:#?}", "Typed AST".cyan(), ast);
+        println!("{}: {:#?}", "Typed AST".cyan(), module);
     }
 
     match emit_type {
@@ -392,7 +392,7 @@ fn main() {
                     std::process::exit(1);
                 }
             };
-            match file.write_all(match &rmp_serde::to_vec(&ast) {
+            match file.write_all(match &rmp_serde::to_vec(&module) {
                 Ok(vec) => vec,
                 Err(e) => {
                     eprintln!("{}: {}: {}", "Error".red(), input, e.description());
@@ -407,7 +407,7 @@ fn main() {
             }
         }
         EmitType::Object => {
-            let obj = match grav::compile_ast(input.clone(), &ast, debug_level) {
+            let obj = match grav::compile_module(input.clone(), &module, debug_level) {
                 Ok(o) => o,
                 Err(e) => {
                     e.report(if input_type == InputType::Source {
@@ -527,7 +527,7 @@ fn main() {
             };
         }
         EmitType::Executable => {
-            let obj = match grav::compile_ast(input.clone(), &ast, debug_level) {
+            let obj = match grav::compile_module(input.clone(), &module, debug_level) {
                 Ok(o) => o,
                 Err(e) => {
                     e.report(if input_type == InputType::Source {

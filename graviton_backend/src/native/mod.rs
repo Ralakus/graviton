@@ -65,7 +65,7 @@ pub struct Native {
 impl Native {
     pub fn compile(
         name: String,
-        ast: &ast::AstNode,
+        ast_module: &ast::Module,
         debug_level: i32,
     ) -> Result<NativeObject, Vec<NativeError>> {
         let mut flag_builder = settings::builder();
@@ -117,7 +117,7 @@ impl Native {
             debug_level,
         };
 
-        let tmp = match translator.ast_to_cranelift(ast, &mut builder) {
+        let tmp = match translator.module_to_cranelift(ast_module, &mut builder) {
             Ok(v) => v,
             Err(_e) => {
                 // translator.errors.push(e);
@@ -261,27 +261,31 @@ impl<'a> AstTranslator<'a> {
         self.module.finalize_definitions();
         Ok(id)
     }
+    fn module_to_cranelift<'b>(
+        &mut self,
+        module: &ast::Module,
+        builder: &mut FunctionBuilder<'b>,
+    ) -> Result<Value, NativeError> {
+        let mut last_ins: Option<Value> = None;
+        for e in &module.expressions {
+            last_ins = Some(self.ast_to_cranelift(e, builder)?);
+        }
+        if let Some(ast::TypeSignature::Primitive(ast::PrimitiveType::Nil)) = module.type_sig {
+            Ok(builder.ins().iconst(types::I32, 0))
+        } else {
+            if let Some(ins) = last_ins {
+                Ok(ins)
+            } else {
+                Ok(builder.ins().iconst(types::I32, 0))
+            }
+        }
+    }
     fn ast_to_cranelift<'b>(
         &mut self,
         ast: &ast::AstNode,
         builder: &mut FunctionBuilder<'b>,
     ) -> Result<Value, NativeError> {
         match &ast.node {
-            ast::Ast::Module(exprs) => {
-                let mut last_ins: Option<Value> = None;
-                for e in exprs {
-                    last_ins = Some(self.ast_to_cranelift(e, builder)?);
-                }
-                if let Some(ast::TypeSignature::Primitive(ast::PrimitiveType::Nil)) = ast.type_sig {
-                    Ok(builder.ins().iconst(types::I32, 0))
-                } else {
-                    if let Some(ins) = last_ins {
-                        Ok(ins)
-                    } else {
-                        Ok(builder.ins().iconst(types::I32, 0))
-                    }
-                }
-            }
             ast::Ast::Identifier(ident) => {
                 let var = match AstTranslator::check_if_var_in_scopes(self.scopes, ident) {
                     Some(var) => var,
@@ -602,7 +606,7 @@ impl<'a> AstTranslator<'a> {
 
                 Ok(builder.use_var(var))
             }
-            ast::Ast::Import(_import_name, expr) => self.ast_to_cranelift(&*expr, builder),
+            ast::Ast::Import(module) => self.module_to_cranelift(&module, builder),
             ast::Ast::FnDef(sig, param_names, body_expr) => self.make_function(
                 &format!("{}", hash(ast)),
                 sig,
