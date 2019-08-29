@@ -4,7 +4,6 @@ pub use ast::{
     UnaryOperation, VariableSignature,
 };
 pub mod semantic;
-pub mod mlast;
 
 use serde::{Deserialize, Serialize};
 
