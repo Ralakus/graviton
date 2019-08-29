@@ -1,6 +1,6 @@
-<img src="./docs/logo.png" width=25%>
+<p align=center><img src="./docs/logo.png" width=25%></p>
 
-# Graviton Programming language
+<h1 align=center>Graviton Programming language</h1>
 
 [![crates.io](https://img.shields.io/crates/v/graviton?style=flat-square)](https://crates.io/crates/graviton)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](./LICENSE)
