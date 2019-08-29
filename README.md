@@ -22,6 +22,8 @@ Graviton is still under heavy development so it is bound to have breaking change
 ## Examples
 [Iterative fibonacci example](./examples/fib.grav) 
 ```rust
+import "/std";
+
 println("Iterative Fibonacci example");
 
 let fib = (n: I32) {
