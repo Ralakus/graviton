@@ -1,4 +1,4 @@
-<p align=center><img src="./docs/logo.png" width=25%></p>
+<p align=center><img src="./docs/logo.png" width=36%></p>
 
 <h1 align=center>Graviton Programming language</h1>
 
