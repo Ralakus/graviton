@@ -28,9 +28,9 @@ let fib = (n: I32) {
 print("Enter a number: ");
 let n = read_num();
 
-let mut fib_number: I32;
+let fib_number: I32 = fib(n);
 
-let output = if (fib_number = fib(n)) != 377 {
+let output = if fib_number != fib(14) {
         fib_number
     } else {
         println("Input was 14 so result will be negated for demonstration");

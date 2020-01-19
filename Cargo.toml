@@ -25,10 +25,10 @@ graviton_ast      = { path = "ast",      version = "0.6.0" }
 graviton_frontend = { path = "frontend", version = "0.6.0" }
 graviton_backend  = { path = "backend",  version = "0.6.0"}
 
-serde = { version = "*", features = ["derive"] }
-rmp-serde = "*"
+serde = { version = "1.0.104", features = ["derive"] }
+rmp-serde = "0.14.0"
 
-memmap = "*"
+memmap = "0.7.0"
 
-clap = { version = "*", features = [ "suggestions", "color" ] }
-colored = "*"
+clap = { version = "2.33.0", features = [ "suggestions", "color" ] }
+colored = "1.9.2"

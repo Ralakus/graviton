@@ -3,10 +3,21 @@
 
 #include "graviton_lib.h"
 
+I32 read_num(Nil) {
+    char buffer[10];
+    fgets(buffer, 10, stdin);
+    return strtol(buffer, (char**)NULL, 10);
+}
+
 Nil printn(I32 n) {
     printf("%d", n);
     fflush(stdout);
 }
+Nil printnln(I32 n) {
+    printn(n);
+    printf("\n");
+}
+
 Nil printb(Bool b) {
     if(b) {
         printf("true");
@@ -15,19 +26,9 @@ Nil printb(Bool b) {
     }
     fflush(stdout);
 }
-Nil printnln(I32 n) {
-    printn(n);
-    printf("\n");
-}
 Nil printbln(Bool b) {
     printb(b);
     printf("\n");
-}
-
-I32 read_num(Nil) {
-    char buffer[10];
-    fgets(buffer, 10, stdin);
-    return strtol(buffer, (char**)NULL, 10);
 }
 
 Nil print(String s) {
