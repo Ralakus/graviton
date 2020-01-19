@@ -1,0 +1,12 @@
+[package]
+name = "graviton_frontend"
+version = "0.6.0"
+authors = ["Ralakus <12schneide@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+graviton_core = { path = "../core", version = "0.6.0" }
+graviton_ast  = { path = "../ast",  version = "0.6.0" }
+
+memmap = "*"
+lazy_static = "*"

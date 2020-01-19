@@ -3,13 +3,15 @@ use super::ast;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::*;
 
+use core::Position;
+
 pub mod object;
 pub mod stdlib;
 
 #[derive(Clone, Debug)]
 pub struct VmError {
     pub msg: String,
-    pub pos: ast::Position,
+    pub pos: Position,
 }
 
 impl VmError {
@@ -71,7 +73,7 @@ pub enum ByteOp {
 pub struct Bytecode {
     constants: Vec<Value>,
     ops: Vec<ByteOp>,
-    positions: Vec<ast::Position>,
+    positions: Vec<Position>,
 
     #[cfg(feature = "store_names")]
     names: HashMap<u16, String>,
@@ -99,7 +101,7 @@ impl Bytecode {
 
 fn module_to_bytecode(bc: &mut Bytecode, module: &ast::Module) -> Result<(), VmError> {
     bc.ops.push(ByteOp::ScopeOpen);
-    bc.positions.push(ast::Position { line: 0, col: 0 });
+    bc.positions.push(Position { line: 0, col: 0 });
     let mut idx: usize = 1;
     let len = module.expressions.len();
     for e in &module.expressions {
@@ -110,7 +112,7 @@ fn module_to_bytecode(bc: &mut Bytecode, module: &ast::Module) -> Result<(), VmE
                 } else if let ast::Ast::Return(rexpr) = &expr.node {
                     ast_to_bytecode(bc, &*rexpr)?;
                     bc.ops.push(ByteOp::Return);
-                    bc.positions.push(ast::Position { line: 0, col: 0 });
+                    bc.positions.push(Position { line: 0, col: 0 });
                 } else {
                     ast_to_bytecode(bc, &e)?
                 }
@@ -125,18 +127,18 @@ fn module_to_bytecode(bc: &mut Bytecode, module: &ast::Module) -> Result<(), VmE
                 if let ast::Ast::Return(rexpr) = &e.node {
                     ast_to_bytecode(bc, &*rexpr)?;
                     bc.ops.push(ByteOp::Return);
-                    bc.positions.push(ast::Position { line: 0, col: 0 });
+                    bc.positions.push(Position { line: 0, col: 0 });
                 } else {
                     ast_to_bytecode(bc, &e)?;
                     bc.ops.push(ByteOp::Return);
-                    bc.positions.push(ast::Position { line: 0, col: 0 });
+                    bc.positions.push(Position { line: 0, col: 0 });
                 }
             }
         }
         idx += 1;
     }
     bc.ops.push(ByteOp::ScopeClose);
-    bc.positions.push(ast::Position { line: 0, col: 0 });
+    bc.positions.push(Position { line: 0, col: 0 });
     Ok(())
 }
 
@@ -369,7 +371,7 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
             bc.ops[cond_jump_idx] =
                 ByteOp::JumpFalse((bc.ops.len() as isize - cond_jump_idx as isize) as i16);
         }
-        ast::Ast::Let(name, var_sig, set_expr) => {
+        ast::Ast::VarDecl(name, var_sig, set_expr) => {
             if let Some(se) = set_expr {
                 ast_to_bytecode(bc, &*se)?;
             }

@@ -1,4 +1,19 @@
 
+// read_num := extern read_num () -> I32;
+// 
+// printn := extern printn (n: I32) -> Nil;
+// printnln := extern printn (n: I32) -> Nil;
+// 
+// printb := extern printb (b: Bool) -> Nil;
+// printbln := extern printbln (b: Bool) -> Nil;
+// 
+// print := extern print (s: String) -> Nil;
+// println := extern println (s: String) -> Nil;
+// 
+// printf32 := extern printf32 (f: F32) -> Nil;
+// printf32ln := extern printf32ln (f: F32) -> Nil;
+
+
 let read_num = extern read_num () -> I32;
 
 let printn = extern printn (n: I32) -> Nil;

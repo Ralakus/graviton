@@ -26,7 +26,7 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                                 match args[1].parse::<i32>() {
                                     Ok(v) => debug_level = v,
                                     Err(e) => {
-                                        eprintln!("{}: {}", "Error".red(), e.description());
+                                        eprintln!("{}: {}", "Error".red(), e);
                                         continue 'repl;
                                     }
                                 }
@@ -46,7 +46,7 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
         let obj = match grav::compile_source(&source, None, debug_level) {
             Ok(o) => o,
             Err(e) => {
-                e.report(Some(&source));
+                grav::report_notices(&e, Some(&source));
                 continue 'repl;
             }
         };
@@ -54,7 +54,7 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
         match obj.write_file(&String::from("grav_repl_tmp.o")) {
             Ok(_) => {}
             Err(e) => {
-                grav::errors::report_native_error(&e, Some(&source));
+                grav::report_notices(&vec!(e), Some(&source));
                 std::process::exit(1);
             }
         };
@@ -70,12 +70,12 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
                 Ok(mut c) => match c.wait() {
                     Ok(_) => {}
                     Err(e) => {
-                        eprintln!("{}: {}", "Error".red(), e.description());
+                        eprintln!("{}: {}", "Error".red(), e);
                         std::process::exit(1);
                     }
                 },
                 Err(e) => {
-                    eprintln!("{}: {}", "Error".red(), e.description());
+                    eprintln!("{}: {}", "Error".red(), e);
                     std::process::exit(1);
                 }
             };
@@ -92,12 +92,12 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
             Ok(mut c) => match c.wait() {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("{}: {}", "Error".red(), e.description());
+                    eprintln!("{}: {}", "Error".red(), e);
                     std::process::exit(1);
                 }
             },
             Err(e) => {
-                eprintln!("{}: {}", "Error".red(), e.description());
+                eprintln!("{}: {}", "Error".red(), e);
                 std::process::exit(1);
             }
         };
@@ -106,12 +106,12 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
             Ok(mut c) => match c.wait() {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("{}: {}", "Error".red(), e.description());
+                    eprintln!("{}: {}", "Error".red(), e);
                     std::process::exit(1);
                 }
             },
             Err(e) => {
-                eprintln!("{}: {}", "Error".red(), e.description());
+                eprintln!("{}: {}", "Error".red(), e);
                 std::process::exit(1);
             }
         };
@@ -124,12 +124,12 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
             Ok(mut c) => match c.wait() {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("{}: {}", "Error".red(), e.description());
+                    eprintln!("{}: {}", "Error".red(), e);
                     std::process::exit(1);
                 }
             },
             Err(e) => {
-                eprintln!("{}: {}", "Error".red(), e.description());
+                eprintln!("{}: {}", "Error".red(), e);
                 std::process::exit(1);
             }
         };

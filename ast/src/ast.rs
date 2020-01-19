@@ -240,12 +240,10 @@ impl std::fmt::Debug for VariableSignature {
             } else {
                 write!(f, "{}Untyped", if self.mutable { "mut " } else { "" })
             }
+        } else if let Some(sig) = &self.type_sig {
+            write!(f, "{}{:?}", if self.mutable { "mut " } else { "" }, sig)
         } else {
-            if let Some(sig) = &self.type_sig {
-                write!(f, "{}{:?}", if self.mutable { "mut " } else { "" }, sig)
-            } else {
-                write!(f, "{}Untyped", if self.mutable { "mut " } else { "" })
-            }
+            write!(f, "{}Untyped", if self.mutable { "mut " } else { "" })
         }
     }
 }
@@ -323,27 +321,21 @@ impl std::fmt::Debug for Module {
                         file_name, type_sig, self.expressions
                     )
                 }
+            } else if f.alternate() {
+                write!(f, "[{}]: {:#?}", file_name, self.expressions)
             } else {
-                if f.alternate() {
-                    write!(f, "[{}]: {:#?}", file_name, self.expressions)
-                } else {
-                    write!(f, "[{}]: {:?}", file_name, self.expressions)
-                }
+                write!(f, "[{}]: {:?}", file_name, self.expressions)
             }
+        } else if let Some(type_sig) = &self.type_sig {
+            if f.alternate() {
+                write!(f, "[module]: [{:#?}]: {:#?}", type_sig, self.expressions)
+            } else {
+                write!(f, "[module]: [{:?}]: {:?}", type_sig, self.expressions)
+            }
+        } else if f.alternate() {
+            write!(f, "[module]: {:#?}", self.expressions)
         } else {
-            if let Some(type_sig) = &self.type_sig {
-                if f.alternate() {
-                    write!(f, "[module]: [{:#?}]: {:#?}", type_sig, self.expressions)
-                } else {
-                    write!(f, "[module]: [{:?}]: {:?}", type_sig, self.expressions)
-                }
-            } else {
-                if f.alternate() {
-                    write!(f, "[module]: {:#?}", self.expressions)
-                } else {
-                    write!(f, "[module]: {:?}", self.expressions)
-                }
-            }
+            write!(f, "[module]: {:?}", self.expressions)
         }
     }
 }
@@ -392,7 +384,7 @@ pub enum Ast {
     While(Box<AstNode>, Box<AstNode>),
 
     // name, variable signature, optional value expr
-    Let(String, VariableSignature, Option<Box<AstNode>>),
+    VarDecl(String, VariableSignature, Option<Box<AstNode>>),
 
     // import file name, file's ast
     Import(Module),
@@ -440,12 +432,10 @@ impl std::fmt::Debug for AstNode {
                     self.pos.line, self.pos.col, type_sig, self.node
                 )
             }
+        } else if f.alternate() {
+            write!(f, "[{},{}]: {:#?}", self.pos.line, self.pos.col, self.node)
         } else {
-            if f.alternate() {
-                write!(f, "[{},{}]: {:#?}", self.pos.line, self.pos.col, self.node)
-            } else {
-                write!(f, "[{},{}]: {:?}", self.pos.line, self.pos.col, self.node)
-            }
+            write!(f, "[{},{}]: {:?}", self.pos.line, self.pos.col, self.node)
         }
     }
 }

@@ -1,17 +1,16 @@
 use super::ast::semantic::SemanticStdLib;
 use super::{Bytecode, StackVm, Value, VmError};
-use std::error::Error;
 use std::io::{BufRead, Write};
 
 pub fn read_num(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
     let mut input = String::new();
     if let Err(e) = std::io::stdin().lock().read_line(&mut input) {
-        return Err(vm.make_error(bc, e.description().to_string()));
+        return Err(vm.make_error(bc, e.to_string()));
     }
 
     let value = match input.trim().parse::<f64>() {
         Ok(n) => Value::Number(n),
-        Err(e) => return Err(vm.make_error(bc, e.description().to_string())),
+        Err(e) => return Err(vm.make_error(bc, e.to_string())),
     };
 
     vm.stack.push(value);
@@ -22,7 +21,7 @@ pub fn read_num(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
 pub fn read_bool(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
     let mut input = String::new();
     if let Err(e) = std::io::stdin().lock().read_line(&mut input) {
-        return Err(vm.make_error(bc, e.description().to_string()));
+        return Err(vm.make_error(bc, e.to_string()));
     }
 
     let value = match input.trim() {
@@ -39,7 +38,7 @@ pub fn read_bool(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
 pub fn read_line(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
     let mut input = String::new();
     if let Err(e) = std::io::stdin().lock().read_line(&mut input) {
-        return Err(vm.make_error(bc, e.description().to_string()));
+        return Err(vm.make_error(bc, e.to_string()));
     }
 
     let value = Value::Object(Box::new(input.trim().to_string()));
@@ -85,7 +84,7 @@ pub fn vmto_number(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
             Value::Object(o) => match o.downcast::<String>() {
                 Ok(s) => match s.trim().parse::<f64>() {
                     Ok(n) => vm.stack.push(Value::Number(n)),
-                    Err(e) => return Err(vm.make_error(bc, e.description().to_string())),
+                    Err(e) => return Err(vm.make_error(bc, e.to_string())),
                 },
                 Err(_) => {
                     return Err(
@@ -139,7 +138,7 @@ pub fn add_stdlib(vm: &mut StackVm) {
 }
 
 pub fn get_stdlib_signatures() -> SemanticStdLib {
-    let mut stdlib = SemanticStdLib::new();
+    let mut stdlib = SemanticStdLib::default();
     stdlib.add_fn(String::from("read_line"), make_fn_sig! { () -> String });
     stdlib.add_fn(String::from("read_num"), make_fn_sig! { () ->I32 });
     stdlib.add_fn(String::from("read_bool"), make_fn_sig! { () -> Bool });

@@ -7,7 +7,7 @@ macro_rules! stdlib_fn {
 }
 
 pub fn get_stdlib_signatures() -> SemanticStdLib {
-    let mut stdlib = SemanticStdLib::new();
+    let mut stdlib = SemanticStdLib::default();
     stdlib_fn!(stdlib, print, make_fn_sig! { (String) -> Nil });
     stdlib_fn!(stdlib, println, make_fn_sig! { (String) -> Nil });
     stdlib_fn!(stdlib, read_num, make_fn_sig! { () -> I32 });

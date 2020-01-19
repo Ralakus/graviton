@@ -1,4 +1,4 @@
-use super::ast;
+use super::{ast, core::{Position, Notice, NoticeLevel}};
 
 use cranelift::codegen::ir::Value;
 use cranelift::frontend::*;
@@ -6,41 +6,37 @@ use cranelift::prelude::*;
 use cranelift_faerie::{FaerieBackend, FaerieBuilder, FaerieTrapCollection};
 use cranelift_module::{DataContext, Linkage, Module};
 use std::collections::HashMap;
-use std::error::Error;
 
 pub mod gravtypes;
 pub mod stdlib;
-
-#[derive(Debug, Clone)]
-pub struct NativeError {
-    pub msg: String,
-    pub pos: ast::Position,
-    pub file: Option<String>,
-}
 
 pub struct NativeObject {
     artifact: cranelift_faerie::FaerieProduct,
 }
 
 impl NativeObject {
-    pub fn write_file(&self, filename: &String) -> Result<(), NativeError> {
+    pub fn write_file(&self, filename: &String) -> Result<(), Notice> {
         let file = match std::fs::File::create(filename) {
             Ok(f) => f,
             Err(e) => {
-                return Err(NativeError {
-                    msg: String::from(e.description()),
-                    pos: ast::Position { line: -1, col: -1 },
+                return Err(Notice {
+                    level: NoticeLevel::Error,
+                    msg: e.to_string(),
+                    pos: Position { line: -1, col: -1 },
                     file: None,
+                    from: "Cranelift".to_string()
                 })
             }
         };
         match self.artifact.artifact.write(file) {
             Ok(_) => {}
             Err(e) => {
-                return Err(NativeError {
-                    msg: format!("{}", e),
-                    pos: ast::Position { line: -1, col: -1 },
+                return Err(Notice {
+                    level: NoticeLevel::Error,
+                    msg: e.to_string(),
+                    pos: Position { line: -1, col: -1 },
                     file: None,
+                    from: "Cranelift".to_string()
                 })
             }
         }
@@ -59,7 +55,7 @@ pub struct Native {
     builder_ctx: FunctionBuilderContext,
     data_ctx: DataContext,
     scopes: Vec<Scope>,
-    errors: Vec<NativeError>,
+    errors: Vec<Notice>,
 }
 
 impl Native {
@@ -67,7 +63,7 @@ impl Native {
         name: String,
         ast_module: &ast::Module,
         debug_level: i32,
-    ) -> Result<NativeObject, Vec<NativeError>> {
+    ) -> Result<NativeObject, Vec<Notice>> {
         let mut flag_builder = settings::builder();
         flag_builder.enable("is_pic").unwrap();
 
@@ -141,10 +137,12 @@ impl Native {
         ) {
             Ok(id) => id,
             Err(e) => {
-                ntv.errors.push(NativeError {
-                    msg: format!("{}", e),
-                    pos: ast::Position { line: -2, col: -2 },
+                ntv.errors.push(Notice {
+                    level: NoticeLevel::Error,
+                    msg: e.to_string(),
+                    pos: Position { line: -2, col: -2 },
                     file: None,
+                    from: "Cranelift".to_string(),
                 });
                 return Err(ntv.errors);
             }
@@ -153,10 +151,12 @@ impl Native {
         match ntv.module.define_function(main_id, &mut ntv.context) {
             Ok(_) => {}
             Err(e) => {
-                ntv.errors.push(NativeError {
-                    msg: format!("{}", e),
-                    pos: ast::Position { line: -2, col: -2 },
+                ntv.errors.push(Notice {
+                    level: NoticeLevel::Error,
+                    msg: e.to_string(),
+                    pos: Position { line: -2, col: -2 },
                     file: None,
+                    from: "Cranelift".to_string(),
                 });
                 return Err(ntv.errors);
             }
@@ -185,16 +185,18 @@ struct AstTranslator<'a> {
     scopes: &'a mut Vec<Scope>,
     module: &'a mut Module<FaerieBackend>,
     data_ctx: &'a mut DataContext,
-    errors: &'a mut Vec<NativeError>,
+    errors: &'a mut Vec<Notice>,
     debug_level: i32,
 }
 
 impl<'a> AstTranslator<'a> {
-    fn make_error(&mut self, pos: &ast::Position, msg: String) -> NativeError {
-        let ne = NativeError {
+    fn make_error(&mut self, pos: &Position, msg: String) -> Notice {
+        let ne = Notice {
+            level: NoticeLevel::Error,
             msg,
             pos: pos.clone(),
             file: None,
+            from: "Cranelift".to_string(),
         };
         self.errors.push(ne.clone());
         ne
@@ -219,7 +221,7 @@ impl<'a> AstTranslator<'a> {
         });
     }
 
-    fn pop_scope(&mut self, pos: &ast::Position) {
+    fn pop_scope(&mut self, pos: &Position) {
         if self.scopes.len() == 1 {
             self.make_error(pos, format!("Cannot pop global scope"));
         } else {
@@ -236,7 +238,7 @@ impl<'a> AstTranslator<'a> {
         name: &String,
         contents: Vec<u8>,
         writeable: bool,
-    ) -> Result<cranelift_module::DataId, NativeError> {
+    ) -> Result<cranelift_module::DataId, Notice> {
         self.data_ctx.define(contents.into_boxed_slice());
         let id = match self
             .module
@@ -245,7 +247,7 @@ impl<'a> AstTranslator<'a> {
             Ok(id) => id,
             Err(e) => {
                 return Err(
-                    self.make_error(&ast::Position { line: -1, col: -1 }, format!("{:?}", e))
+                    self.make_error(&Position { line: -1, col: -1 }, format!("{:?}", e))
                 )
             }
         };
@@ -253,7 +255,7 @@ impl<'a> AstTranslator<'a> {
             Ok(_) => {}
             Err(e) => {
                 return Err(
-                    self.make_error(&ast::Position { line: -1, col: -1 }, format!("{:?}", e))
+                    self.make_error(&Position { line: -1, col: -1 }, format!("{:?}", e))
                 )
             }
         };
@@ -265,7 +267,7 @@ impl<'a> AstTranslator<'a> {
         &mut self,
         module: &ast::Module,
         builder: &mut FunctionBuilder<'b>,
-    ) -> Result<Value, NativeError> {
+    ) -> Result<Value, Notice> {
         let mut last_ins: Option<Value> = None;
         for e in &module.expressions {
             last_ins = Some(self.ast_to_cranelift(e, builder)?);
@@ -284,7 +286,7 @@ impl<'a> AstTranslator<'a> {
         &mut self,
         ast: &ast::AstNode,
         builder: &mut FunctionBuilder<'b>,
-    ) -> Result<Value, NativeError> {
+    ) -> Result<Value, Notice> {
         match &ast.node {
             ast::Ast::Identifier(ident) => {
                 let var = match AstTranslator::check_if_var_in_scopes(self.scopes, ident) {
@@ -579,7 +581,7 @@ impl<'a> AstTranslator<'a> {
 
                 Ok(builder.ins().iconst(types::I32, 0))
             }
-            ast::Ast::Let(name, var_sig, set_expr) => {
+            ast::Ast::VarDecl(name, var_sig, set_expr) => {
                 let var = Variable::new(self.last_scope().variables.len());
                 let var_type = gravtypes::type_to_cranelift(&var_sig.type_sig, &self.module);
 
@@ -753,9 +755,9 @@ impl<'a> AstTranslator<'a> {
         sig: &ast::FunctionSignature,
         param_names: &Vec<String>,
         body_expr: &Box<ast::AstNode>,
-        pos: &ast::Position,
+        pos: &Position,
         builder: &mut FunctionBuilder<'_>,
-    ) -> Result<Value, NativeError> {
+    ) -> Result<Value, Notice> {
         let mut context = self.module.make_context();
 
         for param in &sig.params {

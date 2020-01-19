@@ -1,3 +1,5 @@
+use super::Position;
+
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
 pub enum TokenType {
@@ -60,31 +62,29 @@ pub enum TokenType {
     Eof,
 }
 
-pub use ast::Position;
-
 #[derive(Debug, Clone)]
-pub enum TokenData {
+pub enum TokenData<'a> {
     None,
     String(String),
     Integer(i64),
     Float(f64),
-    Str(&'static str),
+    Str(&'a str),
 }
 
 #[derive(Debug, Clone)]
-pub struct Token {
+pub struct Token<'a> {
     pub type_: TokenType,
-    pub data: TokenData,
+    pub data: TokenData<'a>,
     pub pos: Position,
 }
 
-impl Token {
-    pub fn new(type_: TokenType, data: TokenData, pos: Position) -> Self {
+impl<'a> Token<'a> {
+    pub fn new(type_: TokenType, data: TokenData<'a>, pos: Position) -> Self {
         Token { type_, data, pos }
     }
 }
 
-impl ToString for Token {
+impl<'a> ToString for Token<'a> {
     fn to_string(&self) -> String {
         format!(
             "{:?}, {:?}, line: {}, col: {}",

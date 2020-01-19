@@ -1,0 +1,10 @@
+[package]
+name = "graviton_ast"
+version = "0.6.0"
+authors = ["Ralakus <12schneide@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+graviton_core     = { path = "../core", version = "0.6.0" }
+
+serde = { version = "*", features = ["derive"] }

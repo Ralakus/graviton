@@ -3,32 +3,30 @@ extern crate graviton as grav;
 use clap::{App, Arg, SubCommand};
 use colored::*;
 use memmap::Mmap;
-use std::error::Error;
-use std::fs::File;
-use std::io::Write;
+use std::{fs::File, io::Write};
 
 mod repl;
 
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-const AUTHOR: &'static str = env!("CARGO_PKG_AUTHORS");
-const DESCRIPTION: &'static str = env!("CARGO_PKG_DESCRIPTION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
+const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 
-fn strip_extension(name: &String) -> String {
+fn strip_extension(name: &str) -> &str {
     let pos = match name.rfind('.') {
         Some(i) => i,
-        None => return name.clone(),
+        None => return name,
     };
 
-    String::from(&name[0..pos])
+    &name[0..pos]
 }
 
-fn strip_filepath(name: &String) -> String {
+fn strip_filepath(name: &str) -> &str {
     let pos = match name.rfind('/') {
         Some(i) => i,
-        None => return name.clone(),
+        None => return name,
     };
 
-    String::from(&name[pos + 1..])
+    &name[pos + 1..]
 }
 
 fn main() {
@@ -42,7 +40,7 @@ fn main() {
         .help("Input file to process")
         .index(1);
 
-    let args = App::new("Graviton")
+    let args = App::new("grav")
         .version(VERSION)
         .author(AUTHOR)
         .about(DESCRIPTION)
@@ -50,7 +48,7 @@ fn main() {
         .arg(debug_arg.clone())
         .arg(
             Arg::with_name("Emit")
-                .help("Emits the specified format [ast, obj, object, exe, executable, none]")
+                .help("Emits the specified format [ast, wasm, none]")
                 .long("emit")
                 .short("e")
                 .takes_value(true),
@@ -78,7 +76,7 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("run")
-                .about("Run code directly without having to manually execute an executable")
+                .about("Run code directly from source or ast")
                 .version(VERSION)
                 .author(AUTHOR)
                 .arg(debug_arg)
@@ -128,7 +126,7 @@ fn main() {
         let file = match File::open(input.as_str()) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                eprintln!("{}: {}: {}", "Error".red(), input, e);
                 std::process::exit(1);
             }
         };
@@ -137,7 +135,7 @@ fn main() {
             match Mmap::map(&file) {
                 Ok(f) => f,
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             }
@@ -146,7 +144,7 @@ fn main() {
         let source = match std::str::from_utf8(&mapped_file[..]) {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                eprintln!("{}: {}: {}", "Error".red(), input, e);
                 std::process::exit(1);
             }
         };
@@ -154,7 +152,7 @@ fn main() {
         let obj = match grav::compile_source(source, Some(&input), debug_level) {
             Ok(obj) => obj,
             Err(e) => {
-                e.report(Some(source));
+                grav::report_notices(&e, Some(source));
                 std::process::exit(1);
             }
         };
@@ -162,7 +160,7 @@ fn main() {
         match obj.write_file(&String::from("grav_tmp.o")) {
             Ok(_) => {}
             Err(e) => {
-                grav::errors::report_native_error(&e, Some(source));
+                grav::report_notices(&vec!(e), Some(source));
                 std::process::exit(1);
             }
         }
@@ -178,12 +176,12 @@ fn main() {
                 Ok(mut c) => match c.wait() {
                     Ok(_) => {}
                     Err(e) => {
-                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        eprintln!("{}: {}: {}", "Error".red(), input, e);
                         std::process::exit(1);
                     }
                 },
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             };
@@ -200,12 +198,12 @@ fn main() {
             Ok(mut c) => match c.wait() {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             },
             Err(e) => {
-                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                eprintln!("{}: {}: {}", "Error".red(), input, e);
                 std::process::exit(1);
             }
         };
@@ -214,12 +212,12 @@ fn main() {
             Ok(mut c) => match c.wait() {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             },
             Err(e) => {
-                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                eprintln!("{}: {}: {}", "Error".red(), input, e);
                 std::process::exit(1);
             }
         };
@@ -232,18 +230,19 @@ fn main() {
             Ok(mut c) => match c.wait() {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             },
             Err(e) => {
-                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                eprintln!("{}: {}: {}", "Error".red(), input, e);
                 std::process::exit(1);
             }
         };
 
         return;
     }
+
 
     let debug_level = match args.value_of("Debug Level").unwrap_or("0") {
         "0" => 0,
@@ -258,15 +257,17 @@ fn main() {
         Ast,
         Object,
         Executable,
+        Wasm,
         None,
     }
 
-    let emit_type = match args.value_of("Emit").unwrap_or("exe") {
+    let emit_type = match args.value_of("Emit").unwrap_or("object") {
         "ast" => EmitType::Ast,
         "object" | "obj" => EmitType::Object,
         "executable" | "exe" => EmitType::Executable,
+        "wasm" => EmitType::Wasm,
         "none" => {
-            if let None = args.value_of("Output") {
+            if args.value_of("Output").is_none() {
                 EmitType::None
             } else {
                 eprintln!("{}: Cannot emit nothing when output is specified, remove the \'o\', \"output\" argument", "Error".red());
@@ -306,7 +307,7 @@ fn main() {
 
     let input = if let Some(input) = args.value_of("Input") {
         match input {
-            s if !s.contains(".") => match input_type {
+            s if !s.contains('.') => match input_type {
                 InputType::Source => format!("{}.grav", s),
                 InputType::Ast => format!("{}.gast", s),
             },
@@ -317,19 +318,19 @@ fn main() {
         std::process::exit(1);
     };
 
-    let tmp_out = match emit_type {
+    let output: String = match args.value_of("Output").unwrap_or(&match emit_type {
         EmitType::Ast => format!("{}.gast", strip_filepath(&strip_extension(&input))),
-        EmitType::Object | EmitType::None => {
-            format!("{}.o", strip_filepath(&strip_extension(&input)))
+        EmitType::Object => format!("{}.o", strip_filepath(&strip_extension(&input))),
+        EmitType::Executable => strip_filepath(&strip_extension(&input)).to_string(),
+        EmitType::Wasm | EmitType::None => {
+            format!("{}.wasm", strip_filepath(&strip_extension(&input)))
         }
-        EmitType::Executable => strip_filepath(&strip_extension(&input)),
-    };
-
-    let output: String = match args.value_of("Output").unwrap_or(&tmp_out) {
-        s if !s.contains(".") => match emit_type {
+    }) {
+        s if !s.contains('.') => match emit_type {
             EmitType::Ast => format!("{}.gast", s),
-            EmitType::Object | EmitType::None => format!("{}.o", s),
+            EmitType::Object => format!("{}.o", s),
             EmitType::Executable => s.to_string(),
+            EmitType::Wasm | EmitType::None => format!("{}.wasm", s),
         },
         s => s.to_string(),
     };
@@ -337,7 +338,7 @@ fn main() {
     let file = match File::open(input.as_str()) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+            eprintln!("{}: {}: {}", "Error".red(), input, e);
             std::process::exit(1);
         }
     };
@@ -346,7 +347,7 @@ fn main() {
         match Mmap::map(&file) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                eprintln!("{}: {}: {}", "Error".red(), input, e);
                 std::process::exit(1);
             }
         }
@@ -357,15 +358,18 @@ fn main() {
             let source = match std::str::from_utf8(&mapped_file[..]) {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             };
 
             match grav::parse_source(source, Some(&input), debug_level) {
-                Ok(obj) => obj,
+                Ok((obj, notices)) => {
+                    grav::report_notices(&notices, Some(source));
+                    obj
+                }
                 Err(e) => {
-                    e.report(Some(source));
+                    grav::report_notices(&e, Some(source));
                     std::process::exit(1);
                 }
             }
@@ -373,35 +377,31 @@ fn main() {
         InputType::Ast => match rmp_serde::from_slice(&mapped_file[..]) {
             Ok(a) => a,
             Err(e) => {
-                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                eprintln!("{}: {}: {}", "Error".red(), input, e);
                 std::process::exit(1);
             }
         },
     };
-
-    if debug_level >= 2 {
-        println!("{}: {:#?}", "Typed AST".cyan(), module);
-    }
 
     match emit_type {
         EmitType::Ast => {
             let mut file = match File::create(output) {
                 Ok(f) => f,
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             };
             match file.write_all(match &rmp_serde::to_vec(&module) {
                 Ok(vec) => vec,
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             }) {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             }
@@ -410,11 +410,11 @@ fn main() {
             let obj = match grav::compile_module(input.clone(), &module, debug_level) {
                 Ok(o) => o,
                 Err(e) => {
-                    e.report(if input_type == InputType::Source {
+                    grav::report_notices(&e, if input_type == InputType::Source {
                         match std::str::from_utf8(&mapped_file[..]) {
                             Ok(s) => Some(s),
                             Err(e) => {
-                                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                                eprintln!("{}: {}: {}", "Error".red(), input, e);
                                 std::process::exit(1);
                             }
                         }
@@ -428,13 +428,13 @@ fn main() {
             match obj.write_file(&String::from("grav_tmp.o")) {
                 Ok(_) => {}
                 Err(e) => {
-                    grav::errors::report_native_error(
-                        &e,
+                    grav::report_notices(
+                        &vec!(e),
                         if input_type == InputType::Source {
                             match std::str::from_utf8(&mapped_file[..]) {
                                 Ok(s) => Some(s),
                                 Err(e) => {
-                                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                                     std::process::exit(1);
                                 }
                             }
@@ -457,12 +457,12 @@ fn main() {
                     Ok(mut c) => match c.wait() {
                         Ok(_) => {}
                         Err(e) => {
-                            eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                            eprintln!("{}: {}: {}", "Error".red(), input, e);
                             std::process::exit(1);
                         }
                     },
                     Err(e) => {
-                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        eprintln!("{}: {}: {}", "Error".red(), input, e);
                         std::process::exit(1);
                     }
                 };
@@ -478,12 +478,12 @@ fn main() {
                 Ok(mut c) => match c.wait() {
                     Ok(_) => {}
                     Err(e) => {
-                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        eprintln!("{}: {}: {}", "Error".red(), input, e);
                         std::process::exit(1);
                     }
                 },
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             };
@@ -498,12 +498,12 @@ fn main() {
                 Ok(mut c) => match c.wait() {
                     Ok(_) => {}
                     Err(e) => {
-                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        eprintln!("{}: {}: {}", "Error".red(), input, e);
                         std::process::exit(1);
                     }
                 },
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             };
@@ -516,12 +516,12 @@ fn main() {
                 Ok(mut c) => match c.wait() {
                     Ok(_) => {}
                     Err(e) => {
-                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        eprintln!("{}: {}: {}", "Error".red(), input, e);
                         std::process::exit(1);
                     }
                 },
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             };
@@ -530,11 +530,11 @@ fn main() {
             let obj = match grav::compile_module(input.clone(), &module, debug_level) {
                 Ok(o) => o,
                 Err(e) => {
-                    e.report(if input_type == InputType::Source {
+                    grav::report_notices(&e, if input_type == InputType::Source {
                         match std::str::from_utf8(&mapped_file[..]) {
                             Ok(s) => Some(s),
                             Err(e) => {
-                                eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                                eprintln!("{}: {}: {}", "Error".red(), input, e);
                                 std::process::exit(1);
                             }
                         }
@@ -548,13 +548,13 @@ fn main() {
             match obj.write_file(&String::from("grav_tmp.o")) {
                 Ok(_) => {}
                 Err(e) => {
-                    grav::errors::report_native_error(
-                        &e,
+                    grav::report_notices(
+                        &vec!(e),
                         if input_type == InputType::Source {
                             match std::str::from_utf8(&mapped_file[..]) {
                                 Ok(s) => Some(s),
                                 Err(e) => {
-                                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                                     std::process::exit(1);
                                 }
                             }
@@ -575,12 +575,12 @@ fn main() {
                     Ok(mut c) => match c.wait() {
                         Ok(_) => {}
                         Err(e) => {
-                            eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                            eprintln!("{}: {}: {}", "Error".red(), input, e);
                             std::process::exit(1);
                         }
                     },
                     Err(e) => {
-                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        eprintln!("{}: {}: {}", "Error".red(), input, e);
                         std::process::exit(1);
                     }
                 };
@@ -597,12 +597,12 @@ fn main() {
                 Ok(mut c) => match c.wait() {
                     Ok(_) => {}
                     Err(e) => {
-                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        eprintln!("{}: {}: {}", "Error".red(), input, e);
                         std::process::exit(1);
                     }
                 },
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             };
@@ -611,15 +611,19 @@ fn main() {
                 Ok(mut c) => match c.wait() {
                     Ok(_) => {}
                     Err(e) => {
-                        eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                        eprintln!("{}: {}: {}", "Error".red(), input, e);
                         std::process::exit(1);
                     }
                 },
                 Err(e) => {
-                    eprintln!("{}: {}: {}", "Error".red(), input, e.description());
+                    eprintln!("{}: {}: {}", "Error".red(), input, e);
                     std::process::exit(1);
                 }
             };
+        }
+        EmitType::Wasm => {
+            eprintln!("Wasm output not yet supported");
+            std::process::exit(1);
         }
         EmitType::None => {}
     }

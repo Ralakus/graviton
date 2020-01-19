@@ -45,9 +45,9 @@ if = "if" expression expression {"else" "if" expression expression} ["else" expr
 
 while = "while" expression expression ;
 
-type_signature = ":" IDENTIFIER ;
+type_signature = IDENTIFIER ;
 
-variable_signature = IDENTIFIER [type_signature] ;
+variable_signature = IDENTIFIER ":" [type_signature] ;
 
 let = "let" ["mut"] variable_signature ["=" expression] ;
 
