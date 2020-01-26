@@ -259,7 +259,7 @@ impl<'a> Lexer<'a> {
                 '\"' => {
                     let start_idx = self.idx;
                     while let Some(c) = self.peek() {
-                        if c != '\"'{
+                        if c != '\"' {
                             self.advance();
                         } else {
                             break;
@@ -272,7 +272,7 @@ impl<'a> Lexer<'a> {
                             TokenType::Err,
                             TokenData::String("Unterminated string".to_string()),
                             self.start_pos,
-                        ))
+                        ));
                     }
 
                     let slice = match self.full_source.get(start_idx..self.idx - 1) {

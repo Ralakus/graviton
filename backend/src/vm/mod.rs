@@ -153,29 +153,25 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
             bc.emit(&ast, ByteOp::GetVar(hash));
         }
         ast::Ast::Integer(n) => {
-            let mut idx: usize = 0;
-            for val in &bc.constants {
+            for (idx, val) in bc.constants.iter().enumerate() {
                 if let Value::Number(num) = val {
-                    if *n as f64 == *num {
+                    if (*n as f64 - *num).abs() < std::f64::EPSILON {
                         bc.emit(&ast, ByteOp::Load(idx as u16));
                         return Ok(());
                     }
                 }
-                idx += 1;
             }
             bc.constants.push(Value::Number(*n as f64));
             bc.emit(&ast, ByteOp::Load((bc.constants.len() - 1) as u16));
         }
         ast::Ast::Float(n) => {
-            let mut idx: usize = 0;
-            for val in &bc.constants {
+            for (idx, val) in bc.constants.iter().enumerate() {
                 if let Value::Number(num) = val {
-                    if *n == *num {
+                    if (*n - *num).abs() < std::f64::EPSILON {
                         bc.emit(&ast, ByteOp::Load(idx as u16));
                         return Ok(());
                     }
                 }
-                idx += 1;
             }
             bc.constants.push(Value::Number(*n));
             bc.emit(&ast, ByteOp::Load((bc.constants.len() - 1) as u16));
@@ -402,7 +398,7 @@ fn ast_to_bytecode(bc: &mut Bytecode, ast: &ast::AstNode) -> Result<(), VmError>
                 bc.emit(&ast, ByteOp::NativeFnCall(hash, args.len() as u8));
             } else {
                 return Err(VmError::new(
-                    format!("Function variables not support yet"),
+                    "Function variables not support yet".to_string(),
                     &ast,
                 ));
             }
@@ -423,6 +419,7 @@ struct Scope {
 
 pub type NativeVmFn = fn(&mut StackVm, &Bytecode) -> Result<(), VmError>;
 
+#[derive(Default)]
 pub struct StackVm {
     ip_idx: usize,
     pub stack: Vec<Value>,
@@ -443,10 +440,10 @@ impl<'a> StackVm {
 
         stdlib::add_stdlib(&mut vm);
 
-        return vm;
+        vm
     }
 
-    pub fn add_fn(&mut self, name: &String, arg_count: u8, function: NativeVmFn) {
+    pub fn add_fn(&mut self, name: &str, arg_count: u8, function: NativeVmFn) {
         let hash = crc16::State::<crc16::ARC>::calculate(name.as_bytes());
         self.native_fns.insert(hash, (arg_count, function));
     }
@@ -461,10 +458,10 @@ impl<'a> StackVm {
 
     fn var_in_scopes_mut(
         scope_stack: &'a mut Vec<Scope>,
-        id: &u16,
+        id: u16,
     ) -> Option<&'a mut (bool, Value)> {
         for s in scope_stack.iter_mut().rev() {
-            match s.variables.get_mut(id) {
+            match s.variables.get_mut(&id) {
                 Some(var) => return Some(var),
                 None => continue,
             }
@@ -472,9 +469,9 @@ impl<'a> StackVm {
         None
     }
 
-    fn var_in_scopes(scope_stack: &'a Vec<Scope>, id: &u16) -> Option<&'a (bool, Value)> {
+    fn var_in_scopes(scope_stack: &'a [Scope], id: u16) -> Option<&'a (bool, Value)> {
         for s in scope_stack.iter().rev() {
-            match s.variables.get(id) {
+            match s.variables.get(&id) {
                 Some(var) => return Some(var),
                 None => continue,
             }
@@ -492,9 +489,8 @@ impl<'a> StackVm {
     pub fn run(&mut self, bc: Bytecode, debug_level: i32) -> Result<Value, VmError> {
         'run: loop {
             if debug_level >= 3 {
-                match bc.ops.get(self.ip_idx) {
-                    Some(op) => println!("{:?}\n{:?}\n", self.stack, op),
-                    None => (),
+                if let Some(op) = bc.ops.get(self.ip_idx) {
+                    println!("{:?}\n{:?}\n", self.stack, op);
                 }
             }
             match bc.ops.get(self.ip_idx) {
@@ -971,7 +967,8 @@ impl<'a> StackVm {
                         Value::Number(_) => {
                             if let Some(Value::Number(b)) = self.stack.pop() {
                                 if let Some(Value::Number(a)) = self.stack.pop() {
-                                    self.stack.push(Value::Bool(a == b));
+                                    self.stack
+                                        .push(Value::Bool((a - b).abs() < std::f64::EPSILON));
                                 } else {
                                     return Err(self.make_error(
                                         &bc,
@@ -1175,7 +1172,7 @@ impl<'a> StackVm {
                         return Err(self.make_error(&bc, format!("Function: {} not defined", id)));
                     }
                 }
-                Some(ByteOp::DefVar(id)) => match StackVm::var_in_scopes(&mut self.scopes, id) {
+                Some(ByteOp::DefVar(id)) => match StackVm::var_in_scopes(&*self.scopes, *id) {
                     Some(_) => {
                         #[cfg(feature = "store_names")]
                         return Err(self.make_error(
@@ -1200,7 +1197,7 @@ impl<'a> StackVm {
                         );
                     }
                 },
-                Some(ByteOp::DefMutVar(id)) => match StackVm::var_in_scopes(&mut self.scopes, id) {
+                Some(ByteOp::DefMutVar(id)) => match StackVm::var_in_scopes(&*self.scopes, *id) {
                     Some(_) => {
                         #[cfg(feature = "store_names")]
                         return Err(self.make_error(
@@ -1226,10 +1223,10 @@ impl<'a> StackVm {
                     }
                 },
                 Some(ByteOp::SetVar(id)) => {
-                    match StackVm::var_in_scopes_mut(&mut self.scopes, id) {
+                    match StackVm::var_in_scopes_mut(&mut self.scopes, *id) {
                         Some(val) => {
                             if val.0 {
-                                if self.stack.len() > 0 {
+                                if !self.stack.is_empty() {
                                     val.1 = self.stack.pop().unwrap();
                                     self.stack.push(val.1.clone());
                                 } else {
@@ -1255,7 +1252,7 @@ impl<'a> StackVm {
                         }
                     }
                 }
-                Some(ByteOp::GetVar(id)) => match StackVm::var_in_scopes(&self.scopes, id) {
+                Some(ByteOp::GetVar(id)) => match StackVm::var_in_scopes(&self.scopes, *id) {
                     Some(val) => {
                         self.stack.push(val.1.clone());
                     }
@@ -1334,7 +1331,7 @@ impl<'a> StackVm {
                 Some(ByteOp::Return) => {
                     if let Some(v) = self.stack.pop() {
                         self.scopes.pop();
-                        if self.scopes.len() > 0 {
+                        if !self.scopes.is_empty() {
                             self.stack.push(v);
                             while match bc.ops[self.ip_idx] {
                                 ByteOp::ScopeClose => false,
@@ -1347,7 +1344,7 @@ impl<'a> StackVm {
                         }
                     } else {
                         self.scopes.pop();
-                        if self.scopes.len() > 0 {
+                        if !self.scopes.is_empty() {
                             self.stack.push(Value::Nil);
                         } else {
                             return Ok(Value::Nil);

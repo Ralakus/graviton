@@ -88,12 +88,12 @@ pub fn vmto_number(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
                 },
                 Err(_) => {
                     return Err(
-                        vm.make_error(bc, format!("Can only parse string object to numbers"))
+                        vm.make_error(bc, "Can only parse string object to numbers".to_string())
                     )
                 }
             },
         },
-        None => return Err(vm.make_error(bc, format!("No value in stack to convert"))),
+        None => return Err(vm.make_error(bc, "No value in stack to convert".to_string())),
     }
     Ok(())
 }
@@ -106,7 +106,7 @@ pub fn vmto_bool(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
             Value::Number(n) => vm.stack.push(Value::Bool(n > 0.0)),
             Value::Object(_) => vm.stack.push(Value::Bool(false)),
         },
-        None => return Err(vm.make_error(bc, format!("No value in stack to convert"))),
+        None => return Err(vm.make_error(bc, "No value in stack to convert".to_string())),
     }
     Ok(())
 }
@@ -114,12 +114,12 @@ pub fn vmto_bool(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
 pub fn vmto_string(vm: &mut StackVm, bc: &Bytecode) -> Result<(), VmError> {
     match vm.stack.pop() {
         Some(val) => match val {
-            Value::Nil => vm.stack.push(Value::Object(Box::new(format!("Nil")))),
+            Value::Nil => vm.stack.push(Value::Object(Box::new("Nil".to_string()))),
             Value::Bool(b) => vm.stack.push(Value::Object(Box::new(format!("{}", b)))),
             Value::Number(n) => vm.stack.push(Value::Object(Box::new(format!("{}", n)))),
             Value::Object(o) => vm.stack.push(Value::Object(Box::new(format!("{:?}", o)))),
         },
-        None => return Err(vm.make_error(bc, format!("No value in stack to convert"))),
+        None => return Err(vm.make_error(bc, "No value in stack to convert".to_string())),
     }
     Ok(())
 }

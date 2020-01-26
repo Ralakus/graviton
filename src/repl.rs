@@ -15,32 +15,30 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
             .read_line(&mut source)
             .expect("Error reading input");
 
-        if source.len() > 0 {
-            if source.chars().next().unwrap() == ':' {
-                if source.len() > 1 {
-                    let args: Vec<&str> = source[1..].split_ascii_whitespace().collect();
-                    match args[0] {
-                        "exit" => return Ok(()),
-                        "debug" => {
-                            if args.len() > 1 {
-                                match args[1].parse::<i32>() {
-                                    Ok(v) => debug_level = v,
-                                    Err(e) => {
-                                        eprintln!("{}: {}", "Error".red(), e);
-                                        continue 'repl;
-                                    }
+        if !source.is_empty() && source.starts_with(':') {
+            if source.len() > 1 {
+                let args: Vec<&str> = source[1..].split_ascii_whitespace().collect();
+                match args[0] {
+                    "exit" => return Ok(()),
+                    "debug" => {
+                        if args.len() > 1 {
+                            match args[1].parse::<i32>() {
+                                Ok(v) => debug_level = v,
+                                Err(e) => {
+                                    eprintln!("{}: {}", "Error".red(), e);
+                                    continue 'repl;
                                 }
-                            } else {
-                                debug_level = 0;
                             }
+                        } else {
+                            debug_level = 0;
                         }
-                        s => println!("Invalid command {}", s),
                     }
-                } else {
-                    println!("{}", "Expected argument after \":\"".red());
+                    s => println!("Invalid command {}", s),
                 }
-                continue 'repl;
+            } else {
+                println!("{}", "Expected argument after \":\"".red());
             }
+            continue 'repl;
         }
 
         let obj = match grav::compile_source(&source, None, debug_level) {
@@ -54,7 +52,7 @@ pub fn repl(debug_level_in: i32) -> Result<(), String> {
         match obj.write_file(&String::from("grav_repl_tmp.o")) {
             Ok(_) => {}
             Err(e) => {
-                grav::report_notices(&vec!(e), Some(&source));
+                grav::report_notices(&[e], Some(&source));
                 std::process::exit(1);
             }
         };

@@ -1,4 +1,7 @@
-use super::{ast, core::{Position, Notice, NoticeLevel}};
+use super::{
+    ast,
+    core::{Notice, NoticeLevel, Position},
+};
 
 use cranelift::codegen::ir::Value;
 use cranelift::frontend::*;
@@ -15,7 +18,7 @@ pub struct NativeObject {
 }
 
 impl NativeObject {
-    pub fn write_file(&self, filename: &String) -> Result<(), Notice> {
+    pub fn write_file(&self, filename: &str) -> Result<(), Notice> {
         let file = match std::fs::File::create(filename) {
             Ok(f) => f,
             Err(e) => {
@@ -24,7 +27,7 @@ impl NativeObject {
                     msg: e.to_string(),
                     pos: Position { line: -1, col: -1 },
                     file: None,
-                    from: "Cranelift".to_string()
+                    from: "Cranelift".to_string(),
                 })
             }
         };
@@ -36,7 +39,7 @@ impl NativeObject {
                     msg: e.to_string(),
                     pos: Position { line: -1, col: -1 },
                     file: None,
-                    from: "Cranelift".to_string()
+                    from: "Cranelift".to_string(),
                 })
             }
         }
@@ -164,7 +167,7 @@ impl Native {
 
         let result = ntv.module.finish();
 
-        if ntv.errors.len() > 0 {
+        if !ntv.errors.is_empty() {
             Err(ntv.errors)
         } else {
             Ok(NativeObject { artifact: result })
@@ -190,11 +193,11 @@ struct AstTranslator<'a> {
 }
 
 impl<'a> AstTranslator<'a> {
-    fn make_error(&mut self, pos: &Position, msg: String) -> Notice {
+    fn make_error(&mut self, pos: Position, msg: String) -> Notice {
         let ne = Notice {
             level: NoticeLevel::Error,
             msg,
-            pos: pos.clone(),
+            pos,
             file: None,
             from: "Cranelift".to_string(),
         };
@@ -202,10 +205,7 @@ impl<'a> AstTranslator<'a> {
         ne
     }
 
-    fn check_if_var_in_scopes(
-        scopes: &Vec<Scope>,
-        var: &String,
-    ) -> Option<(Variable, types::Type)> {
+    fn check_if_var_in_scopes(scopes: &[Scope], var: &str) -> Option<(Variable, types::Type)> {
         for s in scopes.iter().rev() {
             match s.variables.get(var) {
                 Some(ts) => return Some(*ts),
@@ -221,9 +221,9 @@ impl<'a> AstTranslator<'a> {
         });
     }
 
-    fn pop_scope(&mut self, pos: &Position) {
+    fn pop_scope(&mut self, pos: Position) {
         if self.scopes.len() == 1 {
-            self.make_error(pos, format!("Cannot pop global scope"));
+            self.make_error(pos, "Cannot pop global scope".to_string());
         } else {
             self.scopes.pop();
         }
@@ -235,7 +235,7 @@ impl<'a> AstTranslator<'a> {
 
     fn make_data(
         &mut self,
-        name: &String,
+        name: &str,
         contents: Vec<u8>,
         writeable: bool,
     ) -> Result<cranelift_module::DataId, Notice> {
@@ -246,17 +246,13 @@ impl<'a> AstTranslator<'a> {
         {
             Ok(id) => id,
             Err(e) => {
-                return Err(
-                    self.make_error(&Position { line: -1, col: -1 }, format!("{:?}", e))
-                )
+                return Err(self.make_error(Position { line: -1, col: -1 }, format!("{:?}", e)))
             }
         };
         match self.module.define_data(id, &self.data_ctx) {
             Ok(_) => {}
             Err(e) => {
-                return Err(
-                    self.make_error(&Position { line: -1, col: -1 }, format!("{:?}", e))
-                )
+                return Err(self.make_error(Position { line: -1, col: -1 }, format!("{:?}", e)))
             }
         };
         self.data_ctx.clear();
@@ -274,12 +270,10 @@ impl<'a> AstTranslator<'a> {
         }
         if let Some(ast::TypeSignature::Primitive(ast::PrimitiveType::Nil)) = module.type_sig {
             Ok(builder.ins().iconst(types::I32, 0))
+        } else if let Some(ins) = last_ins {
+            Ok(ins)
         } else {
-            if let Some(ins) = last_ins {
-                Ok(ins)
-            } else {
-                Ok(builder.ins().iconst(types::I32, 0))
-            }
+            Ok(builder.ins().iconst(types::I32, 0))
         }
     }
     fn ast_to_cranelift<'b>(
@@ -293,7 +287,7 @@ impl<'a> AstTranslator<'a> {
                     Some(var) => var,
                     None => {
                         return Err(self.make_error(
-                            &ast.pos,
+                            ast.pos,
                             format!("Variable {} not defined in scope", ident),
                         ))
                     }
@@ -357,7 +351,7 @@ impl<'a> AstTranslator<'a> {
                                         Some(var) => var,
                                         None => {
                                             return Err(self.make_error(
-                                                &ast.pos,
+                                                ast.pos,
                                                 format!("Variable {} not defined in scope", ident),
                                             ))
                                         }
@@ -365,7 +359,7 @@ impl<'a> AstTranslator<'a> {
                                 builder.def_var(var.0, rval);
                                 Ok(builder.use_var(var.0))
                             } else {
-                                Err(self.make_error(&ast.pos, format!("Not implemented")))
+                                Err(self.make_error(ast.pos, "Not implemented".to_string()))
                             }
                         }
                     }
@@ -434,7 +428,7 @@ impl<'a> AstTranslator<'a> {
                                         Some(var) => var,
                                         None => {
                                             return Err(self.make_error(
-                                                &ast.pos,
+                                                ast.pos,
                                                 format!("Variable {} not defined in scope", ident),
                                             ))
                                         }
@@ -442,7 +436,7 @@ impl<'a> AstTranslator<'a> {
                                 builder.def_var(var.0, rval);
                                 Ok(builder.use_var(var.0))
                             } else {
-                                Err(self.make_error(&ast.pos, format!("Not implemented")))
+                                Err(self.make_error(ast.pos, "Not implemented".to_string()))
                             }
                         }
                     }
@@ -468,7 +462,7 @@ impl<'a> AstTranslator<'a> {
                 /*let return_ins = self.ast_to_cranelift(expr, builder)?;
                 builder.ins().return_(&[return_ins]);
                 Ok(builder.ins().iconst(types::I32, 0))*/
-                Err(self.make_error(&ast.pos, format!("Not implemented")))
+                Err(self.make_error(ast.pos, "Not implemented".to_string()))
             }
             ast::Ast::Block(exprs) => {
                 let mut last_ins: Option<Value> = None;
@@ -477,12 +471,10 @@ impl<'a> AstTranslator<'a> {
                 }
                 if let Some(ast::TypeSignature::Primitive(ast::PrimitiveType::Nil)) = ast.type_sig {
                     Ok(builder.ins().iconst(types::I32, 0))
+                } else if let Some(ins) = last_ins {
+                    Ok(ins)
                 } else {
-                    if let Some(ins) = last_ins {
-                        Ok(ins)
-                    } else {
-                        Ok(builder.ins().iconst(types::I32, 0))
-                    }
+                    Ok(builder.ins().iconst(types::I32, 0))
                 }
             }
             ast::Ast::IfElse(ifcond, ifexpr, elseifs, elseexpr) => {
@@ -492,13 +484,13 @@ impl<'a> AstTranslator<'a> {
                     gravtypes::type_to_cranelift(&ast.type_sig, &self.module),
                 );
 
-                let mut elifebb = if elseifs.len() > 0 {
+                let mut elifebb = if !elseifs.is_empty() {
                     Some(builder.create_ebb())
                 } else {
                     None
                 };
 
-                let elseebb = if let Some(_) = elseexpr {
+                let elseebb = if elseexpr.is_some() {
                     Some(builder.create_ebb())
                 } else {
                     None
@@ -593,7 +585,7 @@ impl<'a> AstTranslator<'a> {
 
                 let set = if let Some(expr) = set_expr {
                     if let ast::Ast::FnDef(sig, param_names, body_expr) = &expr.node {
-                        self.make_function(name, sig, param_names, body_expr, &ast.pos, builder)?
+                        self.make_function(name, sig, param_names, body_expr, ast.pos, builder)?
                     } else {
                         self.ast_to_cranelift(expr, builder)?
                     }
@@ -614,7 +606,7 @@ impl<'a> AstTranslator<'a> {
                 sig,
                 param_names,
                 body_expr,
-                &ast.pos,
+                ast.pos,
                 builder,
             ),
             ast::Ast::FnExtern(sig, name) => {
@@ -637,7 +629,7 @@ impl<'a> AstTranslator<'a> {
                 let id = match self.module.declare_function(&name, Linkage::Import, &fnsig) {
                     Ok(id) => id,
                     Err(e) => {
-                        return Err(self.make_error(&ast.pos, format!("{:#?}", e)));
+                        return Err(self.make_error(ast.pos, format!("{:#?}", e)));
                     }
                 };
 
@@ -687,7 +679,7 @@ impl<'a> AstTranslator<'a> {
                                 match self.module.declare_function(&name, Linkage::Import, &sig) {
                                     Ok(id) => id,
                                     Err(e) => {
-                                        return Err(self.make_error(&ast.pos, format!("{:#?}", e)));
+                                        return Err(self.make_error(ast.pos, format!("{:#?}", e)));
                                     }
                                 };
                             let local_id = self.module.declare_func_in_func(id, &mut builder.func);
@@ -702,7 +694,7 @@ impl<'a> AstTranslator<'a> {
 
                     let call = builder.ins().call_indirect(fn_ref, fn_ptr, &arg_values);
                     Ok(builder.inst_results(call)[0])*/
-                    Err(self.make_error(&ast.pos, format!("Not implemented")))
+                    Err(self.make_error(ast.pos, "Not implemented".to_string()))
                 }
             }
             ast::Ast::As(castee, cast_type) => {
@@ -751,11 +743,11 @@ impl<'a> AstTranslator<'a> {
 
     fn make_function(
         &mut self,
-        name: &String,
+        name: &str,
         sig: &ast::FunctionSignature,
-        param_names: &Vec<String>,
-        body_expr: &Box<ast::AstNode>,
-        pos: &Position,
+        param_names: &[String],
+        body_expr: &ast::AstNode,
+        pos: Position,
         builder: &mut FunctionBuilder<'_>,
     ) -> Result<Value, Notice> {
         let mut context = self.module.make_context();
@@ -779,7 +771,7 @@ impl<'a> AstTranslator<'a> {
                 &self.module,
             )));
 
-        context.func.name = cranelift::codegen::ir::ExternalName::testcase(name.as_str());
+        context.func.name = cranelift::codegen::ir::ExternalName::testcase(name);
 
         let mut fnbuilder_ctx = FunctionBuilderContext::new();
         let mut fnbuilder = FunctionBuilder::new(&mut context.func, &mut fnbuilder_ctx);
@@ -793,54 +785,51 @@ impl<'a> AstTranslator<'a> {
 
         let outer_scope_ref = &self.scopes[self.scopes.len() - 2].variables;
 
-        for (_name, var) in outer_scope_ref {
+        for var in outer_scope_ref.values() {
             fnbuilder.declare_var(var.0, var.1);
         }
 
-        for i in 0..sig.params.len() {
+        for (i, sig_param) in sig.params.iter().enumerate().take(sig.params.len()) {
             let var = Variable::new(i);
             let var_type = gravtypes::type_ref_to_cranelift(
-                &sig.params[i].type_sig.as_ref().unwrap(),
+                sig_param.type_sig.as_ref().unwrap(),
                 &self.module,
             );
 
             fnbuilder.declare_var(var, var_type);
 
-            match sig.params[i].type_sig.as_ref().unwrap() {
-                ast::TypeSignature::Function(func) => {
-                    let mut local_fnsig = self.module.make_signature();
-                    for param in &func.params {
-                        local_fnsig
-                            .params
-                            .push(AbiParam::new(gravtypes::type_to_cranelift(
-                                &param.type_sig,
-                                &self.module,
-                            )));
-                    }
+            if let ast::TypeSignature::Function(func) = sig_param.type_sig.as_ref().unwrap() {
+                let mut local_fnsig = self.module.make_signature();
+                for param in &func.params {
                     local_fnsig
-                        .returns
-                        .push(AbiParam::new(gravtypes::type_ref_to_cranelift(
-                            func.return_type.as_ref().unwrap().as_ref(),
+                        .params
+                        .push(AbiParam::new(gravtypes::type_to_cranelift(
+                            &param.type_sig,
                             &self.module,
                         )));
-
-                    let local_id = match self.module.declare_function(
-                        &format!("gfn{}", param_names[i]),
-                        Linkage::Import,
-                        &local_fnsig,
-                    ) {
-                        Ok(llid) => llid,
-                        Err(e) => {
-                            return Err(self.make_error(&body_expr.pos, format!("{:#?}", e)));
-                        }
-                    };
-
-                    let _ = self
-                        .module
-                        .declare_func_in_func(local_id, &mut fnbuilder.func);
                 }
-                _ => {}
-            };
+                local_fnsig
+                    .returns
+                    .push(AbiParam::new(gravtypes::type_ref_to_cranelift(
+                        func.return_type.as_ref().unwrap().as_ref(),
+                        &self.module,
+                    )));
+
+                let local_id = match self.module.declare_function(
+                    &format!("gfn{}", param_names[i]),
+                    Linkage::Import,
+                    &local_fnsig,
+                ) {
+                    Ok(llid) => llid,
+                    Err(e) => {
+                        return Err(self.make_error(body_expr.pos, format!("{:#?}", e)));
+                    }
+                };
+
+                let _ = self
+                    .module
+                    .declare_func_in_func(local_id, &mut fnbuilder.func);
+            }
 
             let vtmp = fnbuilder.ebb_params(fnebb)[i];
             fnbuilder.def_var(var, vtmp);
@@ -865,14 +854,14 @@ impl<'a> AstTranslator<'a> {
         ) {
             Ok(id) => id,
             Err(e) => {
-                return Err(self.make_error(&body_expr.pos, format!("{:#?}", e)));
+                return Err(self.make_error(body_expr.pos, format!("{:#?}", e)));
             }
         };
 
         match self.module.define_function(functionid, &mut context) {
             Ok(_) => {}
             Err(e) => {
-                return Err(self.make_error(&body_expr.pos, format!("{:#?}", e)));
+                return Err(self.make_error(body_expr.pos, format!("{:#?}", e)));
             }
         };
 
@@ -894,7 +883,7 @@ impl<'a> AstTranslator<'a> {
 
         self.module.clear_context(&mut context);
 
-        self.pop_scope(&pos);
+        self.pop_scope(pos);
 
         let id =
             match self
@@ -903,7 +892,7 @@ impl<'a> AstTranslator<'a> {
             {
                 Ok(id) => id,
                 Err(e) => {
-                    return Err(self.make_error(&body_expr.pos, format!("{:#?}", e)));
+                    return Err(self.make_error(body_expr.pos, format!("{:#?}", e)));
                 }
             };
 

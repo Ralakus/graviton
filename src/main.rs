@@ -115,7 +115,7 @@ fn main() {
 
         let input = if let Some(input) = run_args.value_of("Input") {
             match input {
-                s if !s.contains(".") => format!("{}.grav", s),
+                s if !s.contains('.') => format!("{}.grav", s),
                 s => s.to_string(),
             }
         } else {
@@ -160,7 +160,7 @@ fn main() {
         match obj.write_file(&String::from("grav_tmp.o")) {
             Ok(_) => {}
             Err(e) => {
-                grav::report_notices(&vec!(e), Some(source));
+                grav::report_notices(&[e], Some(source));
                 std::process::exit(1);
             }
         }
@@ -242,7 +242,6 @@ fn main() {
 
         return;
     }
-
 
     let debug_level = match args.value_of("Debug Level").unwrap_or("0") {
         "0" => 0,
@@ -410,17 +409,20 @@ fn main() {
             let obj = match grav::compile_module(input.clone(), &module, debug_level) {
                 Ok(o) => o,
                 Err(e) => {
-                    grav::report_notices(&e, if input_type == InputType::Source {
-                        match std::str::from_utf8(&mapped_file[..]) {
-                            Ok(s) => Some(s),
-                            Err(e) => {
-                                eprintln!("{}: {}: {}", "Error".red(), input, e);
-                                std::process::exit(1);
+                    grav::report_notices(
+                        &e,
+                        if input_type == InputType::Source {
+                            match std::str::from_utf8(&mapped_file[..]) {
+                                Ok(s) => Some(s),
+                                Err(e) => {
+                                    eprintln!("{}: {}: {}", "Error".red(), input, e);
+                                    std::process::exit(1);
+                                }
                             }
-                        }
-                    } else {
-                        None
-                    });
+                        } else {
+                            None
+                        },
+                    );
                     std::process::exit(1);
                 }
             };
@@ -429,7 +431,7 @@ fn main() {
                 Ok(_) => {}
                 Err(e) => {
                     grav::report_notices(
-                        &vec!(e),
+                        &[e],
                         if input_type == InputType::Source {
                             match std::str::from_utf8(&mapped_file[..]) {
                                 Ok(s) => Some(s),
@@ -530,17 +532,20 @@ fn main() {
             let obj = match grav::compile_module(input.clone(), &module, debug_level) {
                 Ok(o) => o,
                 Err(e) => {
-                    grav::report_notices(&e, if input_type == InputType::Source {
-                        match std::str::from_utf8(&mapped_file[..]) {
-                            Ok(s) => Some(s),
-                            Err(e) => {
-                                eprintln!("{}: {}: {}", "Error".red(), input, e);
-                                std::process::exit(1);
+                    grav::report_notices(
+                        &e,
+                        if input_type == InputType::Source {
+                            match std::str::from_utf8(&mapped_file[..]) {
+                                Ok(s) => Some(s),
+                                Err(e) => {
+                                    eprintln!("{}: {}: {}", "Error".red(), input, e);
+                                    std::process::exit(1);
+                                }
                             }
-                        }
-                    } else {
-                        None
-                    });
+                        } else {
+                            None
+                        },
+                    );
                     std::process::exit(1);
                 }
             };
@@ -549,7 +554,7 @@ fn main() {
                 Ok(_) => {}
                 Err(e) => {
                     grav::report_notices(
-                        &vec!(e),
+                        &[e],
                         if input_type == InputType::Source {
                             match std::str::from_utf8(&mapped_file[..]) {
                                 Ok(s) => Some(s),

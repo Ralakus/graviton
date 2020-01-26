@@ -34,9 +34,9 @@ impl StackVmObject for String {
         let s: String = match r {
             Value::Object(o) => match o.downcast::<String>() {
                 Ok(s) => format!("{}{}", self, s),
-                Err(_) => return Err(format!("Can only add two strings together",)),
+                Err(_) => return Err("Can only add two strings together".to_string()),
             },
-            _ => return Err(format!("Can only add two strings together")),
+            _ => return Err("Can only add two strings together".to_string()),
         };
         Ok(Value::Object(Box::new(s)))
     }

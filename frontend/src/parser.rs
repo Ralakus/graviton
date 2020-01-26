@@ -301,12 +301,17 @@ impl<'a> Parser<'a> {
 
     fn consume(&mut self, type_: TokenType, err_msg: &'static str) -> Result<(), Notice> {
         if self.current.type_ == type_ {
-            Ok(self.advance())
+            self.advance();
+            Ok(())
         } else {
-            Err(self.make_error_with_string(format!("{}; found {:?}", err_msg, self.current.type_)))
+            Err(self.make_error_with_string(format!(
+                "{}; found {:?} expected {:?}",
+                err_msg, self.current.type_, type_
+            )))
         }
     }
 
+    #[inline]
     fn check(&mut self, type_: TokenType) -> bool {
         self.current.type_ == type_
     }
@@ -341,9 +346,8 @@ impl<'a> Parser<'a> {
         p.advance();
         let mut exprs: Vec<AstNode> = Vec::new();
         while !p.check(TokenType::Eof) {
-            match maybe_statement_else_expression(&mut p) {
-                Ok(ast) => exprs.push(ast),
-                _ => (),
+            if let Ok(ast) = maybe_statement_else_expression(&mut p) {
+                exprs.push(ast);
             }
         }
         let _ = p.consume(TokenType::Eof, "Expected EOF");
@@ -357,22 +361,25 @@ impl<'a> Parser<'a> {
         if core::contains_errors(&p.notices) {
             Err(p.notices)
         } else {
-            Ok((ast::Module {
-                file: if let Some(name) = file_name {
-                    Some(name.to_string())
-                } else {
-                    None
+            Ok((
+                ast::Module {
+                    file: if let Some(name) = file_name {
+                        Some(name.to_string())
+                    } else {
+                        None
+                    },
+                    expressions: exprs,
+                    type_sig: None,
                 },
-                expressions: exprs,
-                type_sig: None,
-            }, p.notices))
+                p.notices,
+            ))
         }
     }
 
     fn make_error(&mut self, msg: &'static str) -> Notice {
         let error = Notice {
             level: NoticeLevel::Error,
-            pos: self.previous.pos.clone(),
+            pos: self.previous.pos,
             msg: msg.to_string(),
             file: if let Some(name) = self.file_name {
                 Some(name.to_string())
@@ -388,8 +395,8 @@ impl<'a> Parser<'a> {
     fn make_error_with_string(&mut self, msg: String) -> Notice {
         let error = Notice {
             level: NoticeLevel::Error,
-            pos: self.previous.pos.clone(),
-            msg: msg,
+            pos: self.previous.pos,
+            msg,
             file: if let Some(name) = self.file_name {
                 Some(name.to_string())
             } else {
@@ -423,7 +430,7 @@ impl<'a> Parser<'a> {
     fn new_node(&self, pos: Position, ast: Ast) -> AstNode {
         AstNode {
             node: ast,
-            pos: pos,
+            pos,
             type_sig: None,
         }
     }
@@ -482,7 +489,7 @@ fn type_signature<'a>(p: &mut Parser<'a>) -> Result<(bool, TypeSignature), Notic
         )?;
         let return_type = type_signature(p)?;
         TypeSignature::Function(FunctionSignature {
-            params: params,
+            params,
             return_type: Some(Box::new(return_type.1)),
         })
     } else {
@@ -496,7 +503,7 @@ fn variable_signature<'a>(p: &mut Parser<'a>) -> Result<(String, VariableSignatu
     p.consume(TokenType::Identifier, "Expected identifier for name")?;
     let name = match &p.previous.data {
         TokenData::String(s) => s.clone(),
-        TokenData::Str(s) => s.to_string(),
+        TokenData::Str(s) => (*s).to_string(),
         _ => return Err(p.make_error("Could not read identifier name from token")),
     };
 
@@ -517,7 +524,7 @@ fn variable_signature<'a>(p: &mut Parser<'a>) -> Result<(String, VariableSignatu
 fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<AstNode, Notice> {
     p.advance();
 
-    let prefix_rule = get_rule(p.previous.type_.clone()).prefix;
+    let prefix_rule = get_rule(p.previous.type_).prefix;
     if prefix_rule as usize == nil_func as usize {
         return Err(p.make_error("Expected prefix expression"));
     }
@@ -528,9 +535,9 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<AstNode,
         Err(_) => p.synchronize(),
     }
 
-    while precedence as u8 <= get_rule(p.current.type_.clone()).precedence as u8 {
+    while precedence as u8 <= get_rule(p.current.type_).precedence as u8 {
         p.advance();
-        let infix_rule = get_rule(p.previous.type_.clone()).infix;
+        let infix_rule = get_rule(p.previous.type_).infix;
         if infix_rule as usize == nil_func as usize {
             return Err(p.make_error("Expected infix expression"));
         }
@@ -546,7 +553,7 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<AstNode,
 }
 
 fn maybe_statement_else_expression<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let expr = expression(p)?;
     if p.check(TokenType::Semicolon) {
         p.advance();
@@ -561,7 +568,7 @@ fn expression<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn literal<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     match p.previous.type_ {
         TokenType::Number => Ok(p.new_node(
             start_pos,
@@ -577,7 +584,7 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
             start_pos,
             Ast::String(match &p.previous.data {
                 TokenData::String(s) => s.clone(),
-                TokenData::Str(s) => s.to_string(),
+                TokenData::Str(s) => (*s).to_string(),
                 _ => return Err(p.make_error("Could not read string value from token")),
             }),
         )),
@@ -588,18 +595,18 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn identifier<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let name = match &p.previous.data {
         TokenData::String(s) => s.clone(),
-        TokenData::Str(s) => s.to_string(),
+        TokenData::Str(s) => (*s).to_string(),
         _ => return Err(p.make_error("Could not read identifier name from token")),
     };
     Ok(p.new_node(start_pos, Ast::Identifier(name)))
 }
 
 fn unary<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
-    let op = p.previous.type_.clone();
+    let start_pos = p.previous.pos;
+    let op = p.previous.type_;
 
     let expr = parse_precedence(p, Prec::Unary)?;
 
@@ -617,10 +624,10 @@ fn unary<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn binary<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let left = p.prefix_node.clone();
-    let op = p.previous.type_.clone();
-    let right = parse_precedence(p, get_rule(op.clone()).precedence)?;
+    let op = p.previous.type_;
+    let right = parse_precedence(p, get_rule(op).precedence)?;
     Ok(p.new_node(
         start_pos,
         Ast::Binary(
@@ -651,7 +658,7 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let old_lex = p.lex.clone();
     let old_previous = p.previous.clone();
     let old_current = p.current.clone();
@@ -735,13 +742,13 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn return_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let expr = expression(p)?;
     Ok(p.new_node(start_pos, Ast::Return(Box::new(expr))))
 }
 
 fn block<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let mut expr_vec: Vec<AstNode> = Vec::new();
     while !p.check(TokenType::RCurly) {
         expr_vec.push(maybe_statement_else_expression(p)?);
@@ -751,7 +758,7 @@ fn block<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn if_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let if_cond = expression(p)?;
     let if_block = expression(p)?;
 
@@ -781,26 +788,23 @@ fn if_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn while_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let cond = expression(p)?;
     let body = expression(p)?;
     Ok(p.new_node(start_pos, Ast::While(Box::new(cond), Box::new(body))))
 }
 
 fn let_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
-    let mut mutable = false;
-    if p.check(TokenType::KwMut) {
+    let start_pos = p.previous.pos;
+    let mutable = if p.check(TokenType::KwMut) {
         p.advance();
-        mutable = true;
-    }
-
-    let mut var_sig = variable_signature(p)?;
-    var_sig.1.mutable = if mutable || var_sig.1.mutable {
         true
     } else {
         false
     };
+
+    let mut var_sig = variable_signature(p)?;
+    var_sig.1.mutable = mutable || var_sig.1.mutable;
 
     let val_expr: Option<Box<AstNode>> = if p.check(TokenType::Equal) {
         p.advance();
@@ -813,28 +817,26 @@ fn let_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn import<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     p.consume(TokenType::String, "Expected string for import file")?;
     let mut name = match &p.previous.data {
         TokenData::String(s) => s.clone(),
-        TokenData::Str(s) => s.to_string(),
+        TokenData::Str(s) => (*s).to_string(),
         _ => return Err(p.make_error("Could not read identifier name from token")),
     };
 
-    if name.chars().nth(0) == Some('/') {
+    if name.starts_with('/') {
         name = name[1..].to_string();
-    } else {
-        if let Some(fname) = p.file_name {
-            let path = &fname[0..fname.rfind("/").unwrap_or(0)];
-            name = format!("{}/{}", path, name);
-        }
+    } else if let Some(fname) = p.file_name {
+        let path = &fname[0..fname.rfind('/').unwrap_or(0)];
+        name = format!("{}/{}", path, name);
     }
 
     if name.starts_with("std") {
         name = format!("stdlib/{}", name)
     }
 
-    if let None = name.rfind(".") {
+    if name.rfind('.').is_none() {
         name = format!("{}.grav", name);
     }
 
@@ -867,7 +869,7 @@ fn import<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
     match result {
         Ok(module) => Ok(p.new_node(start_pos, Ast::Import(module.0))),
         Err(notices) => {
-            let mut e = notices.clone();
+            let mut e = notices;
             p.notices.append(&mut e);
             Err(p.make_error_with_string(format!("Failed to parse file {}", name)))
         }
@@ -875,7 +877,7 @@ fn import<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn extern_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
 
     p.consume(
         TokenType::Identifier,
@@ -884,7 +886,7 @@ fn extern_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 
     let name = match &p.previous.data {
         TokenData::String(s) => s.clone(),
-        TokenData::Str(s) => s.to_string(),
+        TokenData::Str(s) => (*s).to_string(),
         _ => return Err(p.make_error("Could not read identifier name from token")),
     };
 
@@ -931,7 +933,7 @@ fn extern_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn call<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let callee = p.prefix_node.clone();
 
     let mut args: Vec<AstNode> = Vec::new();
@@ -953,7 +955,7 @@ fn call<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
 }
 
 fn as_<'a>(p: &mut Parser<'a>) -> Result<AstNode, Notice> {
-    let start_pos = p.previous.pos.clone();
+    let start_pos = p.previous.pos;
     let casted_node = p.prefix_node.clone();
     p.consume(TokenType::Identifier, "Expected identifier for type")?;
     let sig = TypeSignature::new(match &p.previous.data {
