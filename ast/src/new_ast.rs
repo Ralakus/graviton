@@ -29,6 +29,7 @@ pub enum UnaryOperation {
     Not,
 }
 
+/// any primitive number type built into the language
 #[repr(u8)]
 #[derive(Hash, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum PrimitiveType {
@@ -226,6 +227,7 @@ impl std::fmt::Debug for TypeSignature {
     }
 }
 
+/// type signature with a mutability flag
 #[derive(Hash, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct VariableSignature {
     pub mutable: bool,
@@ -248,6 +250,7 @@ impl std::fmt::Debug for VariableSignature {
     }
 }
 
+/// signature of any defined function, doesn't store name
 #[derive(Hash, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct FunctionSignature {
     pub params: Vec<VariableSignature>,
@@ -297,92 +300,138 @@ macro_rules! make_fn_sig {
     };
 }*/
 
-// a file
+/// a file of graviton code
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Module {
+    /// filename
     pub file: Option<String>,
+    /// declarations
     pub declarations: Vec<Declaration>,
 }
 
-// anything in a module's global scope or anything that declares an identifier
+/// ast node of declaration
+#[derive(Clone, Serialize, Deserialize)]
+pub struct DeclarationNode {
+    /// declaration type
+    pub node: Declaration,
+    /// position in code
+    pub pos: super::Position,
+    /// type signature of node
+    pub type_sig: Option<TypeSignature>,
+}
+
+/// anything in a module's global scope or anything that declares an identifier
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Declaration {
-    // function definition fn_name :: (x: Type, y: Type) -> ReturnType { /* body */ }
-    // function signature, param names, body
-    Function(FunctionSignature, Vec<String>, Expression),
+    /// function definition fn_name :: (x: Type, y: Type) -> ReturnType { /* body */ }
+    /// function signature, param names, body
+    Function(FunctionSignature, Vec<String>, ExpressionNode),
 
-    // function extern fn_name :: extern (x: Type, y: Type) -> ReturnType;
-    // function signature, function name
+    /// function extern fn_name :: extern (x: Type, y: Type) -> ReturnType;
+    /// function signature, function name
     ExternFunction(FunctionSignature, String),
 
-    // struct definition struct_name :: struct { /* body */ }
-    // name, containing types ( name , type signature)
+    /// struct definition struct_name :: struct { /* body */ }
+    /// name, containing types ( name , type signature)
     Struct(String, Vec<(String, TypeSignature)>),
 
-    // variable declaration var_name: type = val_expr;
-    // name, type signature, assign expression
-    Variable(String, VariableSignature, Option<Expression>),
+    /// variable declaration var_name: type = val_expr;
+    /// name, type signature, assign expression
+    Variable(String, VariableSignature, Option<ExpressionNode>),
 
-    // import delcaration import module_name
-    // path (each directory), name
+    /// import delcaration import module_name
+    /// path (each directory), name
     Import(Vec<String>, String),
 }
 
-/*
-// anything that changes state but doesn't return a result
+// ast node of statement
+#[derive(Clone, Serialize, Deserialize)]
+pub struct StatementNode {
+    /// statement type
+    pub node: Statement,
+    /// position in code
+    pub pos: super::Position,
+    /// type signature of node
+    pub type_sig: Option<TypeSignature>,
+}
+
+/// anything that changes state but doesn't return a result
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Statement {
+    /// declaration statement, only valid within current scope
+    Declaration(DeclarationNode),
 
-    Declaration()
+    /// an expression whose result is nullified
+    Expression(ExpressionNode),
+}
 
-}*/
+/// ast node of expression
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ExpressionNode {
+    /// expression type
+    pub node: Expression,
+    /// position in code
+    pub pos: super::Position,
+    /// type signature of node
+    pub type_sig: Option<TypeSignature>,
+}
 
+/// a scope { ... }
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Block {
+    /// statements inside block
+    statements: Vec<StatementNode>,
+    /// optional end expression that returns a value
+    end_expression: Option<ExpressionNode>,
+}
+
+// anything that can return a result
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Expression {
-    // name
+    /// name
     Identifier(String),
 
-    // any numeric integer in base 10
-    // integer value
+    /// any numeric integer
+    /// integer value
     Integer(i64),
 
-    // floating point value
+    /// floating point value
     Float(f64),
 
-    // any raw string value, not formatted in any way as of now
-    // string value
+    /// any raw string value, not formatted in any way as of now
+    /// string value
     String(String),
 
-    // boolean value
+    /// boolean value
     Bool(bool),
 
-    // operator, left expr, right expr
-    Binary(BinaryOperation, Box<Expression>, Box<Expression>),
+    /// operator, left expr, right expr
+    Binary(BinaryOperation, Box<ExpressionNode>, Box<ExpressionNode>),
 
-    // operator, expr
-    Unary(UnaryOperation, Box<Expression>),
+    /// operator, expr
+    Unary(UnaryOperation, Box<ExpressionNode>),
 
-    // returned expression
-    Return(Box<Expression>),
+    /// returned expression
+    Return(Box<ExpressionNode>),
 
-    // vector of expr
-    Block(Vec<Expression>),
+    /// block struct
+    Block(Box<Block>),
 
-    // if cond, if expr, else if conds, else if exprs, optional else expr
+    /// if cond, if expr, else if conds, else if exprs, optional else expr
     IfElse(
-        Box<Expression>,
-        Box<Expression>,
-        Vec<(Box<Expression>, Box<Expression>)>,
-        Option<Box<Expression>>,
+        Box<ExpressionNode>,
+        Box<ExpressionNode>,
+        Vec<(Box<ExpressionNode>, Box<ExpressionNode>)>,
+        Option<Box<ExpressionNode>>,
     ),
 
-    // while cond, while expr
-    While(Box<Expression>, Box<Expression>),
+    /// while cond, while expr
+    While(Box<ExpressionNode>, Box<ExpressionNode>),
 
-    // expression that evaluates to function, arguments
-    FnCall(Box<Expression>, Vec<Expression>),
+    /// expression that evaluates to function, arguments
+    FnCall(Box<ExpressionNode>, Vec<ExpressionNode>),
 
-    // primitive cast to another type expr as Type
-    // expression, type to cast to
-    As(Box<Expression>, TypeSignature),
+    /// primitive cast to another type expr as Type
+    /// expression, type to cast to
+    As(Box<ExpressionNode>, TypeSignature),
 }
