@@ -22,6 +22,7 @@ Graviton is still under heavy development so it is bound to have breaking change
 ## Examples
 [Iterative fibonacci example](./examples/fib.grav) 
 ```rust
+
 import "/std";
 
 println("Iterative Fibonacci example");
@@ -63,8 +64,9 @@ let output = if fib_number != fib(14) {
 print("Fibonacci of ");
 printn(n);
 print(" is ");
-printnln(output);
+printnln(fib(n));
+println("");
 ```
 
 ## How can follow the progress?
-* Follow it on Discord! There are also some other cool projects on this Discord like [Wolf](https://github.com/Ralakus/wolf-lang), FlukeWM, ModEngine, Lir Language, and more https://discord.gg/RmgjcES
+* There is a [Trello](https://trello.com/b/Z2PQHhgy/graviton) board set up for this project
