@@ -1,14 +1,14 @@
 [package]
 name = "graviton"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
 respository = "https://github.com/Ralakus/graviton"
 homepage = "https://github.com/Ralakus/graviton"
-description = "Tachyon is a fast programming language that is minimal and simplistic with a simple and easy to read compiler. Everything is an expression unless a semicolon is used `;` then it becomes a statement which gives a clear distinction between expressions and statements."
+description = "Graviton is a fast programming language that is minimal and simplistic with a simple and easy to read compiler. Everything is an expression unless a semicolon is used `;` then it becomes a statement which gives a clear distinction between expressions and statements."
 license = "MIT"
-readme = "README.md"
+readme = "readme.md"
 exclude = [
     ".vscode/**"
 ]
@@ -17,23 +17,18 @@ exclude = [
 travis-ci = { repository = "Ralakus/graviton" }
 
 [workspace]
-members = ["graviton_ast", "graviton_frontend", "graviton_backend"]
-
-[features]
-default = [ "vm_store_names" ]
-vm_store_names = [
-    "graviton_backend/store_names"
-]
+members = ["core", "ast", "frontend", "backend"]
 
 [dependencies]
-graviton_ast      = { path = "graviton_ast",      version = "0.5.0" }
-graviton_frontend = { path = "graviton_frontend", version = "0.5.0" }
-graviton_backend  = { path = "graviton_backend",  version = "0.5.0" }
+graviton_core     = { path = "core",     version = "0.6.0" }
+graviton_ast      = { path = "ast",      version = "0.6.0" }
+graviton_frontend = { path = "frontend", version = "0.6.0" }
+graviton_backend  = { path = "backend",  version = "0.6.0"}
 
-serde = { version = "1.0.98", features = ["derive"] }
-rmp-serde = "0.13.7"
-
-clap = { version = "2.33.0", features = [ "suggestions", "color" ] }
+serde = { version = "1.0.104", features = ["derive"] }
+rmp-serde = "0.14.0"
 
 memmap = "0.7.0"
-colored = "1.8.0"
+
+clap = { version = "2.33.0", features = [ "suggestions", "color" ] }
+colored = "1.9.2"

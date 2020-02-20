@@ -1,2 +1,4 @@
 
+import "/std";
+
 println("Hello world!");

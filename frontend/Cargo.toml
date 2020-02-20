@@ -1,0 +1,18 @@
+[package]
+name = "graviton_frontend"
+version = "0.6.0"
+authors = ["Ralakus <12schneide@gmail.com>"]
+edition = "2018"
+
+respository = "https://github.com/Ralakus/graviton"
+homepage = "https://github.com/Ralakus/graviton"
+description = "The frontend which contains a simple recursive descent parser with an integrated lexer for Graviton"
+license = "MIT"
+readme = "readme.md"
+
+[dependencies]
+graviton_core = { path = "../core", version = "0.6.0" }
+graviton_ast  = { path = "../ast",  version = "0.6.0" }
+
+memmap = "0.7.0"
+lazy_static = "1.4.0"

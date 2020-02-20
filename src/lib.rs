@@ -1,82 +1,75 @@
 pub extern crate graviton_ast as ast;
 pub extern crate graviton_backend as backend;
+pub extern crate graviton_core as core;
 pub extern crate graviton_frontend as frontend;
 
 pub extern crate colored;
 use colored::*;
 
-pub mod errors;
-
-#[derive(Debug, Clone)]
-pub enum GravitonError {
-    ParseError(Vec<frontend::parser::ParseError>),
-    SemanticError(Vec<ast::semantic::SemanticError>),
-    NativeError(Vec<backend::native::NativeError>),
-}
-
-impl<'a> GravitonError {
-    pub fn report(&self, source: Option<&'a str>) {
-        match self {
-            GravitonError::ParseError(perrors) => {
-                for perror in perrors {
-                    errors::report_parser_error(perror, source)
-                }
-            }
-            GravitonError::SemanticError(serrors) => {
-                for serror in serrors {
-                    errors::report_semantic_error(serror, source)
-                }
-            }
-            GravitonError::NativeError(nerrors) => {
-                for nerror in nerrors {
-                    errors::report_native_error(nerror, source)
-                }
-            }
-        }
+pub fn report_notices<'a>(notices: &[core::Notice], source: Option<&'a str>) {
+    for n in notices {
+        n.report(source);
     }
 }
 
 pub fn parse_source<'a>(
     source: &'a str,
     filename: Option<&'a str>,
-) -> Result<ast::AstNode, GravitonError> {
+    debug_level: i32,
+) -> Result<(ast::Module, Vec<core::Notice>), Vec<core::Notice>> {
     match frontend::parser::Parser::parse(source, filename) {
-        Ok(mut ast) => {
-            match analyze_ast(
+        Ok((mut module, parse_notices)) => {
+            match analyze_module(
                 if let Some(f) = filename {
                     Some(String::from(f))
                 } else {
                     None
                 },
-                &mut ast,
+                &mut module,
             ) {
-                Ok(_) => Ok(ast),
-                Err(e) => Err(e),
+                Ok(semantic_notices) => {
+                    if debug_level >= 2 {
+                        println!("{}: {:#?}", "Typed AST".cyan(), module);
+                    }
+                    Ok((
+                        module,
+                        parse_notices
+                            .iter()
+                            .cloned()
+                            .chain(semantic_notices.iter().cloned())
+                            .collect(),
+                    ))
+                }
+                Err(e) => {
+                    if debug_level >= 2 {
+                        println!("{}: {:#?}", "Untyped AST".red(), module);
+                    }
+                    Err(e)
+                }
             }
         }
-        Err(e) => Err(GravitonError::ParseError(e)),
+        e => e,
     }
 }
 
-pub fn analyze_ast(name: Option<String>, ast: &mut ast::AstNode) -> Result<(), GravitonError> {
-    match ast::semantic::SemanticAnalyzer::analyze(
-        ast,
-        name,
-        Some(backend::native::stdlib::get_stdlib_signatures()),
-    ) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(GravitonError::SemanticError(e)),
+pub fn analyze_module(
+    name: Option<String>,
+    module: &mut ast::Module,
+) -> Result<Vec<core::Notice>, Vec<core::Notice>> {
+    match ast::semantic::SemanticAnalyzer::analyze(module, name, None) {
+        Ok(notices) => Ok(notices),
+        Err(e) => Err(e),
     }
 }
 
-pub fn compile_ast(
+pub fn compile_module(
     name: String,
-    ast: &ast::AstNode,
+    module: &ast::Module,
     debug_level: i32,
-) -> Result<backend::native::NativeObject, GravitonError> {
-    match backend::native::Native::compile(name, ast, debug_level) {
+) -> Result<backend::native::NativeObject, Vec<core::Notice>> {
+    match backend::native::Native::compile(name, module, debug_level) {
         Ok(obj) => Ok(obj),
-        Err(e) => Err(GravitonError::NativeError(e)),
+        Err(e) => Err(e),
     }
 }
 
@@ -84,18 +77,15 @@ pub fn compile_source<'a>(
     source: &'a str,
     filename: Option<&'a str>,
     debug_level: i32,
-) -> Result<backend::native::NativeObject, GravitonError> {
-    let ast = parse_source(source, filename)?;
-    if debug_level >= 2 {
-        println!("{}: {:#?}", "Typed AST".cyan(), ast);
-    }
-    compile_ast(
+) -> Result<backend::native::NativeObject, Vec<core::Notice>> {
+    let module = parse_source(source, filename, debug_level)?;
+    compile_module(
         if let Some(f) = filename {
             String::from(f)
         } else {
             String::from("graviton")
         },
-        &ast,
+        &module.0,
         debug_level,
     )
 }

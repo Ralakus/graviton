@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.grav": "rust",
-        "cstdint": "cpp"
+        "cstdint": "cpp",
+        "graviton_lib.h": "c"
     }
 }

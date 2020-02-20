@@ -1,7 +1,7 @@
 
 import "1.grav";
 
-fn add (x: I32, y: I32): I32 {
+let add = (x: I32, y: I32) -> I32 {
     return x + y;
 };
 
