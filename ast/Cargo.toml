@@ -4,6 +4,12 @@ version = "0.6.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
+respository = "https://github.com/Ralakus/graviton"
+homepage = "https://github.com/Ralakus/graviton"
+description = "This is the abstract syntax tree for Graviton which is passed between the frontend and backend"
+license = "MIT"
+readme = "readme.md"
+
 [dependencies]
 graviton_core     = { path = "../core", version = "0.6.0" }
 
