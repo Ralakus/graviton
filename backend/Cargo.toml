@@ -8,7 +8,7 @@ respository = "https://github.com/Ralakus/graviton"
 homepage = "https://github.com/Ralakus/graviton"
 description = "The Graviton backend which includes a stack based virtual machine which is now depreciated and a native backend using Cranelift"
 license = "MIT"
-readme = "raedme.md"
+readme = "readme.md"
 
 [features]
 store_names = []
