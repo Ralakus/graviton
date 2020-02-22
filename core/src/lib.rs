@@ -1,213 +1,135 @@
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
-extern crate colored;
-use colored::*;
+/// The amount of spaces a tab is equal to in the terminal
+const TERMINAL_TAB_SIZE: usize = 5;
 
+/// Position in code encoded by line and column
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Position {
-    pub line: i32,
-    pub col: i32,
+    pub line: usize,
+    pub col: usize,
 }
 
 impl Position {
-    pub fn new(line: i32, col: i32) -> Self {
+    /// Crates a position from a line an column
+    pub fn new(line: usize, col: usize) -> Self {
         Position { line, col }
     }
 }
 
 impl std::fmt::Display for Position {
+    /// The first element is the line and the second is the column
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "line: {}, col: {}", self.line, self.col)
+        write!(f, "[{}:{}]", self.line, self.col)
     }
 }
 
+/// Returns a tuple with the second element being the 3 lines before and after position and the third element being the little squiggly line (~~~^~~) under the line pointing to the column.
+/// The forth (index 3) element of lines is always the line with the error and the one that the squiggly is pointing to.
+/// It will only return none if the line is not found
+pub fn locate_in_source(source: &str, pos: Position) -> Option<(usize, Vec<&str>, String)> {
+    let start_line = if pos.line > 3 { pos.line - 3 } else { 1 };
+    let lines: Vec<&str> = source
+        .lines()
+        .skip(start_line - 1)
+        .take(7)
+        .collect::<Vec<&str>>();
+
+    let error_line = if lines.len() >= 2 { lines[3] } else { lines[0] };
+
+    // Gets the amount of tabs before the column position for proper squiggly length
+    let tab_count = error_line
+        .chars()
+        .enumerate()
+        .filter(|(i, c)| *c == '\t' && *i < pos.col - 1)
+        .count();
+
+    let squiggly_line = format!(
+        "{}{}{}",
+        String::from("~").repeat(pos.col - 1 + tab_count * TERMINAL_TAB_SIZE),
+        "^",
+        if pos.col < error_line.len() {
+            String::from("~").repeat(error_line.len() - pos.col)
+        } else {
+            String::new()
+        }
+    );
+
+    Some((start_line, lines, squiggly_line))
+}
+
+/// The report level of a notice
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
 pub enum NoticeLevel {
     Notice,
     Warning,
     Error,
-    Critical,
 }
 
+/// A notice to the user notifying about any issues or recommendations
 #[derive(Debug, Clone)]
 pub struct Notice {
+    /// The stage of the compiler the notice is from
     pub from: String,
+    /// The notice message
     pub msg: String,
+    /// The notice position in code
     pub pos: Position,
-    pub file: Option<String>,
+    /// The file name the notice is from
+    pub file: String,
+    /// The level of the notice
     pub level: NoticeLevel,
 }
 
-impl<'a> Notice {
-    pub fn report(&self, source: Option<&'a str>) {
-        eprint!(
-            "{}: ",
-            match self.level {
-                NoticeLevel::Notice => {
-                    format!("{} Notice", self.from).cyan()
-                }
-                NoticeLevel::Warning => {
-                    format!("{} Warning", self.from).cyan().yellow()
-                }
-                NoticeLevel::Error => {
-                    format!("{} Error", self.from).cyan().red()
-                }
-                NoticeLevel::Critical => {
-                    format!("{} Critical", self.from)
-                        .cyan()
-                        .bold()
-                        .underline()
-                        .red()
-                }
-            }
-        );
-        if self.pos.line > 0 {
-            if let Some(s) = source {
-                if let Some(f) = &self.file {
-                    let mut line = 1;
-                    for l in s.lines() {
-                        if line == self.pos.line {
-                            eprintln!(
-                                "{}\n\tat: {}\n\t{}\n\t{}{}{}",
-                                self.msg,
-                                format!(
-                                    "{}{}:{}:{}{}",
-                                    "[".bold(),
-                                    f,
-                                    self.pos.line,
-                                    self.pos.col,
-                                    "]".bold()
-                                ),
-                                l,
-                                if self.pos.col > 1 {
-                                    String::from("~").repeat((self.pos.col - 1) as usize).red()
-                                } else {
-                                    "".red()
-                                },
-                                "^".red(),
-                                if (self.pos.col as usize) < l.len() {
-                                    String::from("~")
-                                        .repeat(l.len() - self.pos.col as usize)
-                                        .red()
-                                } else {
-                                    "".red()
-                                },
-                            );
-                        }
-                        line += 1;
-                    }
-                } else {
-                    let mut line = 1;
-                    for l in s.lines() {
-                        if line == self.pos.line {
-                            eprintln!(
-                                "{}\n\tat: {}\n\t{}\n\t{}{}{}",
-                                self.msg,
-                                format!(
-                                    "{}Line: {}, Col: {}{}",
-                                    "[".bold(),
-                                    self.pos.line,
-                                    self.pos.col,
-                                    "]".bold()
-                                ),
-                                l,
-                                if self.pos.col > 1 {
-                                    String::from("~").repeat((self.pos.col - 1) as usize).red()
-                                } else {
-                                    "".red()
-                                },
-                                "^".red(),
-                                if (self.pos.col as usize) < l.len() {
-                                    String::from("~")
-                                        .repeat(l.len() - self.pos.col as usize)
-                                        .red()
-                                } else {
-                                    "".red()
-                                },
-                            );
-                        }
-                        line += 1;
-                    }
-                }
-            } else if let Some(f) = &self.file {
-                eprintln!(
-                    "{}\n\tat: {}",
-                    self.msg,
-                    format!(
-                        "{}{}:{}:{}{}",
-                        "[".bold(),
-                        f,
-                        self.pos.line,
-                        self.pos.col,
-                        "]".bold()
-                    ),
-                );
-            } else {
-                eprintln!(
-                    "{}\n\tat: {}",
-                    self.msg,
-                    format!(
-                        "{}Line: {}, Col: {}{}",
-                        "[".bold(),
-                        self.pos.line,
-                        self.pos.col,
-                        "]".bold()
-                    ),
-                );
-            }
-        } else if self.pos.line == -1 {
-            if let Some(f) = &self.file {
-                eprintln!(
-                    "{}\n\tat: {}",
-                    self.msg,
-                    format!("{}{}:EOF{}", "[".bold(), f, "]".bold()),
-                );
-            } else {
-                eprintln!(
-                    "{}\n\tat: {}",
-                    self.msg,
-                    format!("{}EOF{}", "[".bold(), "]".bold()),
-                );
-            }
-        } else if self.pos.line == -2 {
-            if let Some(f) = &self.file {
-                eprintln!(
-                    "{}\n\tat: {}",
-                    self.msg,
-                    format!("{}{}:module{}", "[".bold(), f, "]".bold()),
-                );
-            } else {
-                eprintln!(
-                    "{}\n\tat: {}",
-                    self.msg,
-                    format!("{}module{}", "[".bold(), "]".bold()),
-                );
-            }
-        } else if let Some(f) = &self.file {
-            eprintln!(
-                "{}\n\tat: {}",
-                self.msg,
-                format!("{}{}:??{}", "[".bold(), f, "]".bold()),
-            );
-        } else {
-            eprintln!(
-                "{}\n\tat: {}",
-                self.msg,
-                format!("{}??{}", "[".bold(), "]".bold()),
-            );
+impl Notice {
+    /// Creates a new notice
+    pub fn new(from: String, msg: String, pos: Position, file: String, level: NoticeLevel) -> Self {
+        Notice {
+            from,
+            msg,
+            pos,
+            file,
+            level,
         }
     }
-}
 
-pub fn contains_errors(notices: &[Notice]) -> bool {
-    let mut were_errors = false;
-    for n in notices {
-        if let NoticeLevel::Error = n.level {
-            were_errors = true;
-        } else if let NoticeLevel::Critical = n.level {
-            were_errors = true;
+    /// Prints notice with colour to stdout if notice level is warning or notice and stderr if error.
+    /// Prints out source location of error if it's provided
+    pub fn report(self, source: Option<&str>) {
+        let colour = match self.level {
+            NoticeLevel::Notice => "cyan",
+            NoticeLevel::Warning => "yellow",
+            NoticeLevel::Error => "red",
+        };
+
+        println!("{}: {}", self.from.color(colour), self.msg);
+        println!(
+            "\tat {}{}:{}:{}{}\n",
+            "[".bold(),
+            self.file,
+            self.pos.line,
+            self.pos.col,
+            "]".bold()
+        );
+
+        if let Some(src) = source {
+            if let Some((start_line, lines, squiggly)) = locate_in_source(src, self.pos) {
+                lines.iter().enumerate().for_each(|(i, line)| {
+                    println!(
+                        "\t{} | {}",
+                        (start_line + i).to_string().color(colour),
+                        line
+                    );
+
+                    if i == 3 {
+                        println!("\t{}{}", "--|~".color(colour), squiggly.color(colour));
+                    }
+                });
+
+                println!();
+            }
         }
     }
-    were_errors
 }

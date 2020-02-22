@@ -1,16 +1,17 @@
 [package]
 name = "graviton_core"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
-respository = "https://github.com/Ralakus/graviton"
+repository = "https://github.com/Ralakus/graviton"
 homepage = "https://github.com/Ralakus/graviton"
 description = "The core library which handles errors throughout Graviton"
 license = "MIT"
 readme = "readme.md"
 
 [dependencies]
-serde = { version = "1.0.104", features = ["derive"] }
+serde = { version = "*", features = ["derive"] }
 
-colored = "1.9.2"
+futures = "*"
+colored = "*"

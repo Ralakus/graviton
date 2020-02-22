@@ -1,10 +1,10 @@
 [package]
 name = "graviton_backend"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Ralakus <12schneide@gmail.com>"]
 edition = "2018"
 
-respository = "https://github.com/Ralakus/graviton"
+repository = "https://github.com/Ralakus/graviton"
 homepage = "https://github.com/Ralakus/graviton"
 description = "The Graviton backend which includes a stack based virtual machine which is now depreciated and a native backend using Cranelift"
 license = "MIT"
@@ -14,17 +14,5 @@ readme = "readme.md"
 store_names = []
 
 [dependencies]
-graviton_core = { path = "../core", version = "0.6.0" }
-graviton_ast  = { path = "../ast",  version = "0.6.0" }
-
-serde = { version = "1.0.104", features = ["derive"] }
-typetag = "0.1.4"
-
-downcast-rs = "1.1.1"
-
-cranelift = "0.56.0"
-cranelift-module = "0.56.0"
-cranelift-faerie = "0.56.0"
-cranelift-native = "0.56.0"
-
-crc16 = "0.4.0"
+graviton_core = { path = "../core", version = "0.7.0" }
+graviton_ast  = { path = "../ast",  version = "0.7.0" }

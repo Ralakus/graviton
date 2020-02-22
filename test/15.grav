@@ -1,4 +1,0 @@
-
-let println = extern println (s: String) -> Nil;
-
-println("Hello world!");
