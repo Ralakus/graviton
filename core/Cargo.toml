@@ -11,6 +11,7 @@ license = "MIT"
 readme = "readme.md"
 
 [dependencies]
+graviton_ast = { path = "../ast", version = "0.7.0" }
 serde = { version = "*", features = ["derive"] }
 
 futures = "*"

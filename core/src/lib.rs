@@ -1,6 +1,8 @@
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
+pub extern crate graviton_ast as ast;
+
 /// The amount of spaces a tab is equal to in the terminal
 const TERMINAL_TAB_SIZE: usize = 5;
 

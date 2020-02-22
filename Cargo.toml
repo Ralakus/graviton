@@ -21,6 +21,5 @@ members = ["core", "ast", "frontend", "backend"]
 
 [dependencies]
 graviton_core     = { path = "core",     version = "0.7.0" }
-graviton_ast      = { path = "ast",      version = "0.7.0" }
 graviton_frontend = { path = "frontend", version = "0.7.0" }
 graviton_backend  = { path = "backend",  version = "0.7.0"}

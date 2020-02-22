@@ -45,6 +45,8 @@ pub struct StructSignature {
 pub struct FunctionSignature {
     /// Mutability (bool) and type signature of each parameter
     pub parameters: Vec<(bool, TypeSignature)>,
+    /// Type of the return value
+    pub return_type_signature: Box<TypeSignature>,
 }
 
 /// An AST node type that doesn't store references to other nodes.

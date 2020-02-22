@@ -15,4 +15,3 @@ store_names = []
 
 [dependencies]
 graviton_core = { path = "../core", version = "0.7.0" }
-graviton_ast  = { path = "../ast",  version = "0.7.0" }
