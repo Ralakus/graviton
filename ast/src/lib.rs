@@ -82,7 +82,7 @@ pub enum UnaryOperation {
 
 /// A vector wrapper that has a flag that states if the vector is completed grammar wise or not 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct NodeVec<T> {
+pub struct FinishVec<T> {
     pub finished: bool,
     pub v: Vec<T>
 }
@@ -95,7 +95,7 @@ pub enum NodeType {
     /// A struct that contains the name of the file, all statements in global
     Module {
         name: String,
-        declarations: NodeVec<TypeSignature>,
+        declarations: FinishVec<TypeSignature>,
     },
 
     // --------------------
@@ -158,7 +158,7 @@ pub enum NodeType {
     /// Expression;
     /// A struct that contains a list of statements and an expression that returns a result
     Block {
-        statements: NodeVec<TypeSignature>,
+        statements: FinishVec<TypeSignature>,
         end_expression: TypeSignature,
     },
 
@@ -168,7 +168,7 @@ pub enum NodeType {
         condition: TypeSignature,
         body: TypeSignature,
         /// A vector of else if conditions (index 0) and else if bodies (index 1)
-        else_ifs: NodeVec<(TypeSignature, TypeSignature)>,
+        else_ifs: FinishVec<(TypeSignature, TypeSignature)>,
         else_expression: TypeSignature,
     },
 
@@ -176,7 +176,7 @@ pub enum NodeType {
     /// Contains the expression that evalutates to a function, and the arguments provided to call said function
     FunctionCall {
         function: TypeSignature,
-        arguments: NodeVec<TypeSignature>,
+        arguments: FinishVec<TypeSignature>,
     },
 
     /// Expression;
