@@ -80,22 +80,23 @@ pub enum UnaryOperation {
     Not,
 }
 
-/// A vector wrapper that has a flag that states if the vector is completed grammar wise or not 
+/// A vector wrapper that has a flag that states if the vector is completed grammar wise or not
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FinishVec<T> {
     pub finished: bool,
-    pub v: Vec<T>
+    pub v: Vec<T>,
 }
 
 /// An AST node type that doesn't store references to other nodes.
-/// Has all the possible node Types
+/// Instead it stores the offset from the current node to child node in the stack to make it memory efficient.
+/// Has all the possible node types
 #[derive(Clone, Serialize, Deserialize)]
 pub enum NodeType {
     /// Highest level of an AST;
     /// A struct that contains the name of the file, all statements in global
     Module {
         name: String,
-        declarations: FinishVec<TypeSignature>,
+        declarations: FinishVec<usize>,
     },
 
     // --------------------
@@ -108,7 +109,7 @@ pub enum NodeType {
         signature: FunctionSignature,
         name: String,
         parameter_names: Vec<String>,
-        body: TypeSignature,
+        body: usize,
     },
 
     /// Declaration;
@@ -142,14 +143,11 @@ pub enum NodeType {
     //
     /// Statement;
     /// A struct that contains the while condition and body
-    While {
-        condition: TypeSignature,
-        body: TypeSignature,
-    },
+    While { condition: usize, body: usize },
 
     /// Statement;
     /// Contains an expression to return
-    Return { expression: TypeSignature },
+    Return { expression: usize },
 
     // --------------------
     // Expressions
@@ -158,47 +156,47 @@ pub enum NodeType {
     /// Expression;
     /// A struct that contains a list of statements and an expression that returns a result
     Block {
-        statements: FinishVec<TypeSignature>,
-        end_expression: TypeSignature,
+        statements: FinishVec<usize>,
+        end_expression: usize,
     },
 
     /// Expression;
     /// A struct that contains the if condition, the if body, and all else if's conditions and bodies, and the else body
     IfElse {
-        condition: TypeSignature,
-        body: TypeSignature,
+        condition: usize,
+        body: usize,
         /// A vector of else if conditions (index 0) and else if bodies (index 1)
-        else_ifs: FinishVec<(TypeSignature, TypeSignature)>,
-        else_expression: TypeSignature,
+        else_ifs: FinishVec<(usize, usize)>,
+        else_expression: usize,
     },
 
     /// Expression;
     /// Contains the expression that evalutates to a function, and the arguments provided to call said function
     FunctionCall {
-        function: TypeSignature,
-        arguments: FinishVec<TypeSignature>,
+        function: usize,
+        arguments: FinishVec<usize>,
     },
 
     /// Expression;
     /// Contains a type signature that an expression is being casted to
     As {
         signature: TypeSignature,
-        expression: TypeSignature,
+        expression: usize,
     },
 
     /// Expression;
     /// Contains a binary operation and left and right expression
     Binary {
         op: BinaryOperation,
-        left: TypeSignature,
-        right: TypeSignature,
+        left: usize,
+        right: usize,
     },
 
     /// Expression;
     /// Contains a unary operator and an expression
     Unary {
         op: UnaryOperation,
-        expression: TypeSignature
+        expression: usize,
     },
 
     /// Expression;

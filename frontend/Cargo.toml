@@ -12,3 +12,6 @@ readme = "readme.md"
 
 [dependencies]
 graviton_core = { path = "../core", version = "0.7.0" }
+
+memmap = "*"
+lazy_static = "*"

@@ -1,21 +1,26 @@
+#[macro_use]
+extern crate itertools;
+
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
-pub extern crate graviton_ast as ast;
+pub mod ast;
+pub mod interface;
 
 /// The amount of spaces a tab is equal to in the terminal
 const TERMINAL_TAB_SIZE: usize = 5;
 
-/// Position in code encoded by line and column
+/// Position in code encoded by line and column.
+/// The line or column should not be zero since that is reserved for errors
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Position {
-    pub line: usize,
-    pub col: usize,
+    pub line: u32,
+    pub col: u32,
 }
 
 impl Position {
     /// Crates a position from a line an column
-    pub fn new(line: usize, col: usize) -> Self {
+    pub fn new(line: u32, col: u32) -> Self {
         Position { line, col }
     }
 }
@@ -34,7 +39,7 @@ pub fn locate_in_source(source: &str, pos: Position) -> Option<(usize, Vec<&str>
     let start_line = if pos.line > 3 { pos.line - 3 } else { 1 };
     let lines: Vec<&str> = source
         .lines()
-        .skip(start_line - 1)
+        .skip(start_line as usize - 1)
         .take(7)
         .collect::<Vec<&str>>();
 
@@ -44,21 +49,21 @@ pub fn locate_in_source(source: &str, pos: Position) -> Option<(usize, Vec<&str>
     let tab_count = error_line
         .chars()
         .enumerate()
-        .filter(|(i, c)| *c == '\t' && *i < pos.col - 1)
+        .filter(|(i, c)| *c == '\t' && *i < pos.col as usize - 1)
         .count();
 
     let squiggly_line = format!(
         "{}{}{}",
-        String::from("~").repeat(pos.col - 1 + tab_count * TERMINAL_TAB_SIZE),
+        String::from("~").repeat(pos.col as usize - 1 + tab_count * TERMINAL_TAB_SIZE),
         "^",
-        if pos.col < error_line.len() {
-            String::from("~").repeat(error_line.len() - pos.col)
+        if (pos.col as usize) < error_line.len() {
+            String::from("~").repeat(error_line.len() - pos.col as usize)
         } else {
             String::new()
         }
     );
 
-    Some((start_line, lines, squiggly_line))
+    Some((start_line as usize, lines, squiggly_line))
 }
 
 /// The report level of a notice
@@ -100,13 +105,13 @@ impl Notice {
     /// Prints notice with colour to stdout if notice level is warning or notice and stderr if error.
     /// Prints out source location of error if it's provided
     pub fn report(self, source: Option<&str>) {
-        let colour = match self.level {
-            NoticeLevel::Notice => "cyan",
-            NoticeLevel::Warning => "yellow",
-            NoticeLevel::Error => "red",
+        let (colour, prefix) = match self.level {
+            NoticeLevel::Notice => ("cyan", "[-]: ".color("cyan")),
+            NoticeLevel::Warning => ("yellow", "[*]: ".color("yellow")),
+            NoticeLevel::Error => ("red", "[!]: ".color("red")),
         };
 
-        println!("{}: {}", self.from.color(colour), self.msg);
+        println!("{}{}: {}", prefix, self.from.color(colour), self.msg);
         println!(
             "\tat {}{}:{}:{}{}\n",
             "[".bold(),
@@ -133,5 +138,42 @@ impl Notice {
                 println!();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn notice() {
+        let source = "// code\n//code 2\n//code 3\n// some code 4\n// some more code 5\nlet a = 14;\n// yet more code 7\n// code 8\n// code 9\n// code 10";
+
+        let from = String::from("Letter analyzer");
+        let msg = String::from("The letter \"a\" is a letter");
+        let pos = core::Position::new(6, 5);
+        let file = String::from("main.grav");
+
+        let notice = core::Notice::new(
+            from.clone(),
+            msg.clone(),
+            pos,
+            file.clone(),
+            core::NoticeLevel::Notice,
+        );
+
+        notice.report(Some(source));
+
+        let notice = core::Notice::new(
+            from.clone(),
+            msg.clone(),
+            pos,
+            file.clone(),
+            core::NoticeLevel::Warning,
+        );
+
+        notice.report(Some(source));
+
+        let notice = core::Notice::new(from, msg, pos, file, core::NoticeLevel::Error);
+
+        notice.report(Some(source));
     }
 }
