@@ -1,5 +1,8 @@
-/*use super::{
-    ast::{BinaryOperation, FunctionSignature, Node, TypeSignature, UnaryOperation},
+#![allow(dead_code)]
+
+use super::{
+    ast::{BinaryOperation, Node, UnaryOperation},
+    signature::{FunctionSignature, TypeSignature},
     {
         lexer::Lexer,
         token::{Token, TokenData, TokenType},
@@ -33,7 +36,7 @@ struct ParseRule {
     precedence: Prec,
 }
 
-const PARSER_RULE_TABLE: [ParseRule; 46] = [
+const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
     ParseRule {
         prefix: nil_func,
         infix: nil_func,
@@ -266,20 +269,64 @@ const PARSER_RULE_TABLE: [ParseRule; 46] = [
     }, // TokenType::Eof
 ];
 
-pub struct Parser<'a> {
-    lex: Lexer<'a>,
-    current: Token<'a>,
-    previous: Token<'a>,
-    notices: Vec<Notice>,
-
-    prefix_node: Node,
-}
-
+#[inline]
 fn get_rule(type_: TokenType) -> &'static ParseRule {
     &PARSER_RULE_TABLE[type_ as usize]
 }
 
-fn nil_func<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    Err(())
+/// The index for the previos token in the parser
+const PREVIOUS: usize = 0;
+/// The index for the current token in the parser
+const CURRENT: usize = 1;
+
+/// The parser struct, contains all of the data necessary to parse
+pub struct Parser<'a> {
+    /// Contains the notices that arise during compilation
+    notices: Vec<Notice>,
+
+    /// Lexer
+    lex: Lexer<'a>,
+    /// Token stack, 0 is previous, 1 is the current token, 2 is the first look ahead, 3 is the second look ahead 
+    tokens: [Token<'a>; 4],
 }
-*/
+
+impl<'a> Parser<'a> {
+    fn advance(&mut self) {
+        unsafe {
+            std::ptr::copy(self.tokens.as_mut_ptr().offset(1), self.tokens.as_mut_ptr(), 3);
+        }
+
+        if let Some(tok) = self.lex.next() {
+            self.tokens[3] = tok;
+        } else {
+            self.tokens[3] = Token::new(TokenType::Eof, TokenData::None, Position::new(0, 0));
+        }
+    }
+
+    #[inline]
+    fn current(&self) -> &Token<'a> {
+        &self.tokens[CURRENT]
+    }
+
+    #[inline]
+    fn previous(&self) -> &Token<'a> {
+        &self.tokens[PREVIOUS]
+    }
+
+    fn make_notice(&mut self, level: NoticeLevel, msg: String) {
+        self.notices.push(Notice::new("Parser".to_string(), msg, self.previous().pos, "".to_string(), level));
+    }
+
+    fn consume(&mut self, type_: TokenType, err_msg: &'static str) -> Result<(), ()> {
+        if self.current().type_ == type_ {
+            Ok(())
+        } else {
+            self.make_notice(NoticeLevel::Error, format!("{} => Found {:?}, expected {:?}", err_msg, self.current().type_, type_));
+            Err(())
+        }
+    }
+}
+
+fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
+    unreachable!("Wot, somehow, `nil_func` was called, this shouldn't happen");
+}

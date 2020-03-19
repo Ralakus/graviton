@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 pub mod ast;
 pub mod interface;
+pub mod ir;
+pub mod signature;
 
 /// The amount of spaces a tab is equal to in the terminal
 const TERMINAL_TAB_SIZE: usize = 5;
