@@ -270,7 +270,7 @@ impl<'a> Lexer<'a> {
                     if self.peek().is_none() {
                         return Some(Token::new(
                             TokenType::Err,
-                            TokenData::String("Unterminated string".to_string()),
+                            TokenData::Str("Unterminated string"),
                             self.start_pos,
                         ));
                     }
@@ -280,7 +280,7 @@ impl<'a> Lexer<'a> {
                         None => {
                             return Some(Token::new(
                                 TokenType::Err,
-                                TokenData::String("Failed to index into source".to_string()),
+                                TokenData::Str("Failed to index into source"),
                                 self.start_pos,
                             ))
                         }

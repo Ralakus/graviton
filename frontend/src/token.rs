@@ -65,10 +65,10 @@ pub enum TokenType {
 #[derive(Debug, Clone)]
 pub enum TokenData<'a> {
     None,
-    String(String),
     Integer(i64),
     Float(f64),
     Str(&'a str),
+    String(String),
 }
 
 #[derive(Debug, Clone)]
@@ -81,6 +81,16 @@ pub struct Token<'a> {
 impl<'a> Token<'a> {
     pub fn new(type_: TokenType, data: TokenData<'a>, pos: Position) -> Self {
         Token { type_, data, pos }
+    }
+}
+
+impl<'a> Default for Token<'a> {
+    fn default() -> Self {
+        Token {
+            type_: TokenType::Eof,
+            data: TokenData::None,
+            pos: Position::new(0, 0),
+        }
     }
 }
 

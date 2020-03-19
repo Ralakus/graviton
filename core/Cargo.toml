@@ -12,7 +12,7 @@ readme = "readme.md"
 
 [dependencies]
 serde = { version = "*", features = ["derive"] }
-
+memmap = "*"
 futures = "*"
 colored = "*"
 itertools = "*"

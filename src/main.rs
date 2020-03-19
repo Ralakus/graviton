@@ -2,236 +2,61 @@ pub extern crate graviton_backend as backend;
 pub extern crate graviton_core as core;
 pub extern crate graviton_frontend as frontend;
 
+use core::{ir, signature};
+
 fn main() {
     let source = "let a = 14 + 48;\n\
-                   fn add(x: I32, y: I32) -> I32 { x + y }";
+                  let add = (x: I32, y: I32) -> I32 { x + y }";
 
-    let mut ast = core::ast::Ast::new();
+    let mut tir = ir::Module::new();
 
-    ast.push(
-        core::ast::Node::Module {
-            name: 1,
-            declarations: core::ast::FinishVec::<usize> {
-                v: vec![2, 8],
-                finished: true,
-            },
-        },
-        core::signature::TypeSignature::Struct(core::signature::StructSignature {
-            fields: vec![(
-                false,
-                core::signature::TypeSignature::Function(core::signature::FunctionSignature {
-                    parameters: vec![
-                        (
-                            false,
-                            core::signature::TypeSignature::Primitive(
-                                core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
-                            ),
-                        ),
-                        (
-                            false,
-                            core::signature::TypeSignature::Primitive(
-                                core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
-                            ),
-                        ),
-                    ],
-                    return_type_signature: Box::new(core::signature::TypeSignature::Primitive(
-                        core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
-                    )),
-                }),
-            )],
-        }),
-        core::Position::new(0, 0),
-    );
+    tir.push(ir::Instruction::Module("main.grav".to_string()));
 
-    ast.push(
-        core::ast::Node::File {
-            name: "main.grav".to_string(),
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::Nil),
-        core::Position::new(0, 0),
-    );
+    tir.push(ir::Instruction::Let("a".to_string()));
 
-    ast.push(
-        core::ast::Node::Let {
-            signature: 3,
-            name: 4,
-            assign: 5,
-            mutable: false,
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::Nil),
-        core::Position::new(1, 1),
-    );
+    tir.push(ir::Instruction::Integer(14));
+    tir.push(ir::Instruction::Integer(48));
+    tir.push(ir::Instruction::Add);
 
-    ast.push(
-        core::ast::Node::TypeSignature {
-            signature: core::signature::TypeSignature::Primitive(
-                core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
-            ),
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::Nil),
-        core::Position::new(1, 7),
-    );
+    tir.push(ir::Instruction::LetEnd);
+    tir.push(ir::Instruction::Statement);
 
-    ast.push(
-        core::ast::Node::IdentifierData {
-            name: "a".to_string(),
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::Nil),
-        core::Position::new(1, 5),
-    );
+    tir.push(ir::Instruction::Let("add".to_string()));
 
-    ast.push(
-        core::ast::Node::Binary {
-            op: core::ast::BinaryOperation::Add,
-            left: 6,
-            right: 7,
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::SignedInteger {
-            bitsize: 32,
-        }),
-        core::Position::new(1, 12),
-    );
-
-    ast.push(
-        core::ast::Node::Integer { value: 14 },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::SignedInteger {
-            bitsize: 32,
-        }),
-        core::Position::new(1, 9),
-    );
-
-    ast.push(
-        core::ast::Node::Integer { value: 48 },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::SignedInteger {
-            bitsize: 32,
-        }),
-        core::Position::new(1, 14),
-    );
-
-    ast.push(
-        core::ast::Node::Function {
-            signature: 9,
-            name: 10,
-            parameter_names: vec![11, 12],
-            body: 13,
-        },
-        core::signature::TypeSignature::Function(core::signature::FunctionSignature {
+    let sig_idx = tir.push_signature(signature::TypeSignature::Function(
+        core::signature::FunctionSignature {
             parameters: vec![
                 (
                     false,
-                    core::signature::TypeSignature::Primitive(
-                        core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
-                    ),
+                    signature::TypeSignature::Primitive(signature::PrimitiveType::new("I32")),
                 ),
                 (
                     false,
-                    core::signature::TypeSignature::Primitive(
-                        core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
-                    ),
+                    signature::TypeSignature::Primitive(signature::PrimitiveType::new("I32")),
                 ),
             ],
             return_type_signature: Box::new(core::signature::TypeSignature::Primitive(
-                core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
+                signature::PrimitiveType::new("I32"),
             )),
-        }),
-        core::Position::new(2, 1),
-    );
-
-    ast.push(
-        core::ast::Node::FunctionSignature {
-            signature: core::signature::FunctionSignature {
-                parameters: vec![
-                    (
-                        false,
-                        core::signature::TypeSignature::Primitive(
-                            core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
-                        ),
-                    ),
-                    (
-                        false,
-                        core::signature::TypeSignature::Primitive(
-                            core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
-                        ),
-                    ),
-                ],
-                return_type_signature: Box::new(core::signature::TypeSignature::Primitive(
-                    core::signature::PrimitiveType::SignedInteger { bitsize: 32 },
-                )),
-            },
         },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::Nil),
-        core::Position::new(2, 7),
-    );
+    ));
+    tir.push(ir::Instruction::Function(sig_idx));
+    tir.push(ir::Instruction::FunctionParameter("x".to_string()));
+    tir.push(ir::Instruction::FunctionParameter("y".to_string()));
 
-    ast.push(
-        core::ast::Node::IdentifierData {
-            name: "add".to_string(),
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::Nil),
-        core::Position::new(2, 4),
-    );
+    tir.push(ir::Instruction::Block);
 
-    ast.push(
-        core::ast::Node::Parameter {
-            name: "x".to_string(),
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::Nil),
-        core::Position::new(2, 8),
-    );
+    tir.push(ir::Instruction::Identifier("x".to_string()));
+    tir.push(ir::Instruction::Identifier("y".to_string()));
+    tir.push(ir::Instruction::Add);
 
-    ast.push(
-        core::ast::Node::Parameter {
-            name: "y".to_string(),
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::Nil),
-        core::Position::new(2, 16),
-    );
+    tir.push(ir::Instruction::BlockEnd);
 
-    ast.push(
-        core::ast::Node::Block {
-            statements: core::ast::FinishVec::<usize> {
-                v: vec![],
-                finished: true,
-            },
-            end_expression: 14,
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::SignedInteger {
-            bitsize: 32,
-        }),
-        core::Position::new(1, 31),
-    );
+    tir.push(ir::Instruction::FunctionEnd);
 
-    ast.push(
-        core::ast::Node::Binary {
-            op: core::ast::BinaryOperation::Add,
-            left: 15,
-            right: 16,
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::SignedInteger {
-            bitsize: 32,
-        }),
-        core::Position::new(2, 35),
-    );
+    tir.push(ir::Instruction::LetEnd);
 
-    ast.push(
-        core::ast::Node::Identifier {
-            name: "x".to_string(),
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::SignedInteger {
-            bitsize: 32,
-        }),
-        core::Position::new(2, 33),
-    );
+    tir.push(ir::Instruction::ModuleEnd);
 
-    ast.push(
-        core::ast::Node::Identifier {
-            name: "y".to_string(),
-        },
-        core::signature::TypeSignature::Primitive(core::signature::PrimitiveType::SignedInteger {
-            bitsize: 32,
-        }),
-        core::Position::new(2, 37),
-    );
-
-    println!("Source:\n\n{}\n\n{}", source, ast);
+    println!("{}\n<Parser>\n{}\n<Backend>", source, tir);
 }

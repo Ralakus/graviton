@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use super::{
-    ast::{BinaryOperation, Node, UnaryOperation},
+    ir,
     signature::{FunctionSignature, TypeSignature},
     {
         lexer::Lexer,
@@ -9,10 +9,9 @@ use super::{
         Notice, NoticeLevel, Position,
     },
 };
-use memmap::Mmap;
 
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq, PartialOrd)]
 enum Prec {
     None,
     Assignment, // =
@@ -286,14 +285,37 @@ pub struct Parser<'a> {
 
     /// Lexer
     lex: Lexer<'a>,
-    /// Token stack, 0 is previous, 1 is the current token, 2 is the first look ahead, 3 is the second look ahead 
+
+    /// Reference to the ir it's generating
+    ir: &'a ir::Module,
+
+    /// Token stack, 0 is previous, 1 is the current token, 2 is the first look ahead, 3 is the second look ahead
     tokens: [Token<'a>; 4],
 }
 
 impl<'a> Parser<'a> {
+    fn new(source: &'a str, ir: &'a mut ir::Module) -> Self {
+        Parser {
+            notices: Vec::new(),
+            lex: Lexer::new(source),
+            ir,
+            tokens: [
+                Token::default(),
+                Token::default(),
+                Token::default(),
+                Token::default(),
+            ],
+        }
+    }
+
+    #[inline]
     fn advance(&mut self) {
         unsafe {
-            std::ptr::copy(self.tokens.as_mut_ptr().offset(1), self.tokens.as_mut_ptr(), 3);
+            std::ptr::copy(
+                self.tokens.as_mut_ptr().offset(1),
+                self.tokens.as_mut_ptr(),
+                3,
+            );
         }
 
         if let Some(tok) = self.lex.next() {
@@ -313,20 +335,96 @@ impl<'a> Parser<'a> {
         &self.tokens[PREVIOUS]
     }
 
-    fn make_notice(&mut self, level: NoticeLevel, msg: String) {
-        self.notices.push(Notice::new("Parser".to_string(), msg, self.previous().pos, "".to_string(), level));
+    #[inline]
+    fn check(&mut self, type_: TokenType) -> bool {
+        self.current().type_ == type_
     }
 
+    #[inline]
     fn consume(&mut self, type_: TokenType, err_msg: &'static str) -> Result<(), ()> {
         if self.current().type_ == type_ {
             Ok(())
         } else {
-            self.make_notice(NoticeLevel::Error, format!("{} => Found {:?}, expected {:?}", err_msg, self.current().type_, type_));
+            self.make_notice(
+                NoticeLevel::Error,
+                format!(
+                    "{} => Found {:?}, expected {:?}",
+                    err_msg,
+                    self.current().type_,
+                    type_
+                ),
+            );
             Err(())
         }
+    }
+
+    #[inline]
+    fn make_notice(&mut self, level: NoticeLevel, msg: String) {
+        self.notices.push(Notice::new(
+            "Parser".to_string(),
+            msg,
+            self.previous().pos,
+            "".to_string(),
+            level,
+        ));
+    }
+
+    fn synchronize(&mut self) {}
+
+    fn parse(source: &'a str) -> Result<(ir::Module, Vec<Notice>), (ir::Module, Vec<Notice>)> {
+        let mut ir = ir::Module::new();
+        let mut p = Parser::new(source, &mut ir);
+
+        while !p.check(TokenType::Eof) {
+            p.advance();
+        }
+
+        let notices = p.notices;
+
+        Ok((ir, notices))
     }
 }
 
 fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
     unreachable!("Wot, somehow, `nil_func` was called, this shouldn't happen");
+}
+
+fn module<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
+    Ok(())
+}
+
+fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> {
+    p.advance();
+
+    let prefix_rule = get_rule(p.previous().type_).prefix;
+    if prefix_rule as usize == nil_func as usize {
+        p.make_notice(NoticeLevel::Error, "Expected prefix expression".to_string());
+        return Err(());
+    }
+
+    if prefix_rule(p).is_err() {
+        p.synchronize();
+        return Err(());
+    }
+
+    while precedence <= get_rule(p.current().type_).precedence {
+        p.advance();
+
+        let infix_rule = get_rule(p.previous().type_).infix;
+        if infix_rule as usize == nil_func as usize {
+            p.make_notice(NoticeLevel::Error, "Expected infix expression".to_string());
+            return Err(());
+        }
+
+        if infix_rule(p).is_err() {
+            p.synchronize();
+            return Err(());
+        }
+    }
+
+    Ok(())
+}
+
+fn maybe_statement_else_expression<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
+    Ok(())
 }

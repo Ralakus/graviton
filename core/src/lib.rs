@@ -4,13 +4,13 @@ extern crate itertools;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
-pub mod ast;
+pub mod ansi;
 pub mod interface;
 pub mod ir;
 pub mod signature;
 
 /// The amount of spaces a tab is equal to in the terminal
-const TERMINAL_TAB_SIZE: usize = 5;
+const TAB_WITDH: usize = 5;
 
 /// Position in code encoded by line and column.
 /// The line or column should not be zero since that is reserved for errors
@@ -56,7 +56,7 @@ pub fn locate_in_source(source: &str, pos: Position) -> Option<(usize, Vec<&str>
 
     let squiggly_line = format!(
         "{}{}{}",
-        String::from("~").repeat(pos.col as usize - 1 + tab_count * TERMINAL_TAB_SIZE),
+        String::from("~").repeat(pos.col as usize - 1 + tab_count * TAB_WITDH),
         "^",
         if (pos.col as usize) < error_line.len() {
             String::from("~").repeat(error_line.len() - pos.col as usize)
