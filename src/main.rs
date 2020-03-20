@@ -19,7 +19,7 @@ fn main() {
     ) = mpsc::channel();
     let (notice_tx, notice_rx): (Sender<Option<core::Notice>>, Receiver<Option<core::Notice>>) =
         mpsc::channel();
-    let arc_source: std::sync::Arc<str> = std::sync::Arc::from(&*source);
+    let arc_source: std::sync::Arc<str> = std::sync::Arc::from(source);
 
     let parser =
         frontend::parser::Parser::parse("main.grav".to_string(), arc_source, notice_tx, ir_tx);
