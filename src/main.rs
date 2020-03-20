@@ -3,6 +3,8 @@ pub extern crate graviton_core as core;
 pub extern crate graviton_frontend as frontend;
 
 use core::ir;
+use mpsc::{Receiver, Sender};
+use std::sync::mpsc;
 
 fn main() {
     let _source_old = "let a = 14 + 48;\n\
@@ -11,8 +13,6 @@ fn main() {
 
     let mut tir = ir::Module::new();
 
-    use mpsc::{Receiver, Sender};
-    use std::sync::mpsc;
     let (ir_tx, ir_rx): (
         Sender<Option<ir::ChannelIr>>,
         Receiver<Option<ir::ChannelIr>>,
