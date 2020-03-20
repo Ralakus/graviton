@@ -3,6 +3,9 @@ language: rust
 rust:
   - nightly
 
+before_install:
+  - rustup component add rustfmt
+
 script:
   - cargo fmt -- --check
   - cargo test
