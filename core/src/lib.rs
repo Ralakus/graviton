@@ -43,7 +43,11 @@ pub fn locate_in_source(source: &str, pos: Position) -> Option<(usize, Vec<&str>
         .take(7)
         .collect::<Vec<&str>>();
 
-    let error_line = if lines.len() > 3 { lines[3] } else { lines[0] };
+    let error_line = if lines.len() > 3 {
+        lines[3]
+    } else {
+        lines[pos.line as usize - 1]
+    };
 
     // Gets the amount of tabs before the column position for proper squiggly length
     let tab_count = error_line
@@ -121,23 +125,29 @@ impl Notice {
         );
         println!("\tat [{}:{}:{}]\n", self.file, self.pos.line, self.pos.col,);
 
-        if let Some(src) = source {
-            if let Some((start_line, lines, squiggly)) = locate_in_source(src, self.pos) {
-                lines.iter().enumerate().for_each(|(i, line)| {
-                    println!(
-                        "\t{}{}{} | {}",
-                        colour,
-                        start_line + i,
-                        ansi::Fg::Reset,
-                        line
-                    );
+        if self.pos.line != 0 && self.pos.col != 0 {
+            if let Some(src) = source {
+                if let Some((start_line, lines, squiggly)) = locate_in_source(src, self.pos) {
+                    lines.iter().enumerate().for_each(|(i, line)| {
+                        println!(
+                            "\t{}{}{} | {}",
+                            colour,
+                            start_line + i,
+                            ansi::Fg::Reset,
+                            line
+                        );
 
-                    if i == if lines.len() < 3 { 0 } else { 3 } {
-                        println!("\t{}--|~{}{}", colour, squiggly, ansi::Fg::Reset);
-                    }
-                });
+                        if i == if lines.len() > 3 {
+                            3
+                        } else {
+                            self.pos.line as usize - 1
+                        } {
+                            println!("\t{}--|~{}{}", colour, squiggly, ansi::Fg::Reset);
+                        }
+                    });
 
-                println!();
+                    println!();
+                }
             }
         }
     }

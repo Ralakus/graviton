@@ -31,24 +31,24 @@ fn main() {
             Ok(Some(ins)) => tir.push(ins.pos, ins.sig, ins.ins),
             Ok(None) => ir_done = true,
             Err(std::sync::mpsc::TryRecvError::Empty) => (),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) if !ir_done => {
+            Err(std::sync::mpsc::TryRecvError::Disconnected) if ir_done => (),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 panic!("ir_rx disconnected before sending end signal")
             }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => (),
         }
 
         match notice_rx.try_recv() {
             Ok(Some(notice)) => notice.report(Some(&source)),
             Ok(None) => notice_done = true,
             Err(std::sync::mpsc::TryRecvError::Empty) => (),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) if !notice_done => {
+            Err(std::sync::mpsc::TryRecvError::Disconnected) if notice_done => (),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 panic!("notice_rx disconnected before sending end signal")
             }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => (),
         }
     }
 
-    parser.join().expect("Error joining parser");
+    parser.join().expect("Error joining parser thread");
 
     println!("Source:\n\n{}\n\n{}", source, tir);
 }

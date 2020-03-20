@@ -51,6 +51,8 @@ pub struct Lexer<'a> {
     pos: Position,
     /// The current index in source code the lexer is
     idx: usize,
+    /// A flag to see if it already sent an EOF,
+    eof_sent: bool,
 }
 
 impl<'a> Lexer<'a> {
@@ -62,6 +64,7 @@ impl<'a> Lexer<'a> {
             start_pos: Position::new(1, 1),
             pos: Position::new(1, 1),
             idx: 0,
+            eof_sent: false,
         }
     }
 
@@ -401,6 +404,9 @@ impl<'a> Lexer<'a> {
                     self.start_pos,
                 )),
             },
+            None if !self.eof_sent => {
+                Some(Token::new(TokenType::Eof, TokenData::None, self.start_pos))
+            }
             None => None,
         }
     }
