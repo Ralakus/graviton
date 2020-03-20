@@ -1,8 +1,7 @@
-pub extern crate graviton_backend as backend;
-pub extern crate graviton_core as core;
-pub extern crate graviton_frontend as frontend;
-
-use core::ir;
+use graviton::{
+    core::{ir, Notice},
+    frontend::parser::Parser,
+};
 use mpsc::{Receiver, Sender};
 use std::sync::mpsc;
 
@@ -17,12 +16,11 @@ fn main() {
         Sender<Option<ir::ChannelIr>>,
         Receiver<Option<ir::ChannelIr>>,
     ) = mpsc::channel();
-    let (notice_tx, notice_rx): (Sender<Option<core::Notice>>, Receiver<Option<core::Notice>>) =
+    let (notice_tx, notice_rx): (Sender<Option<Notice>>, Receiver<Option<Notice>>) =
         mpsc::channel();
     let arc_source: std::sync::Arc<str> = std::sync::Arc::from(source);
 
-    let parser =
-        frontend::parser::Parser::parse("main.grav".to_string(), arc_source, notice_tx, ir_tx);
+    let parser = Parser::parse("main.grav".to_string(), arc_source, notice_tx, ir_tx);
 
     let (mut ir_done, mut notice_done) = (false, false);
 
