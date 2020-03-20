@@ -7,7 +7,7 @@ use core::ir;
 fn main() {
     let _source_old = "let a = 14 + 48;\n\
                   let add = (x: I32, y: I32) -> I32 { x + y };";
-    let source = "!(14 * 48 == 672)";
+    let source = "14 * (14 + 48) + 48 == 916";
 
     let mut tir = ir::Module::new();
 
@@ -24,20 +24,26 @@ fn main() {
     let parser =
         frontend::parser::Parser::parse("main.grav".to_string(), arc_source, notice_tx, ir_tx);
 
-    let mut done = false;
+    let (mut ir_done, mut notice_done) = (false, false);
 
-    while !done {
+    while !ir_done || !notice_done {
         match ir_rx.try_recv() {
             Ok(Some(ins)) => tir.push(ins.pos, ins.sig, ins.ins),
-            Ok(None) => done = true,
+            Ok(None) => ir_done = true,
             Err(std::sync::mpsc::TryRecvError::Empty) => (),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) if !ir_done => {
+                panic!("ir_rx disconnected before sending end signal")
+            }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => (),
         }
 
         match notice_rx.try_recv() {
             Ok(Some(notice)) => notice.report(Some(&source)),
-            Ok(None) => (),
+            Ok(None) => notice_done = true,
             Err(std::sync::mpsc::TryRecvError::Empty) => (),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) if !notice_done => {
+                panic!("notice_rx disconnected before sending end signal")
+            }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => (),
         }
     }

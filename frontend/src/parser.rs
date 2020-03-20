@@ -153,7 +153,7 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
         precedence: Prec::None,
     }, // TokenType::RArrow
     ParseRule {
-        prefix: nil_func,
+        prefix: literal,
         infix: nil_func,
         precedence: Prec::None,
     }, // TokenType::Identifier
@@ -350,6 +350,7 @@ impl<'a> Parser<'a> {
     #[inline]
     fn consume(&mut self, type_: TokenType, err_msg: &'static str) -> Result<(), ()> {
         if self.current().type_ == type_ {
+            self.advance();
             Ok(())
         } else {
             self.make_notice(
@@ -516,7 +517,7 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         ),
         (TokenType::Number, _) => p.make_notice(
             NoticeLevel::Error,
-            "Failed to extract float or integer data from token".to_string(),
+            "Failed to extract float or integer data from number token".to_string(),
         ),
         (TokenType::String, TokenData::Str(s)) => p.make_ir(
             TypeSignature::Primitive(PrimitiveType::new("Str")),
@@ -524,7 +525,7 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         ),
         (TokenType::String, _) => p.make_notice(
             NoticeLevel::Error,
-            "Failed to extract string data from token".to_string(),
+            "Failed to extract string data from string token".to_string(),
         ),
         (TokenType::KwTrue, _) => p.make_ir(
             TypeSignature::Primitive(PrimitiveType::new("Bool")),
@@ -534,7 +535,21 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             TypeSignature::Primitive(PrimitiveType::new("Bool")),
             ir::Instruction::Bool(false),
         ),
-        _ => unreachable!(""),
+        (TokenType::Identifier, TokenData::Str(s)) => p.make_ir(
+            TypeSignature::Untyped,
+            ir::Instruction::Identifier(s.to_string()),
+        ),
+        (TokenType::Identifier, _) => p.make_notice(
+            NoticeLevel::Error,
+            "Failed to extract string data from identifier token".to_string(),
+        ),
+        _ => {
+            p.make_notice(
+                NoticeLevel::Error,
+                "Unreachable branch in `unary` parse function".to_string(),
+            );
+            return Err(());
+        },
     }
 
     Ok(())
