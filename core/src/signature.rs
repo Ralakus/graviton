@@ -31,6 +31,8 @@ pub enum PrimitiveType {
     /// Floating point type.
     /// `bitsize` must be a power of two (2) on binary systems
     FloatingPoint { bitsize: u8 },
+    /// Constant string type
+    Str,
 }
 
 impl PrimitiveType {
@@ -55,6 +57,7 @@ impl PrimitiveType {
                 },
             },
             "Bool" => PrimitiveType::Boolean,
+            "Str" => PrimitiveType::Str,
             _ => PrimitiveType::Nil,
         }
     }
@@ -99,6 +102,7 @@ impl Display for PrimitiveType {
             PrimitiveType::SignedInteger { bitsize } => write!(f, "I{}", bitsize),
             PrimitiveType::UnsignedInteger { bitsize } => write!(f, "U{}", bitsize),
             PrimitiveType::FloatingPoint { bitsize } => write!(f, "F{}", bitsize),
+            PrimitiveType::Str => write!(f, "Str"),
         }
     }
 }

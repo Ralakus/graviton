@@ -365,7 +365,7 @@ impl<'a> Lexer<'a> {
                                 }
                             })
                         } else {
-                            TokenData::Integer(match slice.parse::<i64>() {
+                            TokenData::Integer(match slice.parse::<isize>() {
                                 Ok(f) => f,
                                 Err(e) => {
                                     return Some(Token::new(

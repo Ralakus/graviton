@@ -65,7 +65,7 @@ pub enum TokenType {
 #[derive(Debug, Clone)]
 pub enum TokenData<'a> {
     None,
-    Integer(i64),
+    Integer(isize),
     Float(f64),
     Str(&'a str),
     String(String),

@@ -1,8 +1,6 @@
-#![allow(dead_code)]
-
 use super::{
     ir,
-    signature::{TypeSignature},
+    signature::{PrimitiveType, TypeSignature},
     {
         lexer::Lexer,
         token::{Token, TokenData, TokenType},
@@ -40,7 +38,7 @@ struct ParseRule {
 
 const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
     ParseRule {
-        prefix: nil_func,
+        prefix: grouping_or_fn,
         infix: nil_func,
         precedence: Prec::Call,
     }, // TokenType::LParen
@@ -86,62 +84,62 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
     }, // TokenType::Semicolon
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Term,
     }, // TokenType::Plus
     ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::Term,
+        prefix: unary,
+        infix: binary,
+        precedence: Prec::Unary,
     }, // TokenType::Minus
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Factor,
     }, // TokenType::Star
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Factor,
     }, // TokenType::Slash
     ParseRule {
-        prefix: nil_func,
+        prefix: unary,
         infix: nil_func,
-        precedence: Prec::None,
+        precedence: Prec::Unary,
     }, // TokenType::Bang
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Comparison,
     }, // TokenType::BangEqual
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Assignment,
     }, // TokenType::Equal
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Equality,
     }, // TokenType::EqualEqual
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Comparison,
     }, // TokenType::Greater
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Comparison,
     }, // TokenType::GreaterEqual
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Comparison,
     }, // TokenType::Less
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Comparison,
     }, // TokenType::LessEqual
     ParseRule {
@@ -160,12 +158,12 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
         precedence: Prec::None,
     }, // TokenType::Identifier
     ParseRule {
-        prefix: nil_func,
+        prefix: literal,
         infix: nil_func,
         precedence: Prec::None,
     }, // TokenType::String
     ParseRule {
-        prefix: nil_func,
+        prefix: literal,
         infix: nil_func,
         precedence: Prec::None,
     }, // TokenType::Number
@@ -240,12 +238,12 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
         precedence: Prec::None,
     }, // TokenType::KwBreak
     ParseRule {
-        prefix: nil_func,
+        prefix: literal,
         infix: nil_func,
         precedence: Prec::None,
     }, // TokenType::KwTrue
     ParseRule {
-        prefix: nil_func,
+        prefix: literal,
         infix: nil_func,
         precedence: Prec::None,
     }, // TokenType::KwFalse
@@ -386,6 +384,20 @@ impl<'a> Parser<'a> {
     }
 
     #[inline]
+    fn make_ir_with_pos(&mut self, pos: Position, sig: TypeSignature, ins: ir::Instruction) {
+        let ir = ir::ChannelIr { pos, sig, ins };
+
+        if let Err(e) = self.ir_tx.send(Some(ir)) {
+            eprintln!(
+                "{}Parser ir send error: {}{}",
+                core::ansi::Fg::BrightRed,
+                e,
+                core::ansi::Fg::Reset
+            );
+        }
+    }
+
+    #[inline]
     fn make_notice(&mut self, level: NoticeLevel, msg: String) {
         let notice = Notice::new(
             "Parser".to_string(),
@@ -450,6 +462,7 @@ fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
 
 fn module<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.make_ir(TypeSignature::None, ir::Instruction::Module(p.name.clone()));
+    expression(p)?;
     p.make_ir(TypeSignature::None, ir::Instruction::ModuleEnd);
     Ok(())
 }
@@ -491,10 +504,130 @@ fn expression<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     parse_precedence(p, Prec::Assignment)
 }
 
-fn literal<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
+fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+    match (p.previous().type_, p.previous().data.clone()) {
+        (TokenType::Number, TokenData::Integer(n)) => p.make_ir(
+            TypeSignature::Primitive(PrimitiveType::new("I32")),
+            ir::Instruction::Integer(n),
+        ),
+        (TokenType::Number, TokenData::Float(n)) => p.make_ir(
+            TypeSignature::Primitive(PrimitiveType::new("F32")),
+            ir::Instruction::Float(n),
+        ),
+        (TokenType::Number, _) => p.make_notice(
+            NoticeLevel::Error,
+            "Failed to extract float or integer data from token".to_string(),
+        ),
+        (TokenType::String, TokenData::Str(s)) => p.make_ir(
+            TypeSignature::Primitive(PrimitiveType::new("Str")),
+            ir::Instruction::String(s.to_string()),
+        ),
+        (TokenType::String, _) => p.make_notice(
+            NoticeLevel::Error,
+            "Failed to extract string data from token".to_string(),
+        ),
+        (TokenType::KwTrue, _) => p.make_ir(
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::Bool(true),
+        ),
+        (TokenType::KwFalse, _) => p.make_ir(
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::Bool(false),
+        ),
+        _ => unreachable!(""),
+    }
+
     Ok(())
 }
 
-fn maybe_statement_else_expression<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
+fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+    let start_pos = p.previous().pos;
+    let op_tok = p.previous().type_;
+    parse_precedence(p, Prec::Unary)?;
+    let (sig, ins) = match op_tok {
+        TokenType::Minus => (TypeSignature::Untyped, ir::Instruction::Negate),
+        TokenType::Bang => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::Not,
+        ),
+        _ => {
+            p.make_notice(
+                NoticeLevel::Error,
+                "Unreachable branch in `unary` parse function".to_string(),
+            );
+            return Err(());
+        }
+    };
+    p.make_ir_with_pos(start_pos, sig, ins);
     Ok(())
 }
+
+fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+    let start_pos = p.previous().pos;
+    let op_tok = p.previous().type_;
+    parse_precedence(p, get_rule(op_tok).precedence)?;
+    let (sig, ins) = match op_tok {
+        TokenType::Plus => (TypeSignature::Untyped, ir::Instruction::Add),
+        TokenType::Minus => (TypeSignature::Untyped, ir::Instruction::Subtract),
+        TokenType::Star => (TypeSignature::Untyped, ir::Instruction::Multiply),
+        TokenType::Slash => (TypeSignature::Untyped, ir::Instruction::Divide),
+
+        TokenType::Less => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::Less,
+        ),
+        TokenType::LessEqual => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::LessEqual,
+        ),
+        TokenType::Greater => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::Greater,
+        ),
+        TokenType::GreaterEqual => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::GreaterEqual,
+        ),
+        TokenType::EqualEqual => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::Equal,
+        ),
+        TokenType::BangEqual => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::NotEqual,
+        ),
+
+        TokenType::KwAnd => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::And,
+        ),
+        TokenType::KwOr => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::Or,
+        ),
+
+        TokenType::Equal => (
+            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            ir::Instruction::Assign,
+        ),
+        _ => {
+            p.make_notice(
+                NoticeLevel::Error,
+                "Unreachable branch in `binary` parse function".to_string(),
+            );
+            return Err(());
+        }
+    };
+    p.make_ir_with_pos(start_pos, sig, ins);
+    Ok(())
+}
+
+fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+    expression(p)?;
+    p.consume(TokenType::RParen, "Expected closing ')'")?;
+    Ok(())
+}
+
+/*fn maybe_statement_else_expression<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
+    Ok(())
+}*/

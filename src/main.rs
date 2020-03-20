@@ -5,8 +5,9 @@ pub extern crate graviton_frontend as frontend;
 use core::ir;
 
 fn main() {
-    let source = "let a = 14 + 48;\n\
+    let _source_old = "let a = 14 + 48;\n\
                   let add = (x: I32, y: I32) -> I32 { x + y };";
+    let source = "!(14 * 48 == 672)";
 
     let mut tir = ir::Module::new();
 
@@ -43,5 +44,5 @@ fn main() {
 
     parser.join().expect("Error joining parser");
 
-    println!("Source: {}\n\n{}", source, tir);
+    println!("Source:\n\n{}\n\n{}", source, tir);
 }
