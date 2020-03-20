@@ -36,6 +36,7 @@ pub enum PrimitiveType {
 }
 
 impl PrimitiveType {
+    /// Parses a string into a primitive type
     pub fn new(type_string: &str) -> Self {
         match type_string {
             s if s.starts_with('I') => PrimitiveType::SignedInteger {

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ansi, signature::TypeSignature, Position};
 
+/// A full ir module that is never usually fully present in the pipeline
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Module {
     /// The name of the module
@@ -15,10 +16,12 @@ pub struct Module {
 }
 
 impl Module {
+    /// Creates an empty module
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Push an instruction into the module
     pub fn push(&mut self, pos: Position, sig: TypeSignature, ins: Instruction) {
         self.positions.push(pos);
         self.signatures.push(sig);
@@ -29,11 +32,15 @@ impl Module {
 /// The ir that is being passed through the channels between each stage
 #[derive(Debug, Clone)]
 pub struct ChannelIr {
+    /// Position in source code
     pub pos: Position,
+    /// Type signature of instruction
     pub sig: TypeSignature,
+    /// The instruction itself
     pub ins: Instruction,
 }
 
+/// Contains all of the instruction types
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Instruction {
     Module(String),
@@ -43,55 +50,89 @@ pub enum Instruction {
     // Branch structures
     // --------------------
     //
+    /// If openening, expects the if condition ir afterwards
     If,
+    /// If body, closes If opening, expects expression ir afterwards
     IfBody,
+    /// If else opening, closes any preceeding if body or else if body, expects a condition ir afterwards
     IfElseIf,
+    /// If else body, closes if else opening, epects condition ir afterwards
     IfElseIfBody,
+    /// If else expression, closes any if or if else bodies, expects expression ir afterwards
     IfElse,
+    /// If end, closes a full if expression
     IfEnd,
 
+    /// While opening, expects the while condition ir afterwards
     While,
+    /// While body, closes the while opening, expects expression ir afterwards
     WhileBody,
+    /// While end, closes a full while expression
     WhileEnd,
 
     // --------------------
     // Declarations
     // --------------------
     //
+    /// Function declaration, opens a function, expects parameters or expression ir afterwards
     Function,
+    /// Function parameter, defines the name (String) for a parameter for the function, lines with the function signature
     FunctionParameter(String),
+    /// Function end, closes a function
     FunctionEnd,
 
+    /// Return opening, expects expression ir afterwards
     Return,
+    /// Return end, closes a return statement
     ReturnEnd,
 
+    /// Let opening, declares an immutable variable with name (String), expects expression ir for assignment afterwards, no assignment if empty 
     Let(String),
+    /// Let end, closes a let statement
     LetEnd,
 
+    /// Let mut opening, declares a mutable variable with name (String), expects expression ir for assignment afterwards, no assignment if empty 
     LetMut(String),
+    /// Let mut end, closes a let mut statement
     LetMutEnd,
 
     // --------------------
     // Expressions
     // --------------------
     //
+    /// Opens a block
     Block,
+    /// Closes a block
     BlockEnd,
 
+    /// Imports a module from file (String)
     Import(String),
 
+    /// Defines an external function, must be used inside let statement
     ExternFn,
 
+    /// Defines a struct, expects field name ir afterwards
     Struct,
+    /// Names a struct field fron struct signature
+    StructField(String),
+    /// Closes a struct
+    StructEnd,
 
+    /// Call with amount of arguments
     Call(u8),
 
+    /// Cast expression to type
     As,
 
+    /// Identifier value (String)
     Identifier(String),
+    /// String value (String), always `Str` type
     String(String),
+    /// Boolean value (bool), always `Bool` type
     Bool(bool),
+    /// Float type (f64), `F32` type by default
     Float(f64),
+    // Integer type (isize), `I32` type by default
     Integer(isize),
 
     // --------------------
@@ -374,6 +415,7 @@ impl std::fmt::Display for Module {
 
                 Struct => {
                     fmt_tab(f, depth)?;
+                    depth += 1;
                     writeln!(
                         f,
                         "{}struct{} {}{}",
@@ -382,6 +424,25 @@ impl std::fmt::Display for Module {
                         sig,
                         ansi::Fg::Reset
                     )?;
+                }
+
+                StructField(name) => {
+                    writeln!(
+                        f,
+                        "{}struct field {}{} {}{}{}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
+                        name,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
+                }
+
+                StructEnd => {
+                    depth -= 1;
+                    fmt_tab(f, depth)?;
+                    writeln!(f, "{}struct end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
 
                 Call(arg_count) => {

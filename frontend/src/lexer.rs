@@ -7,6 +7,7 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 lazy_static! {
+    /// A lookup hashmap to check if an identifier is a reserved keyword
     static ref IDENT_MAP: HashMap<&'static str, TokenType> = {
         let mut m = HashMap::new();
         m.insert("and", TokenType::KwAnd);
@@ -37,16 +38,23 @@ lazy_static! {
     };
 }
 
+/// Lexer struct, it's optimized for speed rather than idiomatic Rust
 #[derive(Debug, Clone)]
 pub struct Lexer<'a> {
+    /// Full source code being lexed
     full_source: &'a str,
+    /// The current source code past `idx`
     source: Option<&'a str>,
+    /// The start position of the current token
     start_pos: Position,
+    /// The current position of the lexer in source
     pos: Position,
+    /// The current index in source code the lexer is
     idx: usize,
 }
 
 impl<'a> Lexer<'a> {
+    /// Creates a new lexer
     pub fn new(source: &'a str) -> Self {
         Lexer {
             full_source: source,
@@ -57,6 +65,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Advances the lexer by one character and returns said character and iterates the position as well
     fn advance(&mut self) -> Option<char> {
         match self.source {
             Some(src) => {
@@ -71,6 +80,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Peeks at the next chracter without advancing
     fn peek(&self) -> Option<char> {
         match self.source {
             Some(src) => src.chars().next(),
@@ -78,6 +88,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Advances past all whitespace
     fn skip_white_space(&mut self) {
         while match self.peek() {
             Some(c) if c == '\n' => {
@@ -93,6 +104,7 @@ impl<'a> Lexer<'a> {
         self.start_pos = self.pos;
     }
 
+    /// Checks if an identifier is a reserved identifier, if it is, it returns the keyword token
     fn check_ident(ident: &str) -> TokenType {
         match IDENT_MAP.get(ident) {
             Some(token_type) => *token_type,
@@ -100,6 +112,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Gets the next token
     pub fn get_tok(&mut self) -> Option<Token<'a>> {
         self.skip_white_space();
         match self.advance() {
@@ -393,9 +406,11 @@ impl<'a> Lexer<'a> {
     }
 }
 
+/// A wrapper for lexer to make the lexer an iterator and able to use iterator functions
 impl<'a> Iterator for Lexer<'a> {
     type Item = Token<'a>;
 
+    /// A wrapper for `get_tok()`
     fn next(&mut self) -> Option<Self::Item> {
         self.get_tok()
     }

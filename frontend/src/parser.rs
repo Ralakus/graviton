@@ -11,6 +11,7 @@ use super::{
 use mpsc::Sender;
 use std::{sync::mpsc, thread};
 
+/// Precedence used in Pratt parsing
 #[repr(u8)]
 #[derive(Clone, Copy, Eq, PartialEq, PartialOrd)]
 enum Prec {
@@ -27,15 +28,21 @@ enum Prec {
                 // Primary
 }
 
+/// A grammatical parse function
 type ParseFn = fn(&mut Parser) -> Result<(), ()>;
 
+/// A parse rule for a token
 #[derive(Clone)]
 struct ParseRule {
+    /// When it's found as a prefix expression
     prefix: ParseFn,
+    /// When it's found an infix expression
     infix: ParseFn,
+    /// It's precedence
     precedence: Prec,
 }
 
+/// A lookup table for the expression rules for each token when encountered as an expression
 const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
     ParseRule {
         prefix: grouping_or_fn,
@@ -269,6 +276,7 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
     }, // TokenType::Eof
 ];
 
+/// A wrapper function to get a rule from the loopup table
 #[inline]
 fn get_rule(type_: TokenType) -> &'static ParseRule {
     &PARSER_RULE_TABLE[type_ as usize]
@@ -287,7 +295,9 @@ pub struct Parser<'a> {
     /// Lexer
     lex: Lexer<'a>,
 
+    /// Channel to send notices though
     notice_tx: Sender<Option<Notice>>,
+    /// Channel to send ir through
     ir_tx: Sender<Option<ir::ChannelIr>>,
 
     /// Token stack, 0 is previous, 1 is the current token, 2 is the first look ahead, 3 is the second look ahead
@@ -295,6 +305,7 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    /// Creates a new parser
     fn new(
         name: String,
         source: &'a str,
@@ -315,6 +326,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Advances the lexer to the next token
     #[inline]
     fn advance(&mut self) {
         unsafe {
@@ -332,21 +344,26 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Returns the current token the parser is on
     #[inline]
     fn current(&self) -> &Token<'a> {
         &self.tokens[CURRENT]
     }
 
+    /// Returns the previous token that was already passed
     #[inline]
     fn previous(&self) -> &Token<'a> {
         &self.tokens[PREVIOUS]
     }
 
+    /// Check if the current token is of type, returns true if so and vice versa
     #[inline]
     fn check(&mut self, type_: TokenType) -> bool {
         self.current().type_ == type_
     }
 
+
+    /// If the current token matches `type_`, advance, otherwise return an error
     #[inline]
     fn consume(&mut self, type_: TokenType, err_msg: &'static str) -> Result<(), ()> {
         if self.current().type_ == type_ {
@@ -365,29 +382,12 @@ impl<'a> Parser<'a> {
             Err(())
         }
     }
-
-    #[inline]
-    fn make_ir(&mut self, sig: TypeSignature, ins: ir::Instruction) {
-        let ir = ir::ChannelIr {
-            pos: self.previous().pos,
-            sig,
-            ins,
-        };
-
-        if let Err(e) = self.ir_tx.send(Some(ir)) {
-            eprintln!(
-                "{}Parser ir send error: {}{}",
-                core::ansi::Fg::BrightRed,
-                e,
-                core::ansi::Fg::Reset
-            );
-        }
-    }
-
+    
+    /// Makes an IR instruction with a custom position and sends it through the channel
     #[inline]
     fn make_ir_with_pos(&mut self, pos: Position, sig: TypeSignature, ins: ir::Instruction) {
         let ir = ir::ChannelIr { pos, sig, ins };
-
+        
         if let Err(e) = self.ir_tx.send(Some(ir)) {
             eprintln!(
                 "{}Parser ir send error: {}{}",
@@ -397,7 +397,14 @@ impl<'a> Parser<'a> {
             );
         }
     }
+    
+    /// Makes an IR instruction and sends it through the channel
+    #[inline]
+    fn make_ir(&mut self, sig: TypeSignature, ins: ir::Instruction) {
+        self.make_ir_with_pos(self.previous().pos, sig, ins)
+    }
 
+    /// Makes an error at current position
     #[inline]
     fn make_notice(&mut self, level: NoticeLevel, msg: String) {
         let notice = Notice::new(
@@ -417,8 +424,10 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// For errror recovery, skips until the next 'safe' token
     fn synchronize(&mut self) {}
 
+    /// Creates the parser thread
     pub fn parse(
         name: String,
         source: std::sync::Arc<str>,
@@ -457,10 +466,12 @@ impl<'a> Parser<'a> {
     }
 }
 
+/// A funciton that should never be called that serves as a placeholder in the lookup table
 fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
     unreachable!("Wot, somehow, `nil_func` was called, this shouldn't happen");
 }
 
+/// Parse a module
 fn module<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.make_ir(TypeSignature::None, ir::Instruction::Module(p.name.clone()));
     expression(p)?;
@@ -468,6 +479,7 @@ fn module<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
+/// Parse an expression with a precedence greater than or equal to `precedence`
 fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> {
     p.advance();
 
@@ -500,11 +512,13 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> 
     Ok(())
 }
 
+/// Parse an expression with a precedence greater than Assignment
 #[inline]
 fn expression<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     parse_precedence(p, Prec::Assignment)
 }
 
+/// Parse a literal expression
 fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     match (p.previous().type_, p.previous().data.clone()) {
         (TokenType::Number, TokenData::Integer(n)) => p.make_ir(
@@ -555,6 +569,7 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
+/// Parse a unary expression
 fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let start_pos = p.previous().pos;
     let op_tok = p.previous().type_;
@@ -577,6 +592,7 @@ fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
+/// Parse a binary expression
 fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let start_pos = p.previous().pos;
     let op_tok = p.previous().type_;
@@ -637,6 +653,7 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
+/// Parse a grouping or function (function parsing not implemented yet)
 fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     expression(p)?;
     p.consume(TokenType::RParen, "Expected closing ')'")?;

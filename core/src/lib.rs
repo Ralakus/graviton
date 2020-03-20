@@ -4,8 +4,11 @@ extern crate itertools;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
+/// Coloured printing using ansi color commands
 pub mod ansi;
+/// Ir data types
 pub mod ir;
+/// Type signature data types
 pub mod signature;
 
 /// The amount of spaces a tab is equal to in the terminal

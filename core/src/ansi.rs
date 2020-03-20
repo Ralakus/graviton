@@ -1,3 +1,4 @@
+/// Ansi forground colour, sets the forground colour in ansi enabled terminals
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 pub enum Fg {
@@ -26,6 +27,7 @@ impl std::fmt::Display for Fg {
     }
 }
 
+/// Ansi background colour, sets the background colour in ansi enabled terminals
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 pub enum Bg {

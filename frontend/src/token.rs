@@ -1,5 +1,6 @@
 use super::Position;
 
+/// An enum with the type of token it is, it's not a varient since any data can be attached to any token type
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
 pub enum TokenType {
@@ -62,6 +63,7 @@ pub enum TokenType {
     Eof,
 }
 
+/// A data packet for a token that the lexer attaches to it
 #[derive(Debug, Clone)]
 pub enum TokenData<'a> {
     None,
@@ -71,6 +73,7 @@ pub enum TokenData<'a> {
     String(String),
 }
 
+/// The token struct, contains the token type, any attached data, and the code position it was found
 #[derive(Debug, Clone)]
 pub struct Token<'a> {
     pub type_: TokenType,
@@ -79,12 +82,14 @@ pub struct Token<'a> {
 }
 
 impl<'a> Token<'a> {
+    /// Creates a new token
     pub fn new(type_: TokenType, data: TokenData<'a>, pos: Position) -> Self {
         Token { type_, data, pos }
     }
 }
 
 impl<'a> Default for Token<'a> {
+    /// Default empty token, Eof with no data
     fn default() -> Self {
         Token {
             type_: TokenType::Eof,
