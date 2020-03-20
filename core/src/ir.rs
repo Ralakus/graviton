@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{ansi, signature::TypeSignature};
-
-type SignatureIndex = usize;
+use super::{ansi, signature::TypeSignature, Position};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Module {
@@ -12,8 +10,8 @@ pub struct Module {
     pub instructions: Vec<Instruction>,
     /// The signatures of each ir instruction
     pub signatures: Vec<TypeSignature>,
-    /// The signatures that the IR refrences, like function and struct signatures
-    pub ir_signatures: Vec<TypeSignature>,
+    /// The positions in code of each ir instruction
+    pub positions: Vec<Position>,
 }
 
 impl Module {
@@ -21,18 +19,22 @@ impl Module {
         Self::default()
     }
 
-    pub fn push(&mut self, ins: Instruction) {
+    pub fn push(&mut self, pos: Position, sig: TypeSignature, ins: Instruction) {
+        self.positions.push(pos);
+        self.signatures.push(sig);
         self.instructions.push(ins);
-        self.signatures.push(TypeSignature::Untyped);
-    }
-
-    pub fn push_signature(&mut self, sig: TypeSignature) -> usize {
-        self.ir_signatures.push(sig);
-        self.ir_signatures.len() - 1
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// The ir that is being passed through the channels between each stage
+#[derive(Debug, Clone)]
+pub struct ChannelIr {
+    pub pos: Position,
+    pub sig: TypeSignature,
+    pub ins: Instruction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Instruction {
     Module(String),
     ModuleEnd,
@@ -56,7 +58,7 @@ pub enum Instruction {
     // Declarations
     // --------------------
     //
-    Function(SignatureIndex),
+    Function,
     FunctionParameter(String),
     FunctionEnd,
 
@@ -76,15 +78,15 @@ pub enum Instruction {
     Block,
     BlockEnd,
 
-    Import(SignatureIndex, String),
+    Import(String),
 
-    ExternFn(SignatureIndex),
+    ExternFn,
 
-    Struct(SignatureIndex),
+    Struct,
 
     Call(u8),
 
-    As(SignatureIndex),
+    As,
 
     Identifier(String),
     String(String),
@@ -246,7 +248,7 @@ impl std::fmt::Display for Module {
                     writeln!(f, "{}while end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
 
-                Function(sig_idx) => {
+                Function => {
                     fmt_tab(f, depth)?;
                     depth += 1;
                     writeln!(
@@ -254,7 +256,7 @@ impl std::fmt::Display for Module {
                         "{}function{} {}{}",
                         ansi::Fg::Cyan,
                         ansi::Fg::Red,
-                        self.ir_signatures[*sig_idx],
+                        sig,
                         ansi::Fg::Reset
                     )?;
                 }
@@ -344,7 +346,7 @@ impl std::fmt::Display for Module {
                     writeln!(f, "{}block end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
 
-                Import(sig_idx, name) => {
+                Import(name) => {
                     fmt_tab(f, depth)?;
                     writeln!(
                         f,
@@ -353,31 +355,31 @@ impl std::fmt::Display for Module {
                         ansi::Fg::Yellow,
                         name,
                         ansi::Fg::Red,
-                        self.ir_signatures[*sig_idx],
+                        sig,
                         ansi::Fg::Reset
                     )?;
                 }
 
-                ExternFn(sig_idx) => {
+                ExternFn => {
                     fmt_tab(f, depth)?;
                     writeln!(
                         f,
                         "{}extern fn{} {}{}",
                         ansi::Fg::Cyan,
                         ansi::Fg::Red,
-                        self.ir_signatures[*sig_idx],
+                        sig,
                         ansi::Fg::Reset
                     )?;
                 }
 
-                Struct(sig_idx) => {
+                Struct => {
                     fmt_tab(f, depth)?;
                     writeln!(
                         f,
                         "{}struct{} {}{}",
                         ansi::Fg::Cyan,
                         ansi::Fg::Red,
-                        self.ir_signatures[*sig_idx],
+                        sig,
                         ansi::Fg::Reset
                     )?;
                 }
@@ -394,14 +396,14 @@ impl std::fmt::Display for Module {
                     )?;
                 }
 
-                As(sig_idx) => {
+                As => {
                     fmt_tab(f, depth)?;
                     writeln!(
                         f,
                         "{}as{} {}{}",
                         ansi::Fg::Cyan,
                         ansi::Fg::Red,
-                        self.ir_signatures[*sig_idx],
+                        sig,
                         ansi::Fg::Reset
                     )?;
                 }

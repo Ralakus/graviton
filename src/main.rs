@@ -2,61 +2,46 @@ pub extern crate graviton_backend as backend;
 pub extern crate graviton_core as core;
 pub extern crate graviton_frontend as frontend;
 
-use core::{ir, signature};
+use core::ir;
 
 fn main() {
     let source = "let a = 14 + 48;\n\
-                  let add = (x: I32, y: I32) -> I32 { x + y }";
+                  let add = (x: I32, y: I32) -> I32 { x + y };";
 
     let mut tir = ir::Module::new();
 
-    tir.push(ir::Instruction::Module("main.grav".to_string()));
+    use mpsc::{Receiver, Sender};
+    use std::sync::mpsc;
+    let (ir_tx, ir_rx): (
+        Sender<Option<ir::ChannelIr>>,
+        Receiver<Option<ir::ChannelIr>>,
+    ) = mpsc::channel();
+    let (notice_tx, notice_rx): (Sender<Option<core::Notice>>, Receiver<Option<core::Notice>>) =
+        mpsc::channel();
+    let arc_source: std::sync::Arc<str> = std::sync::Arc::from(&*source);
 
-    tir.push(ir::Instruction::Let("a".to_string()));
+    let parser =
+        frontend::parser::Parser::parse("main.grav".to_string(), arc_source, notice_tx, ir_tx);
 
-    tir.push(ir::Instruction::Integer(14));
-    tir.push(ir::Instruction::Integer(48));
-    tir.push(ir::Instruction::Add);
+    let mut done = false;
 
-    tir.push(ir::Instruction::LetEnd);
-    tir.push(ir::Instruction::Statement);
+    while !done {
+        match ir_rx.try_recv() {
+            Ok(Some(ins)) => tir.push(ins.pos, ins.sig, ins.ins),
+            Ok(None) => done = true,
+            Err(std::sync::mpsc::TryRecvError::Empty) => (),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => (),
+        }
 
-    tir.push(ir::Instruction::Let("add".to_string()));
+        match notice_rx.try_recv() {
+            Ok(Some(notice)) => notice.report(Some(&source)),
+            Ok(None) => (),
+            Err(std::sync::mpsc::TryRecvError::Empty) => (),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => (),
+        }
+    }
 
-    let sig_idx = tir.push_signature(signature::TypeSignature::Function(
-        core::signature::FunctionSignature {
-            parameters: vec![
-                (
-                    false,
-                    signature::TypeSignature::Primitive(signature::PrimitiveType::new("I32")),
-                ),
-                (
-                    false,
-                    signature::TypeSignature::Primitive(signature::PrimitiveType::new("I32")),
-                ),
-            ],
-            return_type_signature: Box::new(core::signature::TypeSignature::Primitive(
-                signature::PrimitiveType::new("I32"),
-            )),
-        },
-    ));
-    tir.push(ir::Instruction::Function(sig_idx));
-    tir.push(ir::Instruction::FunctionParameter("x".to_string()));
-    tir.push(ir::Instruction::FunctionParameter("y".to_string()));
+    parser.join().expect("Error joining parser");
 
-    tir.push(ir::Instruction::Block);
-
-    tir.push(ir::Instruction::Identifier("x".to_string()));
-    tir.push(ir::Instruction::Identifier("y".to_string()));
-    tir.push(ir::Instruction::Add);
-
-    tir.push(ir::Instruction::BlockEnd);
-
-    tir.push(ir::Instruction::FunctionEnd);
-
-    tir.push(ir::Instruction::LetEnd);
-
-    tir.push(ir::Instruction::ModuleEnd);
-
-    println!("{}\n<Parser>\n{}\n<Backend>", source, tir);
+    println!("Source: {}\n\n{}", source, tir);
 }

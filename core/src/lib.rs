@@ -5,7 +5,6 @@ use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
 pub mod ansi;
-pub mod interface;
 pub mod ir;
 pub mod signature;
 
@@ -45,7 +44,7 @@ pub fn locate_in_source(source: &str, pos: Position) -> Option<(usize, Vec<&str>
         .take(7)
         .collect::<Vec<&str>>();
 
-    let error_line = if lines.len() >= 2 { lines[3] } else { lines[0] };
+    let error_line = if lines.len() > 3 { lines[3] } else { lines[0] };
 
     // Gets the amount of tabs before the column position for proper squiggly length
     let tab_count = error_line
@@ -132,7 +131,7 @@ impl Notice {
                         line
                     );
 
-                    if i == 3 {
+                    if i == if lines.len() < 3 { 0 } else { 3 } {
                         println!("\t{}{}", "--|~".color(colour), squiggly.color(colour));
                     }
                 });

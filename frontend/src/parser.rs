@@ -2,13 +2,16 @@
 
 use super::{
     ir,
-    signature::{FunctionSignature, TypeSignature},
+    signature::{TypeSignature},
     {
         lexer::Lexer,
         token::{Token, TokenData, TokenType},
         Notice, NoticeLevel, Position,
     },
 };
+
+use mpsc::Sender;
+use std::{sync::mpsc, thread};
 
 #[repr(u8)]
 #[derive(Clone, Copy, Eq, PartialEq, PartialOrd)]
@@ -280,25 +283,31 @@ const CURRENT: usize = 1;
 
 /// The parser struct, contains all of the data necessary to parse
 pub struct Parser<'a> {
-    /// Contains the notices that arise during compilation
-    notices: Vec<Notice>,
+    /// Name of the current module being parsed
+    name: String,
 
     /// Lexer
     lex: Lexer<'a>,
 
-    /// Reference to the ir it's generating
-    ir: &'a ir::Module,
+    notice_tx: Sender<Option<Notice>>,
+    ir_tx: Sender<Option<ir::ChannelIr>>,
 
     /// Token stack, 0 is previous, 1 is the current token, 2 is the first look ahead, 3 is the second look ahead
     tokens: [Token<'a>; 4],
 }
 
 impl<'a> Parser<'a> {
-    fn new(source: &'a str, ir: &'a mut ir::Module) -> Self {
+    fn new(
+        name: String,
+        source: &'a str,
+        notice_tx: Sender<Option<Notice>>,
+        ir_tx: Sender<Option<ir::ChannelIr>>,
+    ) -> Self {
         Parser {
-            notices: Vec::new(),
+            name,
             lex: Lexer::new(source),
-            ir,
+            notice_tx,
+            ir_tx,
             tokens: [
                 Token::default(),
                 Token::default(),
@@ -359,29 +368,79 @@ impl<'a> Parser<'a> {
     }
 
     #[inline]
+    fn make_ir(&mut self, sig: TypeSignature, ins: ir::Instruction) {
+        let ir = ir::ChannelIr {
+            pos: self.previous().pos,
+            sig,
+            ins,
+        };
+
+        if let Err(e) = self.ir_tx.send(Some(ir)) {
+            eprintln!(
+                "{}Parser ir send error: {}{}",
+                core::ansi::Fg::BrightRed,
+                e,
+                core::ansi::Fg::Reset
+            );
+        }
+    }
+
+    #[inline]
     fn make_notice(&mut self, level: NoticeLevel, msg: String) {
-        self.notices.push(Notice::new(
+        let notice = Notice::new(
             "Parser".to_string(),
             msg,
             self.previous().pos,
             "".to_string(),
             level,
-        ));
+        );
+        if let Err(e) = self.notice_tx.send(Some(notice)) {
+            eprintln!(
+                "{}Parser notice send error: {}{}",
+                core::ansi::Fg::BrightRed,
+                e,
+                core::ansi::Fg::Reset
+            );
+        }
     }
 
     fn synchronize(&mut self) {}
 
-    fn parse(source: &'a str) -> Result<(ir::Module, Vec<Notice>), (ir::Module, Vec<Notice>)> {
-        let mut ir = ir::Module::new();
-        let mut p = Parser::new(source, &mut ir);
+    pub fn parse(
+        name: String,
+        source: std::sync::Arc<str>,
+        notice_tx: Sender<Option<Notice>>,
+        ir_tx: Sender<Option<ir::ChannelIr>>,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            let source_arc = source.clone();
+            let mut p = Parser::new(name, &*source_arc, notice_tx, ir_tx);
 
-        while !p.check(TokenType::Eof) {
-            p.advance();
-        }
+            // Fill the look ahead with tokens
+            while p.check(TokenType::Eof) {
+                p.advance();
+            }
 
-        let notices = p.notices;
+            if module(&mut p).is_ok() {}
 
-        Ok((ir, notices))
+            if let Err(e) = p.ir_tx.send(None) {
+                eprintln!(
+                    "{}Parser ir send error: {}{}",
+                    core::ansi::Fg::BrightRed,
+                    e,
+                    core::ansi::Fg::Reset
+                );
+            }
+
+            if let Err(e) = p.notice_tx.send(None) {
+                eprintln!(
+                    "{}Parser notice send error: {}{}",
+                    core::ansi::Fg::BrightRed,
+                    e,
+                    core::ansi::Fg::Reset
+                );
+            }
+        })
     }
 }
 
@@ -389,7 +448,9 @@ fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
     unreachable!("Wot, somehow, `nil_func` was called, this shouldn't happen");
 }
 
-fn module<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
+fn module<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+    p.make_ir(TypeSignature::None, ir::Instruction::Module(p.name.clone()));
+    p.make_ir(TypeSignature::None, ir::Instruction::ModuleEnd);
     Ok(())
 }
 
@@ -422,6 +483,15 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> 
         }
     }
 
+    Ok(())
+}
+
+#[inline]
+fn expression<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+    parse_precedence(p, Prec::Assignment)
+}
+
+fn literal<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 

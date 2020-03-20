@@ -17,7 +17,7 @@ exclude = [
 travis-ci = { repository = "Ralakus/graviton" }
 
 [workspace]
-members = ["core", "ast", "frontend", "backend"]
+members = ["core", "frontend", "backend"]
 
 [dependencies]
 graviton_core     = { path = "core",     version = "0.7.0" }
