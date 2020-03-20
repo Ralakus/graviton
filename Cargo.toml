@@ -14,7 +14,7 @@ exclude = [
 ]
 
 [badges]
-travis-ci = { repository = "Ralakus/graviton" }
+travis-ci = { repository = "Ralakus/graviton", branch = "stable" }
 
 [workspace]
 members = ["core", "frontend", "backend"]
