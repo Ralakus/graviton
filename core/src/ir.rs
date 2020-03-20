@@ -86,12 +86,12 @@ pub enum Instruction {
     /// Return end, closes a return statement
     ReturnEnd,
 
-    /// Let opening, declares an immutable variable with name (String), expects expression ir for assignment afterwards, no assignment if empty 
+    /// Let opening, declares an immutable variable with name (String), expects expression ir for assignment afterwards, no assignment if empty
     Let(String),
     /// Let end, closes a let statement
     LetEnd,
 
-    /// Let mut opening, declares a mutable variable with name (String), expects expression ir for assignment afterwards, no assignment if empty 
+    /// Let mut opening, declares a mutable variable with name (String), expects expression ir for assignment afterwards, no assignment if empty
     LetMut(String),
     /// Let mut end, closes a let mut statement
     LetMutEnd,

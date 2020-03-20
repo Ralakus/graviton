@@ -1,7 +1,3 @@
-#[macro_use]
-extern crate itertools;
-
-use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
 /// Coloured printing using ansi color commands
@@ -110,32 +106,34 @@ impl Notice {
     /// Prints out source location of error if it's provided
     pub fn report(self, source: Option<&str>) {
         let (colour, prefix) = match self.level {
-            NoticeLevel::Notice => ("cyan", "[-]: ".color("cyan")),
-            NoticeLevel::Warning => ("yellow", "[*]: ".color("yellow")),
-            NoticeLevel::Error => ("red", "[!]: ".color("red")),
+            NoticeLevel::Notice => (ansi::Fg::Cyan, "[-]: "),
+            NoticeLevel::Warning => (ansi::Fg::Yellow, "[*]: "),
+            NoticeLevel::Error => (ansi::Fg::Red, "[!]: "),
         };
 
-        println!("{}{}: {}", prefix, self.from.color(colour), self.msg);
         println!(
-            "\tat {}{}:{}:{}{}\n",
-            "[".bold(),
-            self.file,
-            self.pos.line,
-            self.pos.col,
-            "]".bold()
+            "{}{}{}{}: {}",
+            colour,
+            prefix,
+            self.from,
+            ansi::Fg::Reset,
+            self.msg
         );
+        println!("\tat [{}:{}:{}]\n", self.file, self.pos.line, self.pos.col,);
 
         if let Some(src) = source {
             if let Some((start_line, lines, squiggly)) = locate_in_source(src, self.pos) {
                 lines.iter().enumerate().for_each(|(i, line)| {
                     println!(
-                        "\t{} | {}",
-                        (start_line + i).to_string().color(colour),
+                        "\t{}{}{} | {}",
+                        colour,
+                        start_line + i,
+                        ansi::Fg::Reset,
                         line
                     );
 
                     if i == if lines.len() < 3 { 0 } else { 3 } {
-                        println!("\t{}{}", "--|~".color(colour), squiggly.color(colour));
+                        println!("\t{}--|~{}{}", colour, squiggly, ansi::Fg::Reset);
                     }
                 });
 

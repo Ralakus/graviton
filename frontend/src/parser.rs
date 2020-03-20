@@ -362,7 +362,6 @@ impl<'a> Parser<'a> {
         self.current().type_ == type_
     }
 
-
     /// If the current token matches `type_`, advance, otherwise return an error
     #[inline]
     fn consume(&mut self, type_: TokenType, err_msg: &'static str) -> Result<(), ()> {
@@ -382,12 +381,12 @@ impl<'a> Parser<'a> {
             Err(())
         }
     }
-    
+
     /// Makes an IR instruction with a custom position and sends it through the channel
     #[inline]
     fn make_ir_with_pos(&mut self, pos: Position, sig: TypeSignature, ins: ir::Instruction) {
         let ir = ir::ChannelIr { pos, sig, ins };
-        
+
         if let Err(e) = self.ir_tx.send(Some(ir)) {
             eprintln!(
                 "{}Parser ir send error: {}{}",
@@ -397,7 +396,7 @@ impl<'a> Parser<'a> {
             );
         }
     }
-    
+
     /// Makes an IR instruction and sends it through the channel
     #[inline]
     fn make_ir(&mut self, sig: TypeSignature, ins: ir::Instruction) {
@@ -563,7 +562,7 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 "Unreachable branch in `unary` parse function".to_string(),
             );
             return Err(());
-        },
+        }
     }
 
     Ok(())
