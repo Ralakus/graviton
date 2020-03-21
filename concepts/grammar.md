@@ -60,9 +60,11 @@ if -> "if" expression expression ("else" "if" expression expression)* ("else" ex
 
 loop -> "while" expression expression
       | "loop" expression
+      ;
     
 loop_control -> "break" expression?
               | "continue"
+              ;
 
 fn -> "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type ;
 
