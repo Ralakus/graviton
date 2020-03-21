@@ -35,17 +35,17 @@ unary -> "-" expression
        | "!" expression
        ;
 
-binary -> "+"  expression
-        | "-"  expression
-        | "*"  expression
-        | "/"  expression
-        | "<"  expression
-        | "<=" expression
-        | ">"  expression
-        | ">=" expression
-        | "==" expression
-        | "!=" expression
-        | "="  expression
+binary -> expression "+"  expression
+        | expression "-"  expression
+        | expression "*"  expression
+        | expression "/"  expression
+        | expression "<"  expression
+        | expression "<=" expression
+        | expression ">"  expression
+        | expression ">=" expression
+        | expression "==" expression
+        | expression "!=" expression
+        | expression "="  expression
         ;
 
 grouping -> "(" expression ")" ;
