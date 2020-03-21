@@ -5,18 +5,27 @@
 `?`  -> optional  
 `|`  -> or  
 
-# Module level
+# Module
 ```
-module -> (module_level_thingies | statement)*
+module -> (declaration | statement)* ;
+```
 
-module_level_thingies -> "module" IDENTIFIER ("." IDENTIFIER)* ;
+# Declaration
+```
+visibility -> "pub" ;
+
+declaration -> visibility? (module_declaration) ;
+
+module_declaration -> "module" IDENTIFIER ("." IDENTIFIER)* ;
 ```
 
 # Statements
 ```
 statement -> let
-           | expression ";"
+           | expression_statement
            ;
+
+expression_statement -> expression ";" ;
 
 let -> "let" IDENTIFIER (":" type)? ("=" expression)? ;
 ```
@@ -89,5 +98,17 @@ fn -> "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type ;
 
 # Types
 ```
-TODO
+type -> primitive ;
+
+primitive -> "I8"
+           | "I16"
+           | "I32"
+           | "I64"
+           | "U8"
+           | "U16"
+           | "U32"
+           | "U64"
+           | "Bool"
+           | "Str"
+           ;
 ```
