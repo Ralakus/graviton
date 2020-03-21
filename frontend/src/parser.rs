@@ -158,11 +158,6 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
         prefix: nil_func,
         infix: nil_func,
         precedence: Prec::None,
-    }, // TokenType::ColonColon
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
     }, // TokenType::RArrow
     ParseRule {
         prefix: literal,
