@@ -16,8 +16,10 @@ fn main() {
         Sender<Option<ir::ChannelIr>>,
         Receiver<Option<ir::ChannelIr>>,
     ) = mpsc::channel();
+
     let (notice_tx, notice_rx): (Sender<Option<Notice>>, Receiver<Option<Notice>>) =
         mpsc::channel();
+
     let arc_source: std::sync::Arc<str> = std::sync::Arc::from(source);
 
     let parser = Parser::parse("main.grav".to_string(), arc_source, notice_tx, ir_tx);

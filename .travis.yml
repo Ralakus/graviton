@@ -1,7 +1,7 @@
 
 language: rust
 rust:
-  - nightly
+  - beta
 
 before_install:
   - rustup component add rustfmt

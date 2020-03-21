@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": [ "test/14.grav", "-d=3" ],
+            "args": [],
             "cwd": "${workspaceFolder}",
             "terminal": "integrated"
         },
@@ -39,7 +39,7 @@
                     "kind": "bin"
                 }
             },
-            "args": [ "repl" ],
+            "args": [],
             "cwd": "${workspaceFolder}",
             "terminal": "integrated"
         }

@@ -30,6 +30,7 @@ pub enum TokenType {
     LessEqual,
 
     Colon,
+    ColonColon,
     RArrow,
 
     Identifier,
