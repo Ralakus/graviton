@@ -10,7 +10,7 @@
 module -> (declaration | statement)* ;
 ```
 
-# Declaration
+# Declarations
 ```
 visibility -> "pub" ;
 
