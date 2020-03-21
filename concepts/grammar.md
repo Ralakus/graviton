@@ -1,10 +1,28 @@
+# Grammar 
+## Format
 `()` -> is a grouping  
 `*`  -> means can repeat 0 or more times  
 `?`  -> optional  
 `|`  -> or  
 
+# Module level
+```
+module -> (module_level_thingies | statement)*
+
+module_level_thingies -> "module" IDENTIFIER ("." IDENTIFIER)* ;
 ```
 
+# Statements
+```
+statement -> let
+           | expression ";"
+           ;
+
+let -> "let" IDENTIFIER (":" type)? ("=" expression)? ;
+```
+
+# Expressions
+```
 expression -> literal
             | identifier
             | block
@@ -50,7 +68,7 @@ binary -> expression "+"  expression
 
 grouping -> "(" expression ")" ;
 
-struct -> "struct" "{" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? "}" ;
+struct -> "struct" "{" (visibility? IDENTIFIER ":" type ",")* (visibility? IDENTIFIER ":" type)? "}" ;
 
 call -> expression "(" (expression ",")* (expression)? ")" ;
 
@@ -61,11 +79,15 @@ if -> "if" expression expression ("else" "if" expression expression)* ("else" ex
 loop -> "while" expression expression
       | "loop" expression
       ;
-    
+
 loop_control -> "break" expression?
               | "continue"
               ;
 
 fn -> "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type ;
+```
 
+# Types
+```
+TODO
 ```

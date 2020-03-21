@@ -410,7 +410,7 @@ impl<'a> Parser<'a> {
             "Parser".to_string(),
             msg,
             self.previous().pos,
-            "".to_string(),
+            self.name.clone(),
             level,
         );
         if let Err(e) = self.notice_tx.send(Some(notice)) {

@@ -142,7 +142,7 @@ impl Notice {
                         } else {
                             self.pos.line as usize - 1
                         } {
-                            println!("\t{}--|~{}{}", colour, squiggly, ansi::Fg::Reset);
+                            println!("\t{}- | {}{}", colour, squiggly, ansi::Fg::Reset);
                         }
                     });
 
