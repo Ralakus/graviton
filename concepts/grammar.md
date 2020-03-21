@@ -1,9 +1,9 @@
-```
+`()` -> is a grouping  
+`*`  -> means can repeat 0 or more times  
+`?`  -> optional  
+`|`  -> or  
 
-// () -> is a grouping
-// *  -> means can repeat 0 or more times
-// ?  -> optional
-// |  -> or
+```
 
 expression -> literal
             | identifier
