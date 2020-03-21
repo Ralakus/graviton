@@ -1,3 +1,4 @@
+```
 
 // () -> is a grouping
 // *  -> means can repeat 0 or more times
@@ -64,3 +65,5 @@ loop_control -> "break" expression?
               | "continue"
 
 fn -> "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type ;
+
+```
