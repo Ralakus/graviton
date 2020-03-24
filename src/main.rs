@@ -8,7 +8,11 @@ use std::sync::mpsc;
 fn main() {
     let _source_old = "let a = 14 + 48;\n\
                   let add = (x: I32, y: I32) -> I32 { x + y };";
-    let source = "let x = 5; x(5);\nlet z = { let y = (x: I32, y: I32) -> I32 { x + y }; y(x) } as F64;\nif z >= 5.0 { 14 } else { 48 };\nlet loop_result = loop{ let x = 5; break x; }; let pair = struct { pub x: F64, pub y: I32, };";
+    let _source_not_as_old = "let x = 5; x(5);\nlet z = { let y = (x: I32, y: I32) -> I32 { x + y }; y(x) } as F64;\nif z >= 5.0 { 14 } else { 48 };\nlet loop_result = loop{ let x = 5; break x; }; let pair = struct { pub x: F64, pub y: I32, };";
+
+    let source = "let x = if 1 + 1 == 2 14 else 48;";
+
+    println!("Source:\n\n{}\n", source);
 
     let mut tir = ir::Module::new();
 
@@ -50,5 +54,5 @@ fn main() {
 
     parser.join().expect("Error joining parser thread");
 
-    println!("Source:\n\n{}\n\n{}", source, tir);
+    println!("\n{}", tir);
 }
