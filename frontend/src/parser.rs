@@ -363,13 +363,8 @@ impl<'a> Parser<'a> {
     /// Advances the lexer to the next token
     #[inline]
     fn advance(&mut self) {
-        unsafe {
-            std::ptr::copy(
-                self.tokens.as_mut_ptr().offset(1),
-                self.tokens.as_mut_ptr(),
-                2,
-            );
-        }
+        self.tokens[0] = self.tokens[1].clone();
+        self.tokens[1] = self.tokens[2].clone();
 
         if let Some(tok) = self.lex.next() {
             self.tokens[2] = tok;
