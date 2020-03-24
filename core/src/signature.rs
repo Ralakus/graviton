@@ -74,8 +74,8 @@ pub struct StructSignature {
 /// Stores a functions name, parameters, and return type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionSignature {
-    /// Mutability (bool) and type signature of each parameter
-    pub parameters: Vec<(bool, TypeSignature)>,
+    ///Type signature of each parameter
+    pub parameters: Vec<TypeSignature>,
     /// Type of the return value
     pub return_type_signature: Box<TypeSignature>,
 }
@@ -112,7 +112,7 @@ impl Display for StructSignature {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "struct {{ ")?;
         for field in &self.fields {
-            write!(f, "{}{}, ", if field.0 { "mut " } else { "" }, field.1)?;
+            write!(f, "{}{}, ", if field.0 { "pub " } else { "" }, field.1)?;
         }
         write!(f, "}}")
     }
@@ -124,9 +124,8 @@ impl Display for FunctionSignature {
         for parameter in &self.parameters {
             write!(
                 f,
-                "{}{}, ",
-                if parameter.0 { "mut " } else { "" },
-                parameter.1
+                "{}, ",
+                parameter
             )?;
         }
         write!(f, ") -> {}", self.return_type_signature)

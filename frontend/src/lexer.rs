@@ -19,12 +19,15 @@ lazy_static! {
         m.insert("import", TokenType::KwImport);
         m.insert("extern", TokenType::KwExtern);
         m.insert("mut", TokenType::KwMut);
+        m.insert("pub", TokenType::KwPub);
 
         m.insert("if", TokenType::KwIf);
         m.insert("else", TokenType::KwElse);
+        m.insert("loop", TokenType::KwLoop);
         m.insert("while", TokenType::KwWhile);
         m.insert("for", TokenType::KwFor);
         m.insert("break", TokenType::KwBreak);
+        m.insert("continue", TokenType::KwContinue);
 
         m.insert("true", TokenType::KwTrue);
         m.insert("false", TokenType::KwFalse);

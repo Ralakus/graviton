@@ -46,12 +46,15 @@ pub enum TokenType {
     KwLet,
     KwExtern,
     KwMut,
+    KwPub,
 
     KwIf,
     KwElse,
+    KwLoop,
     KwWhile,
     KwFor,
     KwBreak,
+    KwContinue,
 
     KwTrue,
     KwFalse,

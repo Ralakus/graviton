@@ -70,6 +70,18 @@ pub enum Instruction {
     /// While end, closes a full while expression
     WhileEnd,
 
+
+    /// Loop opening, expects block afterwards
+    Loop,
+    /// Loop closing, closes a loop
+    LoopEnd,
+
+    /// Break expression
+    Break,
+
+    /// Continue expression
+    Continue,
+    
     // --------------------
     // Declarations
     // --------------------
@@ -113,8 +125,10 @@ pub enum Instruction {
 
     /// Defines a struct, expects field name ir afterwards
     Struct,
-    /// Names a struct field fron struct signature
+    /// Names a struct field from struct signature
     StructField(String),
+    /// Names a public struct field from struct signature
+    StructFieldPublic(String),
     /// Closes a struct
     StructEnd,
 
@@ -123,6 +137,9 @@ pub enum Instruction {
 
     /// Cast expression to type
     As,
+
+    /// Accesses a field from an expression
+    FieldAccess(String),
 
     /// Identifier value (String)
     Identifier(String),
@@ -289,6 +306,28 @@ impl std::fmt::Display for Module {
                     writeln!(f, "{}while end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
 
+                Loop => {
+                    fmt_tab(f, depth)?;
+                    depth += 1;
+                    writeln!(f, "{}loop{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                }
+
+                LoopEnd => {
+                    depth -= 1;
+                    fmt_tab(f, depth)?;
+                    writeln!(f, "{}loop end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                }
+
+                Break => {
+                    fmt_tab(f, depth)?;
+                    writeln!(f, "{}break{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                }
+
+                Continue => {
+                    fmt_tab(f, depth)?;
+                    writeln!(f, "{}continue{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                }
+
                 Function => {
                     fmt_tab(f, depth)?;
                     depth += 1;
@@ -427,6 +466,7 @@ impl std::fmt::Display for Module {
                 }
 
                 StructField(name) => {
+                    fmt_tab(f, depth)?;
                     writeln!(
                         f,
                         "{}struct field {}{} {}{}{}",
@@ -439,10 +479,31 @@ impl std::fmt::Display for Module {
                     )?;
                 }
 
+                StructFieldPublic(name) => {
+                    fmt_tab(f, depth)?;
+                    writeln!(
+                        f,
+                        "{}struct public field {}{} {}{}{}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
+                        name,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
+                }
+
                 StructEnd => {
                     depth -= 1;
                     fmt_tab(f, depth)?;
-                    writeln!(f, "{}struct end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                    writeln!(
+                        f,
+                        "{}struct end{} {}{}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
                 }
 
                 Call(arg_count) => {
@@ -466,6 +527,18 @@ impl std::fmt::Display for Module {
                         ansi::Fg::Red,
                         sig,
                         ansi::Fg::Reset
+                    )?;
+                }
+
+                FieldAccess(name) => {
+                    fmt_tab(f, depth)?;
+                    writeln!(
+                        f,
+                        "{}field access{} {}{}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
+                        name,
+                        ansi::Fg::Reset,
                     )?;
                 }
 

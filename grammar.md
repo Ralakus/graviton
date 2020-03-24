@@ -27,7 +27,9 @@ statement -> let
 
 expression_statement -> expression ";" ;
 
-let -> "let" IDENTIFIER (":" type)? ("=" expression)? ;
+mutability -> "mut" ;
+
+let -> "let" mutability? IDENTIFIER (":" type)? ("=" expression)? ";" ;
 ```
 
 # Expressions
@@ -45,6 +47,7 @@ expression -> literal
             | loop
             | loop_control
             | fn
+            | as
             ;
 
 literal -> STRING
@@ -83,17 +86,19 @@ call -> expression "(" (expression ",")* (expression)? ")" ;
 
 field_access -> expression "." IDENTIFIER ;
 
-if -> "if" expression expression ("else" "if" expression expression)* ("else" expression)? ;
+if -> "if" expression block ("else" "if" expression block)* ("else" block)? ;
 
-loop -> "while" expression expression
-      | "loop" expression
+loop -> "while" expression block
+      | "loop" block
       ;
 
 loop_control -> "break" expression?
               | "continue"
               ;
+      
+fn -> "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type block ;
 
-fn -> "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type ;
+as -> expression "as" type ;
 ```
 
 # Types
