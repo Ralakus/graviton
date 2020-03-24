@@ -489,7 +489,11 @@ impl<'a> Parser<'a> {
         {
             self.advance();
         }
-        if tokens.iter().filter(|t| CLOSING_TOKENS.contains(t)).count() >= 1
+        if tokens
+            .iter()
+            .filter(|t| CLOSING_TOKENS.contains(t) && self.check(**t))
+            .count()
+            == 1
             || self.current().type_ == TokenType::RCurly
         {
             self.advance();
