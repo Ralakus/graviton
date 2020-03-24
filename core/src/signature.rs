@@ -122,11 +122,7 @@ impl Display for FunctionSignature {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "fn ( ")?;
         for parameter in &self.parameters {
-            write!(
-                f,
-                "{}, ",
-                parameter
-            )?;
+            write!(f, "{}, ", parameter)?;
         }
         write!(f, ") -> {}", self.return_type_signature)
     }

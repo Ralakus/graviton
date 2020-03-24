@@ -70,7 +70,6 @@ pub enum Instruction {
     /// While end, closes a full while expression
     WhileEnd,
 
-
     /// Loop opening, expects block afterwards
     Loop,
     /// Loop closing, closes a loop
@@ -81,7 +80,7 @@ pub enum Instruction {
 
     /// Continue expression
     Continue,
-    
+
     // --------------------
     // Declarations
     // --------------------

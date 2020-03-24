@@ -1,6 +1,6 @@
 use super::{
     ir::{ChannelIr, Instruction},
-    signature::{PrimitiveType, StructSignature, TypeSignature, FunctionSignature},
+    signature::{FunctionSignature, PrimitiveType, StructSignature, TypeSignature},
     {
         lexer::Lexer,
         token::{Token, TokenData, TokenType},
@@ -342,11 +342,7 @@ impl<'a> Parser<'a> {
             lex: Lexer::new(source),
             notice_tx,
             ir_tx,
-            tokens: [
-                Token::default(),
-                Token::default(),
-                Token::default(),
-            ],
+            tokens: [Token::default(), Token::default(), Token::default()],
             loop_stack: Vec::with_capacity(8),
         }
     }
@@ -561,12 +557,21 @@ fn statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    p.consume(TokenType::KwLet, "Expected keyword `let` for opening a let statement")?;
+    p.consume(
+        TokenType::KwLet,
+        "Expected keyword `let` for opening a let statement",
+    )?;
     let mutable = p.check_consume(TokenType::KwMut);
-    let name = match p.consume(TokenType::Identifier, "Expected identifier for let statement")? {
-        TokenData::Str(s) => s.to_string(),
+    let name = match p.consume(
+        TokenType::Identifier,
+        "Expected identifier for let statement",
+    )? {
+        TokenData::Str(s) => (*s).to_string(),
         _ => {
-            p.emit_notice_previous(NoticeLevel::Error, "Failed to extract string data from identifier token".to_string());
+            p.emit_notice_previous(
+                NoticeLevel::Error,
+                "Failed to extract string data from identifier token".to_string(),
+            );
             return Err(());
         }
     };
@@ -578,15 +583,19 @@ fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     };
 
     if mutable {
-        p.emit_ir_previous(signature, Instruction::LetMut(name.to_string()));
+        p.emit_ir_previous(signature, Instruction::LetMut(name));
     } else {
-        p.emit_ir_previous(signature, Instruction::Let(name.to_string()));
+        p.emit_ir_previous(signature, Instruction::Let(name));
     }
 
     if p.check_consume(TokenType::Equal) {
         expression(p)?;
     } else if is_untyped {
-        p.emit_notice_previous(NoticeLevel::Error, "Let statement must have an explicit type if a value isn't assigned on declaration".to_string());
+        p.emit_notice_previous(
+            NoticeLevel::Error,
+            "Let statement must have an explicit type if a value isn't assigned on declaration"
+                .to_string(),
+        );
     }
 
     p.consume(
@@ -785,18 +794,29 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 /// Parse a grouping or function (function parsing not implemented yet)
 fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let start_pos = p.current().pos;
-    p.consume(TokenType::LParen, "Expected opening `(` for function/grouping")?;
+    p.consume(
+        TokenType::LParen,
+        "Expected opening `(` for function/grouping",
+    )?;
 
-    let is_function = p.lookahead().type_ == TokenType::Colon || (p.check(TokenType::RParen) && p.lookahead().type_ == TokenType::RArrow);
+    let is_function = p.lookahead().type_ == TokenType::Colon
+        || (p.check(TokenType::RParen) && p.lookahead().type_ == TokenType::RArrow);
 
     if is_function {
-        let (mut params_sigs, mut param_names): (Vec<TypeSignature>, Vec<String>) = (Vec::new(), Vec::new());
+        let (mut params_sigs, mut param_names): (Vec<TypeSignature>, Vec<String>) =
+            (Vec::new(), Vec::new());
         while !p.check_consume(TokenType::RParen) {
             let param_pos = p.current().pos;
-            let name = match p.consume(TokenType::Identifier, "Expected identifier for function parameter")? {
-                TokenData::Str(s) => s.to_string(),
+            let name = match p.consume(
+                TokenType::Identifier,
+                "Expected identifier for function parameter",
+            )? {
+                TokenData::Str(s) => (*s).to_string(),
                 _ => {
-                    p.emit_notice_previous(NoticeLevel::Error, "Failed to extract string data from identifier token".to_string());
+                    p.emit_notice_previous(
+                        NoticeLevel::Error,
+                        "Failed to extract string data from identifier token".to_string(),
+                    );
                     return Err(());
                 }
             };
@@ -807,24 +827,35 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
             params_sigs.push(type_(p)?);
 
-            if !p.check_consume(TokenType::Comma) {
-                if !p.check(TokenType::RParen) {
-                    p.emit_notice(param_pos, NoticeLevel::Error, "Must have a comma `,` after every parameter in the function declaration unless it's the last parameter".to_string());
-                    return Err(());
-                }
+            if !p.check_consume(TokenType::Comma) && !p.check(TokenType::RParen) {
+                p.emit_notice(param_pos, NoticeLevel::Error, "Must have a comma `,` after every parameter in the function declaration unless it's the last parameter".to_string());
+                return Err(());
             }
         }
 
-        p.consume(TokenType::RArrow, "Expect `->` after function parameters then return type")?;
+        p.consume(
+            TokenType::RArrow,
+            "Expect `->` after function parameters then return type",
+        )?;
 
         let return_type = type_(p)?;
 
-        p.emit_ir(start_pos, TypeSignature::Function(FunctionSignature {
-            parameters: params_sigs,
-            return_type_signature: Box::new(return_type)
-        }), Instruction::Function);
+        p.emit_ir(
+            start_pos,
+            TypeSignature::Function(FunctionSignature {
+                parameters: params_sigs,
+                return_type_signature: Box::new(return_type),
+            }),
+            Instruction::Function,
+        );
 
-        param_names.iter().for_each(|name| p.emit_ir(start_pos, TypeSignature::Untyped, Instruction::FunctionParameter(name.clone())));
+        param_names.iter().for_each(|name| {
+            p.emit_ir(
+                start_pos,
+                TypeSignature::Untyped,
+                Instruction::FunctionParameter(name.clone()),
+            )
+        });
 
         block(p)?;
         p.emit_ir_previous(TypeSignature::Untyped, Instruction::FunctionEnd);
@@ -837,7 +868,10 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    p.consume(TokenType::LCurly, "Expected opening `{` for block expression")?;
+    p.consume(
+        TokenType::LCurly,
+        "Expected opening `{` for block expression",
+    )?;
     p.emit_ir_previous(TypeSignature::Untyped, Instruction::Block);
     while !p.check_consume(TokenType::RCurly) {
         let start_pos = p.current().pos;
@@ -848,11 +882,9 @@ fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
             if p.check_consume(TokenType::Semicolon) {
                 p.emit_ir_previous(TypeSignature::Untyped, Instruction::Statement);
-            } else {
-                if !p.check(TokenType::RCurly) {
-                    p.emit_notice(start_pos, NoticeLevel::Error, "Only the last element in a block can be an expression, all the rest must be statements and end with a `;`".to_string());
-                    return Err(());
-                }
+            } else if !p.check(TokenType::RCurly) {
+                p.emit_notice(start_pos, NoticeLevel::Error, "Only the last element in a block can be an expression, all the rest must be statements and end with a `;`".to_string());
+                return Err(());
             }
         }
     }
@@ -863,7 +895,10 @@ fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    p.consume(TokenType::KwStruct, "Expected keyword `struct` for struct expression")?;
+    p.consume(
+        TokenType::KwStruct,
+        "Expected keyword `struct` for struct expression",
+    )?;
 
     let start_pos = p.current().pos;
 
@@ -877,7 +912,7 @@ fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         let element_pos = p.current().pos;
         let is_public = p.check_consume(TokenType::KwPub);
         let name = match p.consume(TokenType::Identifier, "Expected a struct field name")? {
-            TokenData::Str(s) => s.to_string(),
+            TokenData::Str(s) => (*s).to_string(),
             _ => {
                 p.emit_notice_previous(
                     NoticeLevel::Error,
@@ -894,11 +929,14 @@ fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
         p.emit_ir(element_pos, signature, Instruction::StructField(name));
 
-        if !p.check_consume(TokenType::Comma) {
-            if !p.check(TokenType::RCurly) {
-                p.emit_notice(element_pos, NoticeLevel::Error, "Must have a comma `,` after every field in the struct unless it's the last field".to_string());
-                return Err(());
-            }
+        if !p.check_consume(TokenType::Comma) && !p.check(TokenType::RCurly) {
+            p.emit_notice(
+                element_pos,
+                NoticeLevel::Error,
+                "Must have a comma `,` after every field in the struct unless it's the last field"
+                    .to_string(),
+            );
+            return Err(());
         }
     }
 
@@ -913,25 +951,36 @@ fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 fn call<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    p.consume(TokenType::LParen, "Expected `(` for call expression opening")?;
+    p.consume(
+        TokenType::LParen,
+        "Expected `(` for call expression opening",
+    )?;
     let start_pos = p.current().pos;
     let mut arg_count = 0;
     while !p.check_consume(TokenType::RParen) {
         expression(p)?;
-        if !p.check_consume(TokenType::Comma) {
-            if !p.check(TokenType::RParen) {
-                p.emit_notice_previous(NoticeLevel::Error, "Expected a `,` in between call expressions".to_string());
-                return Err(())
-            }
+        if !p.check_consume(TokenType::Comma) && !p.check(TokenType::RParen) {
+            p.emit_notice_previous(
+                NoticeLevel::Error,
+                "Expected a `,` in between call expressions".to_string(),
+            );
+            return Err(());
         }
         arg_count += 1;
     }
-    p.emit_ir(start_pos, TypeSignature::Untyped, Instruction::Call(arg_count));
+    p.emit_ir(
+        start_pos,
+        TypeSignature::Untyped,
+        Instruction::Call(arg_count),
+    );
     Ok(())
 }
 
 fn if_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    p.consume(TokenType::KwIf, "Expected keyword `if` for opening an if expression")?;
+    p.consume(
+        TokenType::KwIf,
+        "Expected keyword `if` for opening an if expression",
+    )?;
 
     p.emit_ir_previous(TypeSignature::Untyped, Instruction::If);
     expression(p)?;
@@ -956,10 +1005,16 @@ fn if_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
 fn field_access<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.consume(TokenType::Dot, "Expected `.` for field access expression")?;
-    let name = match p.consume(TokenType::Identifier, "Expected identifier after field access")? {
-        TokenData::Str(s) => s.to_string(),
+    let name = match p.consume(
+        TokenType::Identifier,
+        "Expected identifier after field access",
+    )? {
+        TokenData::Str(s) => (*s).to_string(),
         _ => {
-            p.emit_notice_previous(NoticeLevel::Error, "Failed to extract string data from identifier token".to_string());
+            p.emit_notice_previous(
+                NoticeLevel::Error,
+                "Failed to extract string data from identifier token".to_string(),
+            );
             return Err(());
         }
     };
@@ -980,19 +1035,34 @@ fn as_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    p.consume(TokenType::KwWhile, "Expected keyword `while` for opening a while loop")?;
-    p.emit_ir_previous(TypeSignature::Primitive(PrimitiveType::new("Nil")), Instruction::While);
+    p.consume(
+        TokenType::KwWhile,
+        "Expected keyword `while` for opening a while loop",
+    )?;
+    p.emit_ir_previous(
+        TypeSignature::Primitive(PrimitiveType::new("Nil")),
+        Instruction::While,
+    );
     expression(p)?;
-    p.emit_ir_current(TypeSignature::Primitive(PrimitiveType::new("Bool")), Instruction::WhileBody);
+    p.emit_ir_current(
+        TypeSignature::Primitive(PrimitiveType::new("Bool")),
+        Instruction::WhileBody,
+    );
     p.loop_stack.push(LoopType::While);
     block(p)?;
     p.loop_stack.pop();
-    p.emit_ir_previous(TypeSignature::Primitive(PrimitiveType::new("Nil")), Instruction::WhileEnd);
+    p.emit_ir_previous(
+        TypeSignature::Primitive(PrimitiveType::new("Nil")),
+        Instruction::WhileEnd,
+    );
     Ok(())
 }
 
 fn loop_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    p.consume(TokenType::KwLoop, "Expected keyword `loop` for opening a loop")?;
+    p.consume(
+        TokenType::KwLoop,
+        "Expected keyword `loop` for opening a loop",
+    )?;
     p.emit_ir_current(TypeSignature::Untyped, Instruction::Loop);
     p.loop_stack.push(LoopType::Loop);
     block(p)?;
@@ -1003,21 +1073,33 @@ fn loop_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
 fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     if p.loop_stack.is_empty() {
-        p.emit_notice_current(NoticeLevel::Error, "Can only break inside a loop".to_string());
+        p.emit_notice_current(
+            NoticeLevel::Error,
+            "Can only break inside a loop".to_string(),
+        );
         return Err(());
     }
 
-    p.consume(TokenType::KwBreak, "Expected keyword `break` for break expression")?;
+    p.consume(
+        TokenType::KwBreak,
+        "Expected keyword `break` for break expression",
+    )?;
 
     if let Some(LoopType::Loop) = p.loop_stack.last() {
         expression(p)?;
         p.emit_ir_previous(TypeSignature::Untyped, Instruction::Break);
     } else {
         if !p.check(TokenType::Semicolon) {
-            p.emit_notice_previous(NoticeLevel::Error, "Only `break` expressions inside `loop` expressions may return a value".to_string());
+            p.emit_notice_previous(
+                NoticeLevel::Error,
+                "Only `break` expressions inside `loop` expressions may return a value".to_string(),
+            );
             return Err(());
         }
-        p.emit_ir_previous(TypeSignature::Primitive(PrimitiveType::new("Nil")), Instruction::Break);
+        p.emit_ir_previous(
+            TypeSignature::Primitive(PrimitiveType::new("Nil")),
+            Instruction::Break,
+        );
     }
 
     Ok(())
@@ -1025,11 +1107,17 @@ fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
 fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     if p.loop_stack.is_empty() {
-        p.emit_notice_current(NoticeLevel::Error, "Can only continue inside a loop".to_string());
+        p.emit_notice_current(
+            NoticeLevel::Error,
+            "Can only continue inside a loop".to_string(),
+        );
         return Err(());
     }
 
-    p.consume(TokenType::KwContinue, "Expected keyword `continue` for continue expression")?;
+    p.consume(
+        TokenType::KwContinue,
+        "Expected keyword `continue` for continue expression",
+    )?;
 
     p.emit_ir_previous(TypeSignature::None, Instruction::Continue);
 
