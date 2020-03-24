@@ -488,12 +488,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// For errror recovery, skips until the next generally 'safe' token
-    fn synchronize_general(&mut self) {
-        self.synchronize(&SAFE_TOKENS);
-    }
-
-    fn synchronize_general_and(&mut self, tokens: &[TokenType]) {
+    /// For errror recovery, skips until the next generally 'safe' token and any other tokens specified
+    fn synchronize_general(&mut self, tokens: &[TokenType]) {
         while tokens.iter().filter(|t| self.check(**t)).count()
             + SAFE_TOKENS.iter().filter(|t| self.check(**t)).count()
             == 0
@@ -575,7 +571,7 @@ fn declaration<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         TokenType::KwImport => (),
         _ => {
             p.emit_notice_current(NoticeLevel::Error, "Expected a declaration".to_string());
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             return Err(());
         }
     }
@@ -609,7 +605,7 @@ fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 NoticeLevel::Error,
                 "Failed to extract string data from identifier token".to_string(),
             );
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             was_error = true;
             String::from("ERROR")
         }
@@ -673,13 +669,13 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> 
     let prefix_rule = get_rule(p.current().type_).prefix;
     if prefix_rule as usize == nil_func as usize {
         p.emit_notice_current(NoticeLevel::Error, "Expected prefix expression".to_string());
-        p.synchronize_general();
+        p.synchronize_general(&[]);
         return Err(());
     }
 
     if prefix_rule(p).is_err() {
-        p.synchronize_general();
-        p.synchronize_general();
+        p.synchronize_general(&[]);
+        p.synchronize_general(&[]);
         return Err(());
     }
 
@@ -687,13 +683,13 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> 
         let infix_rule = get_rule(p.current().type_).infix;
         if infix_rule as usize == nil_func as usize {
             p.emit_notice_current(NoticeLevel::Error, "Expected infix expression".to_string());
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             return Err(());
         }
 
         if infix_rule(p).is_err() {
-            p.synchronize_general();
-            p.synchronize_general();
+            p.synchronize_general(&[]);
+            p.synchronize_general(&[]);
             return Err(());
         }
     }
@@ -752,7 +748,7 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 NoticeLevel::Error,
                 "Unreachable branch in `literal` parse function".to_string(),
             );
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             return Err(());
         }
     }
@@ -777,7 +773,7 @@ fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 NoticeLevel::Error,
                 "Unreachable branch in `unary` parse function".to_string(),
             );
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             return Err(());
         }
     };
@@ -840,7 +836,7 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 NoticeLevel::Error,
                 "Unreachable branch in `binary` parse function".to_string(),
             );
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             return Err(());
         }
     };
@@ -874,7 +870,7 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                         NoticeLevel::Error,
                         "Failed to extract string data from identifier token".to_string(),
                     );
-                    p.synchronize_general();
+                    p.synchronize_general(&[]);
                     return Err(());
                 }
             };
@@ -887,7 +883,7 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
             if !p.check_consume(TokenType::Comma) && !p.check(TokenType::RParen) {
                 p.emit_notice(param_pos, NoticeLevel::Error, "Must have a comma `,` after every parameter in the function declaration unless it's the last parameter".to_string());
-                p.synchronize_general();
+                p.synchronize_general(&[]);
                 return Err(());
             }
         }
@@ -943,7 +939,7 @@ fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 p.emit_ir_previous(TypeSignature::Untyped, Instruction::Statement);
             } else if !p.check(TokenType::RCurly) {
                 p.emit_notice(start_pos, NoticeLevel::Error, "Only the last element in a block can be an expression, all the rest must be statements and end with a `;`".to_string());
-                p.synchronize_general();
+                p.synchronize_general(&[]);
                 return Err(());
             }
         }
@@ -978,7 +974,7 @@ fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                     NoticeLevel::Error,
                     "Failed to extract string value from identifier token".to_string(),
                 );
-                p.synchronize_general();
+                p.synchronize_general(&[]);
                 return Err(());
             }
         };
@@ -997,7 +993,7 @@ fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 "Must have a comma `,` after every field in the struct unless it's the last field"
                     .to_string(),
             );
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             return Err(());
         }
     }
@@ -1023,7 +1019,7 @@ fn call<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let mut arg_count = 0;
     while !p.check_consume(TokenType::RParen) {
         if expression(p).is_err() {
-            p.synchronize_general_and(&[TokenType::Comma]);
+            p.synchronize_general(&[TokenType::Comma]);
             was_error = true;
         }
         if !p.check_consume(TokenType::Comma) && !p.check(TokenType::RParen) {
@@ -1031,7 +1027,7 @@ fn call<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 NoticeLevel::Error,
                 "Expected a `,` in between call expressions".to_string(),
             );
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             return Err(());
         }
         arg_count += 1;
@@ -1056,25 +1052,25 @@ fn if_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
     p.emit_ir_previous(TypeSignature::Untyped, Instruction::If);
     if expression(p).is_err() {
-        p.synchronize_general_and(&[TokenType::LCurly]);
+        p.synchronize_general(&[TokenType::LCurly]);
     }
     p.emit_ir_previous(TypeSignature::Untyped, Instruction::IfBody);
     if block(p).is_err() {
-        p.synchronize_general_and(&[TokenType::KwElse]);
+        p.synchronize_general(&[TokenType::KwElse]);
     }
 
     while p.check_consume(TokenType::KwElse) {
         if p.check_consume(TokenType::KwIf) {
             p.emit_ir_previous(TypeSignature::Untyped, Instruction::IfElseIf);
             if expression(p).is_err() {
-                p.synchronize_general_and(&[TokenType::LCurly]);
+                p.synchronize_general(&[TokenType::LCurly]);
             }
             p.emit_ir_previous(TypeSignature::Untyped, Instruction::IfElseIfBody);
             block(p)?;
         } else {
             p.emit_ir_previous(TypeSignature::Untyped, Instruction::IfElse);
             if block(p).is_err() {
-                p.synchronize_general();
+                p.synchronize_general(&[]);
             }
         }
     }
@@ -1095,7 +1091,7 @@ fn field_access<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 NoticeLevel::Error,
                 "Failed to extract string data from identifier token".to_string(),
             );
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             return Err(());
         }
     };
@@ -1127,7 +1123,7 @@ fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         Instruction::While,
     );
     if expression(p).is_err() {
-        p.synchronize_general_and(&[TokenType::LCurly]);
+        p.synchronize_general(&[TokenType::LCurly]);
         was_error = true;
     }
     p.emit_ir_current(
@@ -1136,7 +1132,7 @@ fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     );
     p.loop_stack.push(LoopType::While);
     if block(p).is_err() {
-        p.synchronize_general();
+        p.synchronize_general(&[]);
         was_error = true;
     }
     p.loop_stack.pop();
@@ -1161,7 +1157,7 @@ fn loop_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.emit_ir_current(TypeSignature::Untyped, Instruction::Loop);
     p.loop_stack.push(LoopType::Loop);
     if block(p).is_err() {
-        p.synchronize_general();
+        p.synchronize_general(&[]);
         was_error = true;
     }
     p.loop_stack.pop();
@@ -1179,7 +1175,7 @@ fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             NoticeLevel::Error,
             "Can only break inside a loop".to_string(),
         );
-        p.synchronize_general();
+        p.synchronize_general(&[]);
         return Err(());
     }
 
@@ -1197,7 +1193,7 @@ fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 NoticeLevel::Error,
                 "Only `break` expressions inside `loop` expressions may return a value".to_string(),
             );
-            p.synchronize_general();
+            p.synchronize_general(&[]);
             return Err(());
         }
         p.emit_ir_previous(
@@ -1215,7 +1211,7 @@ fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             NoticeLevel::Error,
             "Can only continue inside a loop".to_string(),
         );
-        p.synchronize_general();
+        p.synchronize_general(&[]);
         return Err(());
     }
 
