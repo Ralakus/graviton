@@ -891,10 +891,12 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 /// Parse a grouping or function (function parsing not implemented yet)
 fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let start_pos = p.current().pos;
-    let mut was_error = p.consume(
-        TokenType::LParen,
-        "Expected opening `(` for function/grouping",
-    ).is_err();
+    let mut was_error = p
+        .consume(
+            TokenType::LParen,
+            "Expected opening `(` for function/grouping",
+        )
+        .is_err();
 
     let is_function = p.lookahead().type_ == TokenType::Colon
         || (p.check(TokenType::RParen) && p.lookahead().type_ == TokenType::RArrow);
@@ -922,7 +924,9 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
             param_names.push(name);
 
-            if p.consume(TokenType::Colon, "Expected `:` after parameter name").is_err() {
+            if p.consume(TokenType::Colon, "Expected `:` after parameter name")
+                .is_err()
+            {
                 p.synchronize(&[TokenType::LCurly]);
                 was_error = true;
             }
@@ -939,7 +943,9 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         if p.consume(
             TokenType::RArrow,
             "Expect `->` after function parameters then return type",
-        ).is_err() {
+        )
+        .is_err()
+        {
             p.synchronize(&[TokenType::LCurly]);
             was_error = true;
         }
@@ -947,7 +953,7 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         let return_type = if let Ok(t) = type_(p) {
             t
         } else {
-            p.synchronize(&[TokenType::LCurly]);  
+            p.synchronize(&[TokenType::LCurly]);
             TypeSignature::None
         };
 
@@ -1301,12 +1307,18 @@ fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 fn return_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     if p.nested_fn_count > 0 {
         let start_pos = p.current().pos;
-        p.consume(TokenType::KwReturn, "Expected keyword `return` for return expression")?;
+        p.consume(
+            TokenType::KwReturn,
+            "Expected keyword `return` for return expression",
+        )?;
         expression(p)?;
         p.emit_ir(start_pos, TypeSignature::Untyped, Instruction::Return);
         Ok(())
     } else {
-        p.emit_notice_current(NoticeLevel::Error, "`return` expressions may only be inside a function".to_string());
+        p.emit_notice_current(
+            NoticeLevel::Error,
+            "`return` expressions may only be inside a function".to_string(),
+        );
         Err(())
     }
 }
