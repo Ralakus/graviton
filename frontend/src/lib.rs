@@ -1,6 +1,10 @@
 extern crate graviton_core as core;
 
-use core::{ir, signature, Notice, NoticeLevel, Position};
+use core::{
+    ir,
+    notice::{Notice, NoticeLevel},
+    signature, Position,
+};
 
 pub mod lexer;
 pub mod parser;

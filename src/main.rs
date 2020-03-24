@@ -1,16 +1,56 @@
 use graviton::{
-    core::{ir, Notice},
+    core::{ansi, ir, notice::Notice},
     frontend::parser::Parser,
 };
 use mpsc::{Receiver, Sender};
 use std::sync::mpsc;
 
 fn main() {
-    let _source_old = "let a = 14 + 48;\n\
-                  let add = (x: I32, y: I32) -> I32 { x + y };";
-    let _source_not_as_old = "let x = 5; x(5);\nlet z = { let y = (x: I32, y: I32) -> I32 { x + y }; y(x) } as F64;\nif z >= 5.0 { 14 } else { 48 };\nlet loop_result = loop{ let x = 5; break x; }; let pair = struct { pub x: F64, pub y: I32, };";
+    let file_name = std::env::args().nth(1).expect("Expected one file argument");
 
-    let source = "let x = if 1 + 1 == 2 14 else 48;";
+    let file = match std::fs::File::open(file_name.as_str()) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!(
+                "{}Error{}: {}: {}",
+                ansi::Fg::Red,
+                ansi::Fg::Reset,
+                file_name,
+                e
+            );
+            std::process::exit(1);
+        }
+    };
+
+    let mapped_file = unsafe {
+        match memmap::Mmap::map(&file) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!(
+                    "{}Error{}: {}: {}",
+                    ansi::Fg::Red,
+                    ansi::Fg::Reset,
+                    file_name,
+                    e
+                );
+                std::process::exit(1);
+            }
+        }
+    };
+
+    let source = match std::str::from_utf8(&mapped_file[..]) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!(
+                "{}Error{}: {}: {}",
+                ansi::Fg::Red,
+                ansi::Fg::Reset,
+                file_name,
+                e
+            );
+            std::process::exit(1);
+        }
+    };
 
     println!("Source:\n\n{}\n", source);
 
@@ -26,7 +66,7 @@ fn main() {
 
     let arc_source: std::sync::Arc<str> = std::sync::Arc::from(source);
 
-    let parser = Parser::parse("main.grav".to_string(), arc_source, notice_tx, ir_tx);
+    let parser = Parser::parse(file_name, arc_source, notice_tx, ir_tx);
 
     let (mut ir_done, mut notice_done) = (false, false);
 

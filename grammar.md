@@ -47,6 +47,7 @@ expression -> literal
             | loop
             | loop_control
             | fn
+            | return
             | as
             ;
 
@@ -95,8 +96,10 @@ loop -> "while" expression block
 loop_control -> "break" expression?
               | "continue"
               ;
-      
+
 fn -> "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type block ;
+
+return -> "return" expression? ;
 
 as -> expression "as" type ;
 ```

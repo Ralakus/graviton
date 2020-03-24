@@ -195,7 +195,7 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
         precedence: Prec::None,
     }, // TokenType::KwStruct
     ParseRule {
-        prefix: nil_func,
+        prefix: return_,
         infix: nil_func,
         precedence: Prec::None,
     }, // TokenType::KwReturn
@@ -320,7 +320,12 @@ const SAFE_TOKENS: [TokenType; 6] = [
 ];
 
 /// An array of closing tokens, synchronize will consume these tokens
-const CLOSING_TOKENS: [TokenType; 3] = [TokenType::RBracket, TokenType::RCurly, TokenType::RParen];
+const CLOSING_TOKENS: [TokenType; 4] = [
+    TokenType::RBracket,
+    TokenType::RCurly,
+    TokenType::RParen,
+    TokenType::Semicolon,
+];
 
 /// The parser struct, contains all of the data necessary to parse
 pub struct Parser<'a> {
@@ -340,6 +345,9 @@ pub struct Parser<'a> {
 
     /// A stack to see what type of loop the parser is in
     loop_stack: Vec<LoopType>,
+
+    /// An integer that keeps track of how many function's it's in
+    nested_fn_count: u8,
 }
 
 impl<'a> Parser<'a> {
@@ -357,6 +365,7 @@ impl<'a> Parser<'a> {
             ir_tx,
             tokens: [Token::default(), Token::default(), Token::default()],
             loop_stack: Vec::with_capacity(8),
+            nested_fn_count: 0,
         }
     }
 
@@ -458,7 +467,23 @@ impl<'a> Parser<'a> {
     /// Makes a notice at a position
     #[inline]
     fn emit_notice(&mut self, pos: Position, level: NoticeLevel, msg: String) {
+        if level == NoticeLevel::Error {
+            if let Err(e) = self.ir_tx.send(Some(ChannelIr {
+                pos,
+                sig: TypeSignature::None,
+                ins: Instruction::Halt,
+            })) {
+                eprintln!(
+                    "{}Parser notice send error: {}{}",
+                    core::ansi::Fg::BrightRed,
+                    e,
+                    core::ansi::Fg::Reset
+                );
+            }
+        }
+
         let notice = Notice::new("Parser".to_string(), msg, pos, self.name.clone(), level);
+
         if let Err(e) = self.notice_tx.send(Some(notice)) {
             eprintln!(
                 "{}Parser notice send error: {}{}",
@@ -495,6 +520,7 @@ impl<'a> Parser<'a> {
             .count()
             == 1
             || self.current().type_ == TokenType::RCurly
+            || self.current().type_ == TokenType::Semicolon
         {
             self.advance();
         }
@@ -570,7 +596,13 @@ fn declaration_or_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
 fn declaration<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     match p.current().type_ {
-        TokenType::KwImport => (),
+        TokenType::KwImport => {
+            p.synchronize(&[]);
+            p.emit_notice_previous(
+                NoticeLevel::Warning,
+                "Imports not supported yet".to_string(),
+            );
+        }
         _ => {
             p.emit_notice_current(NoticeLevel::Error, "Expected a declaration".to_string());
             p.synchronize(&[]);
@@ -619,16 +651,11 @@ fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         (TypeSignature::Untyped, true)
     };
 
-    if mutable {
-        p.emit_ir_previous(signature, Instruction::LetMut(name));
-    } else {
-        p.emit_ir_previous(signature, Instruction::Let(name));
-    }
-
-    if p.check_consume(TokenType::Equal) {
+    let is_assigned = if p.check_consume(TokenType::Equal) {
         if expression(p).is_err() {
             was_error = true;
         }
+        true
     } else if is_untyped {
         p.emit_notice_previous(
             NoticeLevel::Error,
@@ -636,7 +663,10 @@ fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 .to_string(),
         );
         was_error = true;
-    }
+        false
+    } else {
+        false
+    };
 
     if p.consume(
         TokenType::Semicolon,
@@ -647,10 +677,24 @@ fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         was_error = true;
     }
 
-    if mutable {
-        p.emit_ir_previous(TypeSignature::None, Instruction::LetMutEnd);
+    if is_assigned {
+        p.emit_ir_previous(
+            signature,
+            if mutable {
+                Instruction::LetMut(name)
+            } else {
+                Instruction::Let(name)
+            },
+        );
     } else {
-        p.emit_ir_previous(TypeSignature::None, Instruction::LetEnd);
+        p.emit_ir_previous(
+            signature,
+            if mutable {
+                Instruction::LetMutNoAssign(name)
+            } else {
+                Instruction::LetNoAssign(name)
+            },
+        );
     }
 
     if was_error {
@@ -847,10 +891,10 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 /// Parse a grouping or function (function parsing not implemented yet)
 fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let start_pos = p.current().pos;
-    p.consume(
+    let mut was_error = p.consume(
         TokenType::LParen,
         "Expected opening `(` for function/grouping",
-    )?;
+    ).is_err();
 
     let is_function = p.lookahead().type_ == TokenType::Colon
         || (p.check(TokenType::RParen) && p.lookahead().type_ == TokenType::RArrow);
@@ -863,37 +907,49 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             let name = match p.consume(
                 TokenType::Identifier,
                 "Expected identifier for function parameter",
-            )? {
-                TokenData::Str(s) => (*s).to_string(),
+            ) {
+                Ok(TokenData::Str(s)) => (*s).to_string(),
                 _ => {
                     p.emit_notice_previous(
                         NoticeLevel::Error,
                         "Failed to extract string data from identifier token".to_string(),
                     );
-                    p.synchronize(&[]);
-                    return Err(());
+                    p.synchronize(&[TokenType::LCurly]);
+                    was_error = true;
+                    String::from("ERROR")
                 }
             };
 
             param_names.push(name);
 
-            p.consume(TokenType::Colon, "Expected `:` after parameter name")?;
+            if p.consume(TokenType::Colon, "Expected `:` after parameter name").is_err() {
+                p.synchronize(&[TokenType::LCurly]);
+                was_error = true;
+            }
 
             params_sigs.push(type_(p)?);
 
             if !p.check_consume(TokenType::Comma) && !p.check(TokenType::RParen) {
                 p.emit_notice(param_pos, NoticeLevel::Error, "Must have a comma `,` after every parameter in the function declaration unless it's the last parameter".to_string());
-                p.synchronize(&[]);
+                p.synchronize(&[TokenType::LCurly]);
                 return Err(());
             }
         }
 
-        p.consume(
+        if p.consume(
             TokenType::RArrow,
             "Expect `->` after function parameters then return type",
-        )?;
+        ).is_err() {
+            p.synchronize(&[TokenType::LCurly]);
+            was_error = true;
+        }
 
-        let return_type = type_(p)?;
+        let return_type = if let Ok(t) = type_(p) {
+            t
+        } else {
+            p.synchronize(&[TokenType::LCurly]);  
+            TypeSignature::None
+        };
 
         p.emit_ir(
             start_pos,
@@ -912,14 +968,23 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             )
         });
 
-        block(p)?;
+        p.nested_fn_count += 1;
+        if block(p).is_err() {
+            p.synchronize(&[]);
+            was_error = true;
+        }
+        p.nested_fn_count -= 1;
         p.emit_ir_previous(TypeSignature::Untyped, Instruction::FunctionEnd);
     } else {
         expression(p)?;
         p.consume(TokenType::RParen, "Expected closing ')' for grouping")?;
     }
 
-    Ok(())
+    if was_error {
+        Err(())
+    } else {
+        Ok(())
+    }
 }
 
 fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
@@ -1233,15 +1298,34 @@ fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
+fn return_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+    if p.nested_fn_count > 0 {
+        let start_pos = p.current().pos;
+        p.consume(TokenType::KwReturn, "Expected keyword `return` for return expression")?;
+        expression(p)?;
+        p.emit_ir(start_pos, TypeSignature::Untyped, Instruction::Return);
+        Ok(())
+    } else {
+        p.emit_notice_current(NoticeLevel::Error, "`return` expressions may only be inside a function".to_string());
+        Err(())
+    }
+}
+
 fn type_<'a>(p: &mut Parser<'a>) -> Result<TypeSignature, ()> {
-    p.advance();
-    match (p.previous().type_, &p.previous().data) {
+    let ret = match (&p.current().type_, &p.current().data) {
         (TokenType::Identifier, TokenData::Str(s)) => {
             Ok(TypeSignature::Primitive(PrimitiveType::new(s)))
         }
         _ => {
-            p.emit_notice_previous(NoticeLevel::Error, "Expected a valid type".to_string());
+            p.emit_notice_current(NoticeLevel::Error, "Expected a valid type".to_string());
             Err(())
         }
+    };
+
+    if ret.is_ok() {
+        p.advance();
+        ret
+    } else {
+        Err(())
     }
 }

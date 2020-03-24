@@ -23,3 +23,5 @@ members = ["core", "frontend", "backend"]
 graviton_core     = { path = "core",     version = "0.7.0" }
 graviton_frontend = { path = "frontend", version = "0.7.0" }
 graviton_backend  = { path = "backend",  version = "0.7.0" }
+
+memmap = "*"

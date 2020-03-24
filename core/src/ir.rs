@@ -43,6 +43,9 @@ pub struct ChannelIr {
 /// Contains all of the instruction types
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Instruction {
+    /// An error instruction that the pipeline passes through when an error is detected
+    Halt,
+
     Module(String),
     ModuleEnd,
 
@@ -92,20 +95,20 @@ pub enum Instruction {
     /// Function end, closes a function
     FunctionEnd,
 
-    /// Return opening, expects expression ir afterwards
+    /// Return a value from the stack
     Return,
-    /// Return end, closes a return statement
-    ReturnEnd,
 
-    /// Let opening, declares an immutable variable with name (String), expects expression ir for assignment afterwards, no assignment if empty
+    /// Let opening, declares an immutable variable with name (String), expects expression ir for assignment before, no assignment if empty
     Let(String),
-    /// Let end, closes a let statement
-    LetEnd,
 
-    /// Let mut opening, declares a mutable variable with name (String), expects expression ir for assignment afterwards, no assignment if empty
+    /// Let mut opening, declares a mutable variable with name (String), expects expression ir for assignment before, no assignment if empty
     LetMut(String),
-    /// Let mut end, closes a let mut statement
-    LetMutEnd,
+
+    /// Let opening, declares an immutable variable with name (String)
+    LetNoAssign(String),
+
+    /// Let mut opening, declares a mutable variable with name (String)
+    LetMutNoAssign(String),
 
     // --------------------
     // Expressions
@@ -210,6 +213,11 @@ impl std::fmt::Display for Module {
         let mut depth = 0;
         for (ins, sig) in self.instructions.iter().zip(self.signatures.iter()) {
             match ins {
+                Halt => {
+                    fmt_tab(f, depth)?;
+                    writeln!(f, "{}HALT{}", ansi::Fg::BrightRed, ansi::Fg::Reset)?;
+                }
+
                 Module(name) => {
                     fmt_tab(f, depth)?;
                     depth += 1;
@@ -231,63 +239,35 @@ impl std::fmt::Display for Module {
                 If => {
                     fmt_tab(f, depth)?;
                     depth += 1;
-                    writeln!(
-                        f,
-                        "{}if{} {}{}",
-                        ansi::Fg::Cyan,
-                        ansi::Fg::Red,
-                        sig,
-                        ansi::Fg::Reset
-                    )?;
+                    writeln!(f, "{}if{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
                 IfBody => {
                     fmt_tab(f, depth - 1)?;
-                    writeln!(
-                        f,
-                        "{}if body{} {}{}",
-                        ansi::Fg::Cyan,
-                        ansi::Fg::Red,
-                        sig,
-                        ansi::Fg::Reset
-                    )?;
+                    writeln!(f, "{}if body{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
                 IfElseIf => {
                     fmt_tab(f, depth - 1)?;
-                    writeln!(
-                        f,
-                        "{}if else{} {}{}",
-                        ansi::Fg::Cyan,
-                        ansi::Fg::Red,
-                        sig,
-                        ansi::Fg::Reset
-                    )?;
+                    writeln!(f, "{}if else{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
                 IfElseIfBody => {
                     fmt_tab(f, depth - 1)?;
-                    writeln!(
-                        f,
-                        "{}if else body{} {}{}",
-                        ansi::Fg::Cyan,
-                        ansi::Fg::Red,
-                        sig,
-                        ansi::Fg::Reset
-                    )?;
+                    writeln!(f, "{}if else body{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
                 IfElse => {
                     fmt_tab(f, depth - 1)?;
-                    writeln!(
-                        f,
-                        "{}else{} {}{}",
-                        ansi::Fg::Cyan,
-                        ansi::Fg::Red,
-                        sig,
-                        ansi::Fg::Reset
-                    )?;
+                    writeln!(f, "{}else{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
                 IfEnd => {
                     depth -= 1;
                     fmt_tab(f, depth)?;
-                    writeln!(f, "{}if end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                    writeln!(
+                        f,
+                        "{}if end{} {}{}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
                 }
 
                 While => {
@@ -314,12 +294,26 @@ impl std::fmt::Display for Module {
                 LoopEnd => {
                     depth -= 1;
                     fmt_tab(f, depth)?;
-                    writeln!(f, "{}loop end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                    writeln!(
+                        f,
+                        "{}loop end{} {}{}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
                 }
 
                 Break => {
                     fmt_tab(f, depth)?;
-                    writeln!(f, "{}break{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                    writeln!(
+                        f,
+                        "{}break{} {}{}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
                 }
 
                 Continue => {
@@ -358,7 +352,6 @@ impl std::fmt::Display for Module {
 
                 Return => {
                     fmt_tab(f, depth)?;
-                    depth += 1;
                     writeln!(
                         f,
                         "{}return{} {}{}",
@@ -368,15 +361,9 @@ impl std::fmt::Display for Module {
                         ansi::Fg::Reset
                     )?;
                 }
-                ReturnEnd => {
-                    depth -= 1;
-                    fmt_tab(f, depth)?;
-                    writeln!(f, "{}return end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
-                }
 
                 Let(name) => {
                     fmt_tab(f, depth)?;
-                    depth += 1;
                     writeln!(
                         f,
                         "{}let{} {} {}{} {}",
@@ -388,15 +375,9 @@ impl std::fmt::Display for Module {
                         ansi::Fg::Reset
                     )?;
                 }
-                LetEnd => {
-                    depth -= 1;
-                    fmt_tab(f, depth)?;
-                    writeln!(f, "{}let end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
-                }
 
                 LetMut(name) => {
                     fmt_tab(f, depth)?;
-                    depth += 1;
                     writeln!(
                         f,
                         "{}let mut{} {} {}{} {}",
@@ -408,10 +389,33 @@ impl std::fmt::Display for Module {
                         ansi::Fg::Reset
                     )?;
                 }
-                LetMutEnd => {
-                    depth -= 1;
+
+                LetNoAssign(name) => {
                     fmt_tab(f, depth)?;
-                    writeln!(f, "{}let mut end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                    writeln!(
+                        f,
+                        "{}let {}no assign {} {}{} {}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
+                        name,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
+                }
+
+                LetMutNoAssign(name) => {
+                    fmt_tab(f, depth)?;
+                    writeln!(
+                        f,
+                        "{}let mut{}no assign {} {}{} {}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
+                        name,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
                 }
 
                 Block => {
