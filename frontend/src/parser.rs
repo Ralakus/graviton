@@ -310,13 +310,17 @@ const PREVIOUS: usize = 0;
 const CURRENT: usize = 1;
 
 /// An array of generally safe tokens to synchronize to for error handling
-const SAFE_TOKENS: [TokenType; 5] = [
+const SAFE_TOKENS: [TokenType; 6] = [
     TokenType::RCurly,
     TokenType::Semicolon,
     TokenType::KwIf,
     TokenType::KwLet,
     TokenType::KwStruct,
+    TokenType::Eof,
 ];
+
+/// An array of closing tokens, synchronize will consume these tokens
+const CLOSING_TOKENS: [TokenType; 3] = [TokenType::RBracket, TokenType::RCurly, TokenType::RParen];
 
 /// The parser struct, contains all of the data necessary to parse
 pub struct Parser<'a> {
@@ -487,6 +491,11 @@ impl<'a> Parser<'a> {
         while tokens.iter().filter(|t| self.check(**t)).count()
             + SAFE_TOKENS.iter().filter(|t| self.check(**t)).count()
             == 0
+        {
+            self.advance();
+        }
+        if tokens.iter().filter(|t| CLOSING_TOKENS.contains(t)).count() >= 1
+            || self.current().type_ == TokenType::RCurly
         {
             self.advance();
         }
@@ -669,7 +678,6 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> 
 
     if prefix_rule(p).is_err() {
         p.synchronize(&[]);
-        p.synchronize(&[]);
         return Err(());
     }
 
@@ -682,7 +690,6 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> 
         }
 
         if infix_rule(p).is_err() {
-            p.synchronize(&[]);
             p.synchronize(&[]);
             return Err(());
         }
@@ -936,6 +943,14 @@ fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 p.synchronize(&[]);
                 return Err(());
             }
+        }
+
+        if p.check(TokenType::Eof) {
+            p.emit_notice_current(
+                NoticeLevel::Error,
+                "Expected a closing `}` for block expression".to_string(),
+            );
+            return Err(());
         }
     }
 
