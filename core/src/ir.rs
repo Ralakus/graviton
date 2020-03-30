@@ -98,17 +98,26 @@ pub enum Instruction {
     /// Return a value from the stack
     Return,
 
-    /// Let opening, declares an immutable variable with name (String), expects expression ir for assignment before, no assignment if empty
+    /// Let, declares an immutable variable with name (String), expects expression ir for assignment before
     Let(String),
 
-    /// Let mut opening, declares a mutable variable with name (String), expects expression ir for assignment before, no assignment if empty
+    /// Let mut, declares a mutable variable with name (String), expects expression ir for assignment before
     LetMut(String),
 
-    /// Let opening, declares an immutable variable with name (String)
+    /// Let, declares an immutable variable with name (String)
     LetNoAssign(String),
 
-    /// Let mut opening, declares a mutable variable with name (String)
+    /// Let mut, declares a mutable variable with name (String)
     LetMutNoAssign(String),
+
+    /// Declares a function with name (String), works like a normal function
+    LetFunction(String),
+
+    /// Declares a mutable function with name (String), works similar to a function pointer
+    LetMutFunction(String),
+
+    /// Declares a struct with name (String)
+    LetStruct(String),
 
     // --------------------
     // Expressions
@@ -116,8 +125,11 @@ pub enum Instruction {
     //
     /// Opens a block
     Block,
-    /// Closes a block
+    /// Closes a block without an end expression
     BlockEnd,
+
+    /// Closes a block with an end expression
+    BlockEndExpression,
 
     /// Imports a module from file (String)
     Import(String),
@@ -408,7 +420,49 @@ impl std::fmt::Display for Module {
                     fmt_tab(f, depth)?;
                     writeln!(
                         f,
-                        "{}let mut{}no assign {} {}{} {}",
+                        "{}let mut {}no assign {} {}{} {}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
+                        name,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
+                }
+
+                LetFunction(name) => {
+                    fmt_tab(f, depth)?;
+                    writeln!(
+                        f,
+                        "{}let {}function {} {}{} {}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
+                        name,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
+                }
+
+                LetMutFunction(name) => {
+                    fmt_tab(f, depth)?;
+                    writeln!(
+                        f,
+                        "{}let mut {}function {} {}{} {}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
+                        name,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
+                }
+
+                LetStruct(name) => {
+                    fmt_tab(f, depth)?;
+                    writeln!(
+                        f,
+                        "{}let {}struct {} {}{} {}",
                         ansi::Fg::Cyan,
                         ansi::Fg::Yellow,
                         name,
@@ -427,6 +481,18 @@ impl std::fmt::Display for Module {
                     depth -= 1;
                     fmt_tab(f, depth)?;
                     writeln!(f, "{}block end{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
+                }
+
+                BlockEndExpression => {
+                    depth -= 1;
+                    fmt_tab(f, depth)?;
+                    writeln!(
+                        f,
+                        "{}block end {}expression{}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
+                        ansi::Fg::Reset
+                    )?;
                 }
 
                 Import(name) => {
@@ -458,14 +524,7 @@ impl std::fmt::Display for Module {
                 Struct => {
                     fmt_tab(f, depth)?;
                     depth += 1;
-                    writeln!(
-                        f,
-                        "{}struct{} {}{}",
-                        ansi::Fg::Cyan,
-                        ansi::Fg::Red,
-                        sig,
-                        ansi::Fg::Reset
-                    )?;
+                    writeln!(f, "{}struct{}", ansi::Fg::Cyan, ansi::Fg::Reset)?;
                 }
 
                 StructField(name) => {
@@ -513,10 +572,12 @@ impl std::fmt::Display for Module {
                     fmt_tab(f, depth)?;
                     writeln!(
                         f,
-                        "{}call{} {}{}",
+                        "{}call{} {} {}{}{}",
                         ansi::Fg::Cyan,
                         ansi::Fg::Yellow,
                         arg_count,
+                        ansi::Fg::Red,
+                        sig,
                         ansi::Fg::Reset
                     )?;
                 }

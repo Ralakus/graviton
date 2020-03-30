@@ -210,7 +210,7 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
         precedence: Prec::None,
     }, // TokenType::KwLet
     ParseRule {
-        prefix: nil_func,
+        prefix: extern_function,
         infix: nil_func,
         precedence: Prec::None,
     }, // TokenType::KwExtern
@@ -327,6 +327,14 @@ const CLOSING_TOKENS: [TokenType; 4] = [
     TokenType::Semicolon,
 ];
 
+/// An enum stating a declaration type for a let statement
+#[derive(PartialEq)]
+enum DeclarationType {
+    Struct,
+    Function,
+    Other,
+}
+
 /// The parser struct, contains all of the data necessary to parse
 pub struct Parser<'a> {
     /// Name of the current module being parsed
@@ -348,6 +356,9 @@ pub struct Parser<'a> {
 
     /// An integer that keeps track of how many function's it's in
     nested_fn_count: u8,
+
+    /// Last declaration type, used for let statements to find the correct instruction to output
+    last_declaration: DeclarationType,
 }
 
 impl<'a> Parser<'a> {
@@ -366,6 +377,7 @@ impl<'a> Parser<'a> {
             tokens: [Token::default(), Token::default(), Token::default()],
             loop_stack: Vec::with_capacity(8),
             nested_fn_count: 0,
+            last_declaration: DeclarationType::Other,
         }
     }
 
@@ -440,6 +452,14 @@ impl<'a> Parser<'a> {
     /// Makes an IR instruction with a custom position and sends it through the channel
     #[inline]
     fn emit_ir(&mut self, pos: Position, sig: TypeSignature, ins: Instruction) {
+        if ins == Instruction::FunctionEnd || ins == Instruction::ExternFn {
+            self.last_declaration = DeclarationType::Function;
+        } else if ins == Instruction::StructEnd {
+            self.last_declaration = DeclarationType::Struct;
+        } else {
+            self.last_declaration = DeclarationType::Other;
+        }
+
         let ir = ChannelIr { pos, sig, ins };
 
         if let Err(e) = self.ir_tx.send(Some(ir)) {
@@ -621,14 +641,18 @@ fn statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    let mut was_error;
-    was_error = p
+    let mut was_error = p
         .consume(
             TokenType::KwLet,
             "Expected keyword `let` for opening a let statement",
         )
         .is_err();
     let mutable = p.check_consume(TokenType::KwMut);
+    let mutable_keyword_pos = if mutable {
+        p.previous().pos
+    } else {
+        Position::new(0, 0)
+    };
     let name = match p.consume(
         TokenType::Identifier,
         "Expected identifier for let statement",
@@ -678,14 +702,30 @@ fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     }
 
     if is_assigned {
-        p.emit_ir_previous(
-            signature,
+        if p.last_declaration == DeclarationType::Function {
+            p.emit_ir_previous(
+                signature,
+                if mutable {
+                    Instruction::LetMutFunction(name)
+                } else {
+                    Instruction::LetFunction(name)
+                },
+            );
+        } else if p.last_declaration == DeclarationType::Struct {
             if mutable {
-                Instruction::LetMut(name)
-            } else {
-                Instruction::Let(name)
-            },
-        );
+                p.emit_notice(mutable_keyword_pos, NoticeLevel::Warning, "Let statement for structs cannot be mutable, defaulting to immuatble, please remove \"mut\"".to_string());
+            }
+            p.emit_ir_previous(signature, Instruction::LetStruct(name));
+        } else {
+            p.emit_ir_previous(
+                signature,
+                if mutable {
+                    Instruction::LetMut(name)
+                } else {
+                    Instruction::Let(name)
+                },
+            );
+        }
     } else {
         p.emit_ir_previous(
             signature,
@@ -888,7 +928,7 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-/// Parse a grouping or function (function parsing not implemented yet)
+/// Parse a grouping or function
 fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let start_pos = p.current().pos;
     let mut was_error = p
@@ -916,9 +956,9 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                         NoticeLevel::Error,
                         "Failed to extract string data from identifier token".to_string(),
                     );
-                    p.synchronize(&[TokenType::LCurly]);
                     was_error = true;
-                    String::from("ERROR")
+                    p.synchronize(&[TokenType::LCurly, TokenType::RArrow]);
+                    break;
                 }
             };
 
@@ -927,15 +967,16 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             if p.consume(TokenType::Colon, "Expected `:` after parameter name")
                 .is_err()
             {
-                p.synchronize(&[TokenType::LCurly]);
+                p.synchronize(&[TokenType::LCurly, TokenType::RArrow]);
                 was_error = true;
+                break;
             }
 
             params_sigs.push(type_(p)?);
 
             if !p.check_consume(TokenType::Comma) && !p.check(TokenType::RParen) {
                 p.emit_notice(param_pos, NoticeLevel::Error, "Must have a comma `,` after every parameter in the function declaration unless it's the last parameter".to_string());
-                p.synchronize(&[TokenType::LCurly]);
+                p.synchronize(&[TokenType::LCurly, TokenType::RArrow]);
                 return Err(());
             }
         }
@@ -980,7 +1021,7 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             was_error = true;
         }
         p.nested_fn_count -= 1;
-        p.emit_ir_previous(TypeSignature::Untyped, Instruction::FunctionEnd);
+        p.emit_ir_previous(TypeSignature::None, Instruction::FunctionEnd);
     } else {
         expression(p)?;
         p.consume(TokenType::RParen, "Expected closing ')' for grouping")?;
@@ -998,6 +1039,9 @@ fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         TokenType::LCurly,
         "Expected opening `{` for block expression",
     )?;
+
+    let mut is_expression_block = false;
+
     p.emit_ir_previous(TypeSignature::Untyped, Instruction::Block);
     while !p.check_consume(TokenType::RCurly) {
         let start_pos = p.current().pos;
@@ -1012,6 +1056,8 @@ fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 p.emit_notice(start_pos, NoticeLevel::Error, "Only the last element in a block can be an expression, all the rest must be statements and end with a `;`".to_string());
                 p.synchronize(&[]);
                 return Err(());
+            } else {
+                is_expression_block = true;
             }
         }
 
@@ -1024,7 +1070,14 @@ fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         }
     }
 
-    p.emit_ir_previous(TypeSignature::Untyped, Instruction::BlockEnd);
+    p.emit_ir_previous(
+        TypeSignature::Untyped,
+        if is_expression_block {
+            Instruction::BlockEndExpression
+        } else {
+            Instruction::BlockEnd
+        },
+    );
 
     Ok(())
 }
@@ -1300,6 +1353,69 @@ fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     )?;
 
     p.emit_ir_previous(TypeSignature::None, Instruction::Continue);
+
+    Ok(())
+}
+
+fn extern_function<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+    p.consume(
+        TokenType::KwExtern,
+        "Expected keyword `extern` for extern function",
+    )?;
+
+    let start_pos = p.previous().pos;
+
+    p.consume(
+        TokenType::LParen,
+        "Expected `(` for opening extern function parameters",
+    )?;
+
+    let mut param_sigs = Vec::new();
+
+    while !p.check_consume(TokenType::RParen) {
+        let param_pos = p.current().pos;
+
+        if p.consume(
+            TokenType::Identifier,
+            "Expected identifier for parameter name",
+        )
+        .is_err()
+        {
+            p.synchronize(&[TokenType::RArrow]);
+            break;
+        }
+
+        if p.consume(TokenType::Colon, "Expected `:` after parameter name")
+            .is_err()
+        {
+            p.synchronize(&[TokenType::RArrow]);
+            break;
+        }
+
+        param_sigs.push(type_(p)?);
+
+        if !p.check_consume(TokenType::Comma) && !p.check(TokenType::RParen) {
+            p.emit_notice(param_pos, NoticeLevel::Error, "Must have a comma `,` after every parameter in the extern function declaration unless it's the last parameter".to_string());
+            p.synchronize(&[TokenType::RArrow]);
+            return Err(());
+        }
+    }
+
+    p.consume(
+        TokenType::RArrow,
+        "Expected `->` for extern function return type",
+    )?;
+
+    let return_type = type_(p)?;
+
+    p.emit_ir(
+        start_pos,
+        TypeSignature::Function(FunctionSignature {
+            parameters: param_sigs,
+            return_type_signature: Box::new(return_type),
+        }),
+        Instruction::ExternFn,
+    );
 
     Ok(())
 }

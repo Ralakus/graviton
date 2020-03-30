@@ -30,6 +30,10 @@ expression_statement -> expression ";" ;
 mutability -> "mut" ;
 
 let -> "let" mutability? IDENTIFIER (":" type)? ("=" expression)? ";" ;
+
+function_declaration -> "let" mutability? IDENTIFIER (":" function_signature)? "=" function ";" ;
+
+struct_declaration -> "let" IDENTIFIER (":" struct_signature)? "=" struct ";" ;
 ```
 
 # Expressions
@@ -46,7 +50,8 @@ expression -> literal
             | if
             | loop
             | loop_control
-            | fn
+            | function
+            | extern_function
             | return
             | as
             ;
@@ -97,7 +102,9 @@ loop_control -> "break" expression?
               | "continue"
               ;
 
-fn -> "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type block ;
+function -> "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type block ;
+
+extern_function -> "extern" "(" (IDENTIFIER ":" type ",")* (IDENTIFIER ":" type)? ")" "->" type ;
 
 return -> "return" expression? ;
 
@@ -106,7 +113,10 @@ as -> expression "as" type ;
 
 # Types
 ```
-type -> primitive ;
+type -> primitive
+      | function_signature
+      | struct_signature
+      ;
 
 primitive -> "I8"
            | "I16"
@@ -119,4 +129,8 @@ primitive -> "I8"
            | "Bool"
            | "Str"
            ;
+
+function_signature -> "(" (type ",")* type? ")" "->" type ;
+
+struct_signature -> "struct" "{" (type ",")* type? "}" ;
 ```
