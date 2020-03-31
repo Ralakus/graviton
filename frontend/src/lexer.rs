@@ -16,7 +16,7 @@ lazy_static! {
         m.insert("self", TokenType::KwSelf);
         m.insert("struct", TokenType::KwStruct);
         m.insert("return", TokenType::KwReturn);
-        m.insert("import", TokenType::KwImport);
+        m.insert("module", TokenType::KwModule);
         m.insert("extern", TokenType::KwExtern);
         m.insert("mut", TokenType::KwMut);
         m.insert("pub", TokenType::KwPub);

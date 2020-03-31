@@ -1,597 +1,20 @@
-use super::{
-    ir::{ChannelIr, Instruction},
+use crate::{
+    ir::Instruction,
+    parser::{rules, DeclarationType, LoopType, Parser},
     signature::{FunctionSignature, PrimitiveType, StructSignature, TypeSignature},
     {
-        lexer::Lexer,
-        token::{Token, TokenData, TokenType},
-        Notice, NoticeLevel, Position,
+        token::{TokenData, TokenType},
+        NoticeLevel, Position,
     },
 };
 
-use mpsc::Sender;
-use std::{sync::mpsc, thread};
-
-/// Precedence used in Pratt parsing
-#[repr(u8)]
-#[derive(Clone, Copy, Eq, PartialEq, PartialOrd)]
-enum Prec {
-    None,
-    Assignment, // =
-    Or,         // or
-    And,        // and
-    Equality,   // == !=
-    Comparison, // < > <= >=
-    Term,       // + -
-    Factor,     // * /
-    Unary,      // ! -
-    Call,       // . () []
-                // Primary
-}
-
-/// A grammatical parse function
-type ParseFn = fn(&mut Parser) -> Result<(), ()>;
-
-/// A parse rule for a token
-#[derive(Clone)]
-struct ParseRule {
-    /// When it's found as a prefix expression
-    prefix: ParseFn,
-    /// When it's found an infix expression
-    infix: ParseFn,
-    /// It's precedence
-    precedence: Prec,
-}
-
-/// A lookup table for the expression rules for each token when encountered as an expression
-const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
-    ParseRule {
-        prefix: grouping_or_fn,
-        infix: call,
-        precedence: Prec::Call,
-    }, // TokenType::LParen
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::RParen
-    ParseRule {
-        prefix: block,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::LCurly
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::RCurly
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::LBracket
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::RBracket
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::Comma
-    ParseRule {
-        prefix: nil_func,
-        infix: field_access,
-        precedence: Prec::Call,
-    }, // TokenType::Dot
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::Semicolon
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Term,
-    }, // TokenType::Plus
-    ParseRule {
-        prefix: unary,
-        infix: binary,
-        precedence: Prec::Unary,
-    }, // TokenType::Minus
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Factor,
-    }, // TokenType::Star
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Factor,
-    }, // TokenType::Slash
-    ParseRule {
-        prefix: unary,
-        infix: nil_func,
-        precedence: Prec::Unary,
-    }, // TokenType::Bang
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Comparison,
-    }, // TokenType::BangEqual
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Assignment,
-    }, // TokenType::Equal
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Equality,
-    }, // TokenType::EqualEqual
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Comparison,
-    }, // TokenType::Greater
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Comparison,
-    }, // TokenType::GreaterEqual
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Comparison,
-    }, // TokenType::Less
-    ParseRule {
-        prefix: nil_func,
-        infix: binary,
-        precedence: Prec::Comparison,
-    }, // TokenType::LessEqual
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::Colon
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::RArrow
-    ParseRule {
-        prefix: literal,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::Identifier
-    ParseRule {
-        prefix: literal,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::String
-    ParseRule {
-        prefix: literal,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::Number
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::And,
-    }, // TokenType::KwAnd
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::Or,
-    }, // TokenType::KwOr
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwSelf
-    ParseRule {
-        prefix: struct_,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwStruct
-    ParseRule {
-        prefix: return_,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwReturn
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwImport
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwLet
-    ParseRule {
-        prefix: extern_function,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwExtern
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwMut
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwPub
-    ParseRule {
-        prefix: if_,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwIf
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwElse
-    ParseRule {
-        prefix: loop_,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwLoop
-    ParseRule {
-        prefix: while_,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwWhile
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwFor
-    ParseRule {
-        prefix: break_,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwBreak
-    ParseRule {
-        prefix: continue_,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwContinue
-    ParseRule {
-        prefix: literal,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwTrue
-    ParseRule {
-        prefix: literal,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwFalse
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::KwNil
-    ParseRule {
-        prefix: nil_func,
-        infix: as_,
-        precedence: Prec::Call,
-    }, // TokenType::KwAs
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::Err
-    ParseRule {
-        prefix: nil_func,
-        infix: nil_func,
-        precedence: Prec::None,
-    }, // TokenType::Eof
-];
-
-/// A wrapper function to get a rule from the loopup table
-#[inline]
-fn get_rule(type_: TokenType) -> &'static ParseRule {
-    &PARSER_RULE_TABLE[type_ as usize]
-}
-
-#[repr(u8)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum LoopType {
-    While,
-    Loop,
-}
-
-/// The index for the previos token in the parser
-const PREVIOUS: usize = 0;
-/// The index for the current token in the parser
-const CURRENT: usize = 1;
-
-/// An array of generally safe tokens to synchronize to for error handling
-const SAFE_TOKENS: [TokenType; 6] = [
-    TokenType::RCurly,
-    TokenType::Semicolon,
-    TokenType::KwIf,
-    TokenType::KwLet,
-    TokenType::KwStruct,
-    TokenType::Eof,
-];
-
-/// An array of closing tokens, synchronize will consume these tokens
-const CLOSING_TOKENS: [TokenType; 4] = [
-    TokenType::RBracket,
-    TokenType::RCurly,
-    TokenType::RParen,
-    TokenType::Semicolon,
-];
-
-/// An enum stating a declaration type for a let statement
-#[derive(PartialEq)]
-enum DeclarationType {
-    Struct,
-    Function,
-    Other,
-}
-
-/// The parser struct, contains all of the data necessary to parse
-pub struct Parser<'a> {
-    /// Name of the current module being parsed
-    name: String,
-
-    /// Lexer
-    lex: Lexer<'a>,
-
-    /// Channel to send notices though
-    notice_tx: Sender<Option<Notice>>,
-    /// Channel to send ir through
-    ir_tx: Sender<Option<ChannelIr>>,
-
-    /// Token stack, 0 is previous, 1 is the current token, 2 is the first look ahead, 3 is the second look ahead
-    tokens: [Token<'a>; 3],
-
-    /// A stack to see what type of loop the parser is in
-    loop_stack: Vec<LoopType>,
-
-    /// An integer that keeps track of how many function's it's in
-    nested_fn_count: u8,
-
-    /// Last declaration type, used for let statements to find the correct instruction to output
-    last_declaration: DeclarationType,
-}
-
-impl<'a> Parser<'a> {
-    /// Creates a new parser
-    fn new(
-        name: String,
-        source: &'a str,
-        notice_tx: Sender<Option<Notice>>,
-        ir_tx: Sender<Option<ChannelIr>>,
-    ) -> Self {
-        Parser {
-            name,
-            lex: Lexer::new(source),
-            notice_tx,
-            ir_tx,
-            tokens: [Token::default(), Token::default(), Token::default()],
-            loop_stack: Vec::with_capacity(8),
-            nested_fn_count: 0,
-            last_declaration: DeclarationType::Other,
-        }
-    }
-
-    /// Advances the lexer to the next token
-    #[inline]
-    fn advance(&mut self) {
-        self.tokens[0] = self.tokens[1].clone();
-        self.tokens[1] = self.tokens[2].clone();
-
-        if let Some(tok) = self.lex.next() {
-            self.tokens[2] = tok;
-        } else {
-            self.tokens[2] = Token::new(TokenType::Eof, TokenData::None, Position::new(0, 0));
-        }
-    }
-
-    /// Returns the lookahead token
-    #[inline]
-    fn lookahead(&self) -> &Token<'a> {
-        &self.tokens[2]
-    }
-
-    /// Returns the current token the parser is on
-    #[inline]
-    fn current(&self) -> &Token<'a> {
-        &self.tokens[CURRENT]
-    }
-
-    /// Returns the previous token that was already passed
-    #[inline]
-    fn previous(&self) -> &Token<'a> {
-        &self.tokens[PREVIOUS]
-    }
-
-    /// Check if the current token is of type, returns true if so and vice versa
-    #[inline]
-    fn check(&mut self, type_: TokenType) -> bool {
-        self.current().type_ == type_
-    }
-
-    /// Check if the current token is of type, returns true and comsumes the token if so and false and does nothing otherwise
-    #[inline]
-    fn check_consume(&mut self, type_: TokenType) -> bool {
-        if self.current().type_ == type_ {
-            self.advance();
-            true
-        } else {
-            false
-        }
-    }
-
-    /// If the current token matches `type_`, advances and returns the token's data, otherwise return an error
-    #[inline]
-    fn consume(&mut self, type_: TokenType, err_msg: &'static str) -> Result<&TokenData, ()> {
-        if self.current().type_ == type_ {
-            self.advance();
-            Ok(&self.previous().data)
-        } else {
-            self.emit_notice_current(
-                NoticeLevel::Error,
-                format!(
-                    "{} => Found {:?}, expected {:?}",
-                    err_msg,
-                    self.current().type_,
-                    type_
-                ),
-            );
-            Err(())
-        }
-    }
-
-    /// Makes an IR instruction with a custom position and sends it through the channel
-    #[inline]
-    fn emit_ir(&mut self, pos: Position, sig: TypeSignature, ins: Instruction) {
-        if ins == Instruction::FunctionEnd || ins == Instruction::ExternFn {
-            self.last_declaration = DeclarationType::Function;
-        } else if ins == Instruction::StructEnd {
-            self.last_declaration = DeclarationType::Struct;
-        } else {
-            self.last_declaration = DeclarationType::Other;
-        }
-
-        let ir = ChannelIr { pos, sig, ins };
-
-        if let Err(e) = self.ir_tx.send(Some(ir)) {
-            eprintln!(
-                "{}Parser ir send error: {}{}",
-                core::ansi::Fg::BrightRed,
-                e,
-                core::ansi::Fg::Reset
-            );
-        }
-    }
-
-    /// Makes an IR instruction and sends it through the channel
-    #[inline]
-    fn emit_ir_previous(&mut self, sig: TypeSignature, ins: Instruction) {
-        self.emit_ir(self.previous().pos, sig, ins)
-    }
-
-    /// Makes an IR instruction and sends it through the channel
-    #[inline]
-    fn emit_ir_current(&mut self, sig: TypeSignature, ins: Instruction) {
-        self.emit_ir(self.current().pos, sig, ins)
-    }
-
-    /// Makes a notice at a position
-    #[inline]
-    fn emit_notice(&mut self, pos: Position, level: NoticeLevel, msg: String) {
-        if level == NoticeLevel::Error {
-            if let Err(e) = self.ir_tx.send(Some(ChannelIr {
-                pos,
-                sig: TypeSignature::None,
-                ins: Instruction::Halt,
-            })) {
-                eprintln!(
-                    "{}Parser notice send error: {}{}",
-                    core::ansi::Fg::BrightRed,
-                    e,
-                    core::ansi::Fg::Reset
-                );
-            }
-        }
-
-        let notice = Notice::new("Parser".to_string(), msg, pos, self.name.clone(), level);
-
-        if let Err(e) = self.notice_tx.send(Some(notice)) {
-            eprintln!(
-                "{}Parser notice send error: {}{}",
-                core::ansi::Fg::BrightRed,
-                e,
-                core::ansi::Fg::Reset
-            );
-        }
-    }
-
-    /// Makes a notice at previous position
-    #[inline]
-    fn emit_notice_previous(&mut self, level: NoticeLevel, msg: String) {
-        self.emit_notice(self.previous().pos, level, msg)
-    }
-
-    /// Makes a notice at current position
-    #[inline]
-    fn emit_notice_current(&mut self, level: NoticeLevel, msg: String) {
-        self.emit_notice(self.current().pos, level, msg)
-    }
-
-    /// For errror recovery, skips until the next generally 'safe' token and any other tokens specified
-    fn synchronize(&mut self, tokens: &[TokenType]) {
-        while tokens.iter().filter(|t| self.check(**t)).count()
-            + SAFE_TOKENS.iter().filter(|t| self.check(**t)).count()
-            == 0
-        {
-            self.advance();
-        }
-        if tokens
-            .iter()
-            .filter(|t| CLOSING_TOKENS.contains(t) && self.check(**t))
-            .count()
-            == 1
-            || self.current().type_ == TokenType::RCurly
-            || self.current().type_ == TokenType::Semicolon
-        {
-            self.advance();
-        }
-    }
-
-    /// Creates the parser thread
-    pub fn parse(
-        name: String,
-        source: std::sync::Arc<str>,
-        notice_tx: Sender<Option<Notice>>,
-        ir_tx: Sender<Option<ChannelIr>>,
-    ) -> thread::JoinHandle<()> {
-        thread::spawn(move || {
-            let source_arc = source.clone();
-            let mut p = Parser::new(name, &*source_arc, notice_tx, ir_tx);
-
-            // Fill the look ahead with tokens
-            while p.check(TokenType::Eof) {
-                p.advance();
-            }
-
-            if module(&mut p).is_ok() {}
-
-            if let Err(e) = p.ir_tx.send(None) {
-                eprintln!(
-                    "{}Parser ir send error: {}{}",
-                    core::ansi::Fg::BrightRed,
-                    e,
-                    core::ansi::Fg::Reset
-                );
-            }
-
-            if let Err(e) = p.notice_tx.send(None) {
-                eprintln!(
-                    "{}Parser notice send error: {}{}",
-                    core::ansi::Fg::BrightRed,
-                    e,
-                    core::ansi::Fg::Reset
-                );
-            }
-        })
-    }
-}
-
 /// A funciton that should never be called that serves as a null pointer in the lookup table
-fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
+pub(crate) fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
     unreachable!("Somehow `nil_func` was called, this shouldn't happen");
 }
 
 /// Parse a module
-fn module<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub(crate) fn module<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.emit_ir_previous(TypeSignature::None, Instruction::Module(p.name.clone()));
     let mut was_error = false;
     while !p.check(TokenType::Eof) {
@@ -607,21 +30,81 @@ fn module<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     }
 }
 
-fn declaration_or_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Checks to see if the token is a declaration or statement starter and parses
+pub(crate) fn declaration_or_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     match p.current().type_ {
-        TokenType::KwImport => declaration(p),
+        TokenType::KwModule => declaration(p),
         _ => statement(p),
     }
 }
 
-fn declaration<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a declaration
+pub(crate) fn declaration<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     match p.current().type_ {
-        TokenType::KwImport => {
-            p.synchronize(&[]);
-            p.emit_notice_previous(
-                NoticeLevel::Warning,
-                "Imports not supported yet".to_string(),
-            );
+        TokenType::KwModule => {
+            p.consume(
+                TokenType::KwModule,
+                "Expected keyword `module` for opening a module declaration",
+            )?;
+
+            let module_pos = p.current().pos;
+
+            let mut segments = Vec::new();
+
+            if let Ok(s) = p.consume(TokenType::Identifier, "Expected identifer ") {
+                match s {
+                    TokenData::Str(s) => segments.push(s.to_string()),
+                    _ => {
+                        p.emit_notice_previous(
+                            NoticeLevel::Error,
+                            "Failed to extract string data from string token".to_string(),
+                        );
+                        p.synchronize(&[]);
+                        return Err(());
+                    }
+                }
+            } else {
+                return Err(());
+            }
+
+            while !p.check_consume(TokenType::Semicolon) {
+                p.consume(TokenType::Dot, "Expected `.` or `;` after identifier")?;
+
+                if let Ok(s) = p.consume(
+                    TokenType::Identifier,
+                    "Expected identifer for module statement",
+                ) {
+                    match s {
+                        TokenData::Str(s) => segments.push(s.to_string()),
+                        _ => {
+                            p.emit_notice_previous(
+                                NoticeLevel::Error,
+                                "Failed to extract string data from string token".to_string(),
+                            );
+                            p.synchronize(&[]);
+                            return Err(());
+                        }
+                    }
+                } else {
+                    return Err(());
+                }
+            }
+
+            let module_name = if segments[0] == "std" {
+                let environment = std::env::current_dir().unwrap();
+                format!("{}/{}", environment.to_str().unwrap(), segments.join("/"))
+            } else {
+                segments.join("/")
+            };
+
+            if let Err(_) = p.parse_imported_module(format!("{}.grav", module_name)) {
+                p.emit_notice(
+                    module_pos,
+                    NoticeLevel::Error,
+                    format!("Failed to load module {}", segments.join(".")),
+                );
+                return Err(());
+            }
         }
         _ => {
             p.emit_notice_current(NoticeLevel::Error, "Expected a declaration".to_string());
@@ -632,7 +115,8 @@ fn declaration<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a statement
+pub(crate) fn statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     match p.current().type_ {
         TokenType::KwLet => let_statement(p)?,
         _ => expression_statement(p)?,
@@ -640,7 +124,8 @@ fn statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a let statement
+pub(crate) fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let mut was_error = p
         .consume(
             TokenType::KwLet,
@@ -744,15 +229,16 @@ fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     }
 }
 
-fn expression_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses an expression statement
+pub(crate) fn expression_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     expression(p)?;
     p.consume(TokenType::Semicolon, "Expected closing `;`")?;
     Ok(())
 }
 
 /// Parse an expression with a precedence greater than or equal to `precedence`
-fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> {
-    let prefix_rule = get_rule(p.current().type_).prefix;
+pub(crate) fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: rules::Prec) -> Result<(), ()> {
+    let prefix_rule = rules::get_rule(p.current().type_).prefix;
     if prefix_rule as usize == nil_func as usize {
         p.emit_notice_current(NoticeLevel::Error, "Expected prefix expression".to_string());
         p.synchronize(&[]);
@@ -764,8 +250,8 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> 
         return Err(());
     }
 
-    while precedence <= get_rule(p.current().type_).precedence {
-        let infix_rule = get_rule(p.current().type_).infix;
+    while precedence <= rules::get_rule(p.current().type_).precedence {
+        let infix_rule = rules::get_rule(p.current().type_).infix;
         if infix_rule as usize == nil_func as usize {
             p.emit_notice_current(NoticeLevel::Error, "Expected infix expression".to_string());
             p.synchronize(&[]);
@@ -783,12 +269,12 @@ fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: Prec) -> Result<(), ()> 
 
 /// Parse an expression with a precedence greater than Assignment
 #[inline]
-fn expression<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    parse_precedence(p, Prec::Assignment)
+pub(crate) fn expression<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+    parse_precedence(p, rules::Prec::Assignment)
 }
 
 /// Parse a literal expression
-fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub(crate) fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.advance();
     match (p.previous().type_, p.previous().data.clone()) {
         (TokenType::Number, TokenData::Integer(n)) => p.emit_ir_previous(
@@ -841,11 +327,11 @@ fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parse a unary expression
-fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub(crate) fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.advance();
     let start_pos = p.previous().pos;
     let op_tok = p.previous().type_;
-    parse_precedence(p, Prec::Unary)?;
+    parse_precedence(p, rules::Prec::Unary)?;
     let (sig, ins) = match op_tok {
         TokenType::Minus => (TypeSignature::Untyped, Instruction::Negate),
         TokenType::Bang => (
@@ -866,11 +352,11 @@ fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parse a binary expression
-fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub(crate) fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.advance();
     let start_pos = p.previous().pos;
     let op_tok = p.previous().type_;
-    parse_precedence(p, get_rule(op_tok).precedence)?;
+    parse_precedence(p, rules::get_rule(op_tok).precedence)?;
     let (sig, ins) = match op_tok {
         TokenType::Plus => (TypeSignature::Untyped, Instruction::Add),
         TokenType::Minus => (TypeSignature::Untyped, Instruction::Subtract),
@@ -929,7 +415,7 @@ fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parse a grouping or function
-fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub(crate) fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let start_pos = p.current().pos;
     let mut was_error = p
         .consume(
@@ -1034,7 +520,8 @@ fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     }
 }
 
-fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a block expression
+pub(crate) fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.consume(
         TokenType::LCurly,
         "Expected opening `{` for block expression",
@@ -1082,7 +569,8 @@ fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a struct expression
+pub(crate) fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.consume(
         TokenType::KwStruct,
         "Expected keyword `struct` for struct expression",
@@ -1140,7 +628,8 @@ fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn call<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a call expression
+pub(crate) fn call<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let mut was_error = p
         .consume(
             TokenType::LParen,
@@ -1176,7 +665,8 @@ fn call<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     }
 }
 
-fn if_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses an if expression
+pub(crate) fn if_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.consume(
         TokenType::KwIf,
         "Expected keyword `if` for opening an if expression",
@@ -1211,7 +701,8 @@ fn if_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn field_access<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a field access expression
+pub(crate) fn field_access<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.consume(TokenType::Dot, "Expected `.` for field access expression")?;
     let name = match p.consume(
         TokenType::Identifier,
@@ -1233,7 +724,8 @@ fn field_access<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn as_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses an as expression
+pub(crate) fn as_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.consume(TokenType::KwAs, "Expected keyword `as` for as expression")?;
     let pos = p.current().pos;
     let type_ = type_(p)?;
@@ -1243,7 +735,8 @@ fn as_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a while expression
+pub(crate) fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let mut was_error = p
         .consume(
             TokenType::KwWhile,
@@ -1279,7 +772,8 @@ fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     }
 }
 
-fn loop_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a loop expression
+pub(crate) fn loop_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let mut was_error = p
         .consume(
             TokenType::KwLoop,
@@ -1301,7 +795,8 @@ fn loop_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     }
 }
 
-fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a break expression
+pub(crate) fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     if p.loop_stack.is_empty() {
         p.emit_notice_current(
             NoticeLevel::Error,
@@ -1337,7 +832,8 @@ fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a continue expression
+pub(crate) fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     if p.loop_stack.is_empty() {
         p.emit_notice_current(
             NoticeLevel::Error,
@@ -1357,7 +853,8 @@ fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn extern_function<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses an extern expression
+pub(crate) fn extern_function<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     p.consume(
         TokenType::KwExtern,
         "Expected keyword `extern` for extern function",
@@ -1420,7 +917,8 @@ fn extern_function<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     Ok(())
 }
 
-fn return_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+/// Parses a return expression
+pub(crate) fn return_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     if p.nested_fn_count > 0 {
         let start_pos = p.current().pos;
         p.consume(
@@ -1439,6 +937,7 @@ fn return_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     }
 }
 
+/// Parses a type signature
 fn type_<'a>(p: &mut Parser<'a>) -> Result<TypeSignature, ()> {
     let ret = match (&p.current().type_, &p.current().data) {
         (TokenType::Identifier, TokenData::Str(s)) => {

@@ -16,7 +16,7 @@ visibility -> "pub" ;
 
 declaration -> visibility? (module_declaration) ;
 
-module_declaration -> "module" IDENTIFIER ("." IDENTIFIER)* ;
+module_declaration -> "module" IDENTIFIER ("." IDENTIFIER)* ";" ;
 ```
 
 # Statements
