@@ -191,7 +191,7 @@ fn main() {
 fn report_notice<'a>(
     notice: Notice,
     map: &HashMap<String, memmap::Mmap>,
-    file_name: &String,
+    file_name: &str,
     top_source: &'a str,
 ) {
     let notice_file = notice.file.clone();

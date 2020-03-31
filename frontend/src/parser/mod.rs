@@ -329,7 +329,7 @@ impl<'a> Parser<'a> {
             PARSER_SOURCE_REQUEST_TIMEOUT,
         )) {
             Ok(Some(source)) => Ok(source),
-            Ok(None) => return Err(()),
+            Ok(None) => Err(()),
             Err(e) => {
                 eprintln!(
                     "{}Parser failed to receive source data within {} seconds: {}{}",
@@ -338,7 +338,7 @@ impl<'a> Parser<'a> {
                     e,
                     core::ansi::Fg::Reset
                 );
-                return Err(());
+                Err(())
             }
         }
     }

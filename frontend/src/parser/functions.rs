@@ -53,7 +53,7 @@ pub(crate) fn declaration<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 
             if let Ok(s) = p.consume(TokenType::Identifier, "Expected identifer ") {
                 match s {
-                    TokenData::Str(s) => segments.push(s.to_string()),
+                    TokenData::Str(s) => segments.push((*s).to_string()),
                     _ => {
                         p.emit_notice_previous(
                             NoticeLevel::Error,
@@ -75,7 +75,7 @@ pub(crate) fn declaration<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                     "Expected identifer for module statement",
                 ) {
                     match s {
-                        TokenData::Str(s) => segments.push(s.to_string()),
+                        TokenData::Str(s) => segments.push((*s).to_string()),
                         _ => {
                             p.emit_notice_previous(
                                 NoticeLevel::Error,
@@ -97,7 +97,9 @@ pub(crate) fn declaration<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
                 segments.join("/")
             };
 
-            if let Err(_) = p.parse_imported_module(format!("{}.grav", module_name)) {
+            if p.parse_imported_module(format!("{}.grav", module_name))
+                .is_err()
+            {
                 p.emit_notice(
                     module_pos,
                     NoticeLevel::Error,
