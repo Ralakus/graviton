@@ -104,9 +104,9 @@ fn main() {
 
     let analyzer = Analyzer::create(notice_tx, analyzer_ir_tx, analyzer_ir_rx);
 
-    let (mut ir_done, mut notice_done, mut source_request_done) = (false, false, false);
+    let (mut ir_done, mut source_request_done) = (false, false);
 
-    while !ir_done || !notice_done {
+    while !ir_done || !source_request_done {
         match ir_rx.try_recv() {
             Ok(Some(ins)) => tir.push(ins.pos, ins.sig, ins.ins),
             Ok(None) => ir_done = true,
@@ -117,14 +117,8 @@ fn main() {
             }
         }
 
-        match notice_rx.try_recv() {
-            Ok(Some(notice)) => report_notice(notice, &mapped_files_map, file_name, top_source),
-            Ok(None) => notice_done = true,
-            Err(std::sync::mpsc::TryRecvError::Empty) => (),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) if notice_done => (),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                panic!("notice_rx disconnected before sending end signal")
-            }
+        if let Ok(Some(notice)) = notice_rx.try_recv() {
+            report_notice(notice, &mapped_files_map, file_name, top_source)
         }
 
         match source_request_rx.try_recv() {

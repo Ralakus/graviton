@@ -13,8 +13,10 @@ while true {
 
 if true {
     14
-} else {
+} else if false {
     48
+} else {
+    672
 };
 
 loop {

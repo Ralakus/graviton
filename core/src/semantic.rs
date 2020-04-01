@@ -24,6 +24,32 @@ pub struct Analyzer {
     loop_data: Vec<usize>,
 }
 
+macro_rules! check_expression {
+    ($a:expr, $($type_:tt)*) => {
+        {
+            let result = $a.stack.last();
+            if let Some(($($type_)*, _)) = result
+            {
+                true
+            } else if let Some((_, pos)) = result {
+                $a.emit_notice(
+                    *pos,
+                    NoticeLevel::Error,
+                    format!("Expression doesn't evaluate to {}", $($type_)*),
+                );
+                false
+            } else {
+                $a.emit_notice(
+                    Position::new(0, 0),
+                    NoticeLevel::Error,
+                    "Operation stack empty, should be unreachable".to_string(),
+                );
+                false
+            }
+        }
+    };
+}
+
 impl Analyzer {
     /// Creates a new analyzer
     fn new(
@@ -112,6 +138,44 @@ impl Analyzer {
         }
     }
 
+    fn check_if_branch(&mut self, last_ir: ChannelIr) {
+        let (idx, branches, _) = self.if_data.last().unwrap();
+
+        if last_ir.ins == Instruction::BlockEndExpression {
+            if *branches > 1 {
+                let (first_sig, _) = self.stack[*idx].clone();
+                let (sig, pos) = self.stack.pop().unwrap();
+                if self.stack.len() == *idx {
+                    self.emit_notice(
+                        pos,
+                        NoticeLevel::Error,
+                        format!(
+                            "If branch expression expected no return expression, found {}",
+                            sig
+                        ),
+                    );
+                }
+                if sig != first_sig {
+                    self.emit_notice(
+                        pos,
+                        NoticeLevel::Error,
+                        format!(
+                            "If branch expression returned a different type, found {}, expected {}",
+                            sig, first_sig
+                        ),
+                    );
+                }
+            }
+        } else if self.stack.len() != *idx {
+            let (first_sig, _) = self.stack[*idx].clone();
+            self.emit_notice(
+                last_ir.pos,
+                NoticeLevel::Error,
+                format!("If branch lacks a return expression of type {}", first_sig),
+            );
+        }
+    }
+
     pub fn create(
         notice_tx: Sender<Option<Notice>>,
         ir_tx: Sender<Option<ChannelIr>>,
@@ -126,10 +190,14 @@ impl Analyzer {
                 "Not fully implemented yet".to_string(),
             );
 
-            let mut last_ins = Instruction::Halt;
+            let mut last_ir = ChannelIr {
+                pos: Position::new(0, 0),
+                sig: TypeSignature::None,
+                ins: Instruction::Halt,
+            };
 
             while let Ok(Some(ir)) = a.ir_rx.recv() {
-                print!("\nStack: ");
+                /*print!("\nStack: ");
                 for (sig, _pos) in &a.stack {
                     print!("[{}]", sig);
                 }
@@ -145,7 +213,7 @@ impl Analyzer {
                 for name in &a.name_stack {
                     print!("[{}]", name);
                 }
-                println!("\n{:?}", ir.ins);
+                println!("\n{:?}", ir.ins);*/
                 use Instruction::*;
                 let sig = match &ir.ins {
                     Halt => {
@@ -167,98 +235,67 @@ impl Analyzer {
                     }
 
                     IfBody => {
-                        let result = a.stack.pop();
-                        if let Some((TypeSignature::Primitive(PrimitiveType::Boolean), _)) = result
-                        {
-                            TypeSignature::None
-                        } else if let Some((_, pos)) = result {
-                            a.emit_notice(
-                                pos,
-                                NoticeLevel::Error,
-                                "Expression doesn't evaluate to a boolean".to_string(),
-                            );
-                            TypeSignature::None
-                        } else {
-                            a.emit_notice(
-                                Position::new(0, 0),
-                                NoticeLevel::Error,
-                                "Operation stack empty, should be unreachable".to_string(),
-                            );
-                            TypeSignature::None
-                        }
+                        check_expression!(a, TypeSignature::Primitive(PrimitiveType::Boolean));
+                        a.stack.pop();
+                        TypeSignature::None
                     }
 
                     IfElseIf => {
-                        a.if_data.last_mut().unwrap().1 += 1;
-                        let data = a.if_data.last().unwrap();
-                        if data.1 > 1 && a.stack.len() != data.0 {
-                            let (first_sig, _) = &a.stack[data.0];
-                            let stack_top = a.stack.last().unwrap();
-                            if stack_top.0 != *first_sig {
-                                a.emit_notice(stack_top.1, NoticeLevel::Error, format!("If branch expression returned a different type, found {}, expected {}", stack_top.0, first_sig));
-                            }
-                            a.stack.pop();
-                        }
+                        let (_, branches, _) = a.if_data.last_mut().unwrap();
+                        *branches += 1;
+
+                        a.check_if_branch(last_ir);
+
                         TypeSignature::None
                     }
 
                     IfElseIfBody => {
-                        let result = a.stack.pop();
-                        if let Some((TypeSignature::Primitive(PrimitiveType::Boolean), _)) = result
-                        {
-                            TypeSignature::None
-                        } else if let Some((_, pos)) = result {
-                            a.emit_notice(
-                                pos,
-                                NoticeLevel::Error,
-                                "Expression doesn't evaluate to a boolean".to_string(),
-                            );
-                            TypeSignature::None
-                        } else {
-                            a.emit_notice(
-                                Position::new(0, 0),
-                                NoticeLevel::Error,
-                                "Operation stack empty, should be unreachable".to_string(),
-                            );
-                            TypeSignature::None
-                        }
+                        check_expression!(a, TypeSignature::Primitive(PrimitiveType::Boolean));
+                        a.stack.pop();
+                        TypeSignature::None
                     }
 
                     IfElse => {
-                        let (stack_idx, branches, has_else) = a.if_data.last_mut().unwrap();
+                        let (_, branches, has_else) = a.if_data.last_mut().unwrap();
                         *branches += 1;
                         *has_else = true;
-                        if *branches > 1 && a.stack.len() != *stack_idx {
-                            let (first_sig, _) = &a.stack[*stack_idx];
-                            let stack_top = a.stack.last().unwrap();
-                            if stack_top.0 != *first_sig {
-                                a.emit_notice(stack_top.1, NoticeLevel::Error, format!("If branch expression returned a different type, found {}, expected {}", stack_top.0, first_sig));
-                            }
-                            a.stack.pop();
-                        }
+
+                        a.check_if_branch(last_ir);
+
                         TypeSignature::None
                     }
 
                     IfEnd => {
-                        let (stack_idx, branches, has_else) = a.if_data.pop().unwrap();
-                        if branches > 0 && a.stack.len() != stack_idx {
-                            if !has_else {
-                                a.emit_notice(ir.pos, NoticeLevel::Error, "If expression that returns a value doesn't have an else branch".to_string());
+                        let (idx, branches, has_else) = a.if_data.pop().unwrap();
+
+                        if last_ir.ins == BlockEndExpression {
+                            let (first_sig, _) = a.stack[idx].clone();
+                            if branches > 0 {
+                                let (sig, pos) = a.stack.pop().unwrap();
+                                if a.stack.len() == idx {
+                                    a.emit_notice(pos, NoticeLevel::Error, format!("If branch expression expected no return expression, found {}", sig));
+                                }
+                                if sig != first_sig {
+                                    a.emit_notice(pos, NoticeLevel::Error, format!("If branch expression returned a different type, found {}, expected {}", sig, first_sig));
+                                }
+                                if !has_else {
+                                    a.emit_notice(pos, NoticeLevel::Error, "If expression that returns a value doesn't have an else branch".to_string());
+                                }
                             }
-                            let (stack_top, stack_top_pos) = a.stack.pop().unwrap();
-                            let (first_sig, _) = &a.stack[stack_idx];
-                            if stack_top != *first_sig {
-                                a.emit_notice(stack_top_pos, NoticeLevel::Error, format!("If branch expression returned a different type, found {}, expected {}", stack_top, first_sig));
-                                a.stack
-                                    .push((TypeSignature::Primitive(PrimitiveType::Nil), ir.pos));
-                                TypeSignature::Primitive(PrimitiveType::Nil)
-                            } else {
-                                first_sig.clone()
-                            }
+                            first_sig
+                        } else if a.stack.len() != idx {
+                            let (first_sig, _) = a.stack[idx].clone();
+                            a.emit_notice(
+                                last_ir.pos,
+                                NoticeLevel::Error,
+                                format!(
+                                    "If branch lacks a return expression of type {}",
+                                    first_sig
+                                ),
+                            );
+                            first_sig
                         } else {
-                            a.stack
-                                .push((TypeSignature::Primitive(PrimitiveType::Nil), ir.pos));
-                            TypeSignature::Primitive(PrimitiveType::Nil)
+                            TypeSignature::None
                         }
                     }
 
@@ -268,25 +305,9 @@ impl Analyzer {
                     }
 
                     WhileBody => {
-                        let result = a.stack.pop();
-                        if let Some((TypeSignature::Primitive(PrimitiveType::Boolean), _)) = result
-                        {
-                            TypeSignature::None
-                        } else if let Some((_, pos)) = result {
-                            a.emit_notice(
-                                pos,
-                                NoticeLevel::Error,
-                                "Expression doesn't evaluate to a boolean".to_string(),
-                            );
-                            TypeSignature::None
-                        } else {
-                            a.emit_notice(
-                                Position::new(0, 0),
-                                NoticeLevel::Error,
-                                "Operation stack empty, should be unreachable".to_string(),
-                            );
-                            TypeSignature::None
-                        }
+                        check_expression!(a, TypeSignature::Primitive(PrimitiveType::Boolean));
+                        a.stack.pop();
+                        TypeSignature::None
                     }
 
                     WhileEnd => {
@@ -312,7 +333,7 @@ impl Analyzer {
 
                     LoopEnd => {
                         let stack_idx = a.loop_data.pop().unwrap();
-                        if last_ins == BlockEndExpression {
+                        if last_ir.ins == BlockEndExpression {
                             a.emit_notice(
                                 a.stack.last().unwrap().1,
                                 NoticeLevel::Error,
@@ -339,7 +360,7 @@ impl Analyzer {
                     BreakExpression => a.stack.last().unwrap().0.clone(),
 
                     Statement => {
-                        match last_ins {
+                        match last_ir.ins {
                             BreakExpression | Return => (),
                             _ => {
                                 a.stack.pop();
@@ -350,18 +371,18 @@ impl Analyzer {
 
                     Bool(_) | Integer(_) | Float(_) => {
                         a.stack.push((ir.sig.clone(), ir.pos));
-                        ir.sig
+                        ir.sig.clone()
                     }
 
                     _ => TypeSignature::None,
                 };
 
-                last_ins = ir.ins.clone();
+                last_ir = ir.clone();
 
                 a.emit_ir(ir.pos, sig, ir.ins);
             }
 
-            print!("\nStack: ");
+            /*print!("\nStack: ");
             for (sig, _pos) in &a.stack {
                 print!("[{}]", sig);
             }
@@ -377,7 +398,7 @@ impl Analyzer {
             for name in &a.name_stack {
                 print!("[{}]", name);
             }
-            println!();
+            println!();*/
 
             Self::send_end_signal(notice_tx, ir_tx);
         })
