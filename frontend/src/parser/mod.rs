@@ -9,10 +9,7 @@ use super::{
 };
 
 use mpsc::{Receiver, Sender};
-use std::{
-    sync::{mpsc, Arc},
-    thread,
-};
+use std::sync::{mpsc, Arc};
 
 /// The subfunctions for parsing
 mod functions;
@@ -374,40 +371,38 @@ impl<'a> Parser<'a> {
     }
 
     /// Creates the parser thread from source data
-    pub fn create(
+    pub async fn create(
         name: String,
         source_rx: Receiver<Option<Arc<str>>>,
         source_request_tx: Sender<Option<String>>,
         notice_tx: Sender<Option<Notice>>,
         ir_tx: Sender<Option<ChannelIr>>,
-    ) -> thread::JoinHandle<()> {
-        thread::spawn(move || {
-            let source_rx = source_rx;
+    ) {
+        let source_rx = source_rx;
 
-            let source = match Parser::recieve_source(&source_rx) {
-                Ok(s) => s,
-                Err(_) => {
-                    Parser::send_end_signal(notice_tx, ir_tx, source_request_tx);
-                    return;
-                }
-            };
+        let source = match Parser::recieve_source(&source_rx) {
+            Ok(s) => s,
+            Err(_) => {
+                Parser::send_end_signal(notice_tx, ir_tx, source_request_tx);
+                return;
+            }
+        };
 
-            let mut p = Parser::new(
-                name,
-                &source,
-                &source_rx,
-                source_request_tx.clone(),
-                notice_tx.clone(),
-                ir_tx.clone(),
-            );
+        let mut p = Parser::new(
+            name,
+            &source,
+            &source_rx,
+            source_request_tx.clone(),
+            notice_tx.clone(),
+            ir_tx.clone(),
+        );
 
-            // Fill the look ahead with tokens
-            p.advance();
-            p.advance();
+        // Fill the look ahead with tokens
+        p.advance();
+        p.advance();
 
-            if functions::module(&mut p).is_ok() {}
+        if functions::module(&mut p).is_ok() {}
 
-            Parser::send_end_signal(notice_tx, ir_tx, source_request_tx);
-        })
+        Parser::send_end_signal(notice_tx, ir_tx, source_request_tx);
     }
 }

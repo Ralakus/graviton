@@ -134,9 +134,6 @@ pub enum Instruction {
     /// Closes a block with an end expression
     BlockEndExpression,
 
-    /// Imports a module from file (String)
-    Import(String),
-
     /// Defines an external function, must be used inside let statement
     ExternFn,
 
@@ -507,20 +504,6 @@ impl std::fmt::Display for Module {
                         "{}block end {}expression{}",
                         ansi::Fg::Cyan,
                         ansi::Fg::Yellow,
-                        ansi::Fg::Reset
-                    )?;
-                }
-
-                Import(name) => {
-                    fmt_tab(f, depth)?;
-                    writeln!(
-                        f,
-                        "{}import{} {} {}{}{}",
-                        ansi::Fg::Cyan,
-                        ansi::Fg::Yellow,
-                        name,
-                        ansi::Fg::Red,
-                        sig,
                         ansi::Fg::Reset
                     )?;
                 }

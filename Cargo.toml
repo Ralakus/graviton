@@ -26,3 +26,5 @@ graviton_backend  = { path = "backend",  version = "0.7.0" }
 
 clap = "*"
 memmap = "*"
+
+futures = "*"

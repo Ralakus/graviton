@@ -30,10 +30,6 @@ expression_statement -> expression ";" ;
 mutability -> "mut" ;
 
 let -> "let" mutability? IDENTIFIER (":" type)? ("=" expression)? ";" ;
-
-function_declaration -> "let" mutability? IDENTIFIER (":" function_signature)? "=" function ";" ;
-
-struct_declaration -> "let" IDENTIFIER (":" struct_signature)? "=" struct ";" ;
 ```
 
 # Expressions

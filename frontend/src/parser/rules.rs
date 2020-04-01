@@ -168,12 +168,12 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
     }, // TokenType::Number
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::And,
     }, // TokenType::KwAnd
     ParseRule {
         prefix: nil_func,
-        infix: nil_func,
+        infix: binary,
         precedence: Prec::Or,
     }, // TokenType::KwOr
     ParseRule {

@@ -293,7 +293,7 @@ pub(crate) fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             "Failed to extract float or integer data from number token".to_string(),
         ),
         (TokenType::String, TokenData::Str(s)) => p.emit_ir_previous(
-            TypeSignature::Primitive(PrimitiveType::new("Str")),
+            TypeSignature::Primitive(PrimitiveType::Str),
             Instruction::String(s.to_string()),
         ),
         (TokenType::String, _) => p.emit_notice_previous(
@@ -301,11 +301,11 @@ pub(crate) fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             "Failed to extract string data from string token".to_string(),
         ),
         (TokenType::KwTrue, _) => p.emit_ir_previous(
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::Bool(true),
         ),
         (TokenType::KwFalse, _) => p.emit_ir_previous(
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::Bool(false),
         ),
         (TokenType::Identifier, TokenData::Str(s)) => p.emit_ir_previous(
@@ -338,7 +338,7 @@ pub(crate) fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     let (sig, ins) = match op_tok {
         TokenType::Minus => (TypeSignature::Untyped, Instruction::Negate),
         TokenType::Bang => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::Not,
         ),
         _ => {
@@ -367,41 +367,41 @@ pub(crate) fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         TokenType::Slash => (TypeSignature::Untyped, Instruction::Divide),
 
         TokenType::Less => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::Less,
         ),
         TokenType::LessEqual => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::LessEqual,
         ),
         TokenType::Greater => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::Greater,
         ),
         TokenType::GreaterEqual => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::GreaterEqual,
         ),
         TokenType::EqualEqual => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::Equal,
         ),
         TokenType::BangEqual => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::NotEqual,
         ),
 
         TokenType::KwAnd => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::And,
         ),
         TokenType::KwOr => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Boolean),
             Instruction::Or,
         ),
 
         TokenType::Equal => (
-            TypeSignature::Primitive(PrimitiveType::new("Bool")),
+            TypeSignature::Primitive(PrimitiveType::Nil),
             Instruction::Assign,
         ),
         _ => {
@@ -747,7 +747,7 @@ pub(crate) fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         )
         .is_err();
     p.emit_ir_previous(
-        TypeSignature::Primitive(PrimitiveType::new("Nil")),
+        TypeSignature::Primitive(PrimitiveType::Nil),
         Instruction::While,
     );
     if expression(p).is_err() {
@@ -755,7 +755,7 @@ pub(crate) fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         was_error = true;
     }
     p.emit_ir_current(
-        TypeSignature::Primitive(PrimitiveType::new("Bool")),
+        TypeSignature::Primitive(PrimitiveType::Boolean),
         Instruction::WhileBody,
     );
     p.loop_stack.push(LoopType::While);
@@ -765,7 +765,7 @@ pub(crate) fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     }
     p.loop_stack.pop();
     p.emit_ir_previous(
-        TypeSignature::Primitive(PrimitiveType::new("Nil")),
+        TypeSignature::Primitive(PrimitiveType::Nil),
         Instruction::WhileEnd,
     );
     if was_error {
@@ -817,7 +817,7 @@ pub(crate) fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     if let Some(LoopType::Loop) = p.loop_stack.last() {
         if p.check(TokenType::Semicolon) {
             p.emit_ir_previous(
-                TypeSignature::Primitive(PrimitiveType::new("Nil")),
+                TypeSignature::Primitive(PrimitiveType::Nil),
                 Instruction::Break,
             );
         } else {
@@ -834,7 +834,7 @@ pub(crate) fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             return Err(());
         }
         p.emit_ir_previous(
-            TypeSignature::Primitive(PrimitiveType::new("Nil")),
+            TypeSignature::Primitive(PrimitiveType::Nil),
             Instruction::Break,
         );
     }

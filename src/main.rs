@@ -77,7 +77,7 @@ fn main() {
 
     let mut mapped_files_map: HashMap<String, memmap::Mmap> = HashMap::new();
 
-    println!("Source:\n\n{}\n", top_source);
+    // println!("Source:\n\n{}\n", top_source);
 
     let mut tir = ir::Module::new();
 
@@ -94,7 +94,7 @@ fn main() {
         eprintln!("{}Error: {}{}", ansi::Fg::BrightRed, e, ansi::Fg::Reset);
     }
 
-    let parser = Parser::create(
+    let parser_task = Parser::create(
         file_name.to_string(),
         source_rx,
         source_request_tx,
@@ -102,112 +102,121 @@ fn main() {
         parser_ir_tx,
     );
 
-    let analyzer = Analyzer::create(notice_tx, analyzer_ir_tx, analyzer_ir_rx);
+    let analyzer_task = Analyzer::create(notice_tx, analyzer_ir_tx, analyzer_ir_rx);
 
     let (mut ir_done, mut source_request_done) = (false, false);
 
-    while !ir_done || !source_request_done {
-        match ir_rx.try_recv() {
-            Ok(Some(ins)) => tir.push(ins.pos, ins.sig, ins.ins),
-            Ok(None) => ir_done = true,
-            Err(std::sync::mpsc::TryRecvError::Empty) => (),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) if ir_done => (),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                panic!("ir_rx disconnected before sending end signal")
+    let driver_task = async {
+        while !ir_done || !source_request_done {
+            match ir_rx.try_recv() {
+                Ok(Some(ins)) => tir.push(ins.pos, ins.sig, ins.ins),
+                Ok(None) => ir_done = true,
+                Err(std::sync::mpsc::TryRecvError::Empty) => (),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) if ir_done => (),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    panic!("ir_rx disconnected before sending end signal")
+                }
             }
-        }
 
-        if let Ok(Some(notice)) = notice_rx.try_recv() {
-            report_notice(notice, &mapped_files_map, file_name, top_source)
-        }
+            if let Ok(Some(notice)) = notice_rx.try_recv() {
+                report_notice(notice, &mapped_files_map, file_name, top_source)
+            }
 
-        match source_request_rx.try_recv() {
-            Ok(Some(file_name)) => {
-                match std::fs::File::open(file_name.as_str()) {
-                    Ok(file) => {
-                        unsafe {
-                            match memmap::Mmap::map(&file) {
-                                Ok(map) => {
-                                    mapped_files_map.insert(file_name.clone(), map);
-                                    match std::str::from_utf8(&mapped_files_map[&file_name][..]) {
-                                        Ok(s) => {
-                                            if let Err(e) =
-                                                source_tx.send(Some(std::sync::Arc::from(s)))
-                                            {
-                                                eprintln!(
-                                                    "{}Error: {}{}",
-                                                    ansi::Fg::BrightRed,
-                                                    e,
-                                                    ansi::Fg::Reset
-                                                );
+            match source_request_rx.try_recv() {
+                Ok(Some(file_name)) => {
+                    match std::fs::File::open(file_name.as_str()) {
+                        Ok(file) => {
+                            unsafe {
+                                match memmap::Mmap::map(&file) {
+                                    Ok(map) => {
+                                        mapped_files_map.insert(file_name.clone(), map);
+                                        match std::str::from_utf8(&mapped_files_map[&file_name][..])
+                                        {
+                                            Ok(s) => {
+                                                if let Err(e) =
+                                                    source_tx.send(Some(std::sync::Arc::from(s)))
+                                                {
+                                                    eprintln!(
+                                                        "{}Error: {}{}",
+                                                        ansi::Fg::BrightRed,
+                                                        e,
+                                                        ansi::Fg::Reset
+                                                    );
+                                                }
                                             }
-                                        }
-                                        Err(e) => {
-                                            eprintln!(
-                                                "{}Error{}: {}: {}",
-                                                ansi::Fg::Red,
-                                                ansi::Fg::Reset,
-                                                file_name,
-                                                e
-                                            );
-                                            if let Err(e) = source_tx.send(None) {
+                                            Err(e) => {
                                                 eprintln!(
-                                                    "{}Error: {}{}",
-                                                    ansi::Fg::BrightRed,
-                                                    e,
-                                                    ansi::Fg::Reset
+                                                    "{}Error{}: {}: {}",
+                                                    ansi::Fg::Red,
+                                                    ansi::Fg::Reset,
+                                                    file_name,
+                                                    e
                                                 );
+                                                if let Err(e) = source_tx.send(None) {
+                                                    eprintln!(
+                                                        "{}Error: {}{}",
+                                                        ansi::Fg::BrightRed,
+                                                        e,
+                                                        ansi::Fg::Reset
+                                                    );
+                                                }
                                             }
-                                        }
-                                    };
-                                }
-                                Err(e) => {
-                                    eprintln!(
-                                        "{}Error{}: {}: {}",
-                                        ansi::Fg::Red,
-                                        ansi::Fg::Reset,
-                                        file_name,
-                                        e
-                                    );
-                                    if let Err(e) = source_tx.send(None) {
+                                        };
+                                    }
+                                    Err(e) => {
                                         eprintln!(
-                                            "{}Error: {}{}",
-                                            ansi::Fg::BrightRed,
-                                            e,
-                                            ansi::Fg::Reset
+                                            "{}Error{}: {}: {}",
+                                            ansi::Fg::Red,
+                                            ansi::Fg::Reset,
+                                            file_name,
+                                            e
                                         );
+                                        if let Err(e) = source_tx.send(None) {
+                                            eprintln!(
+                                                "{}Error: {}{}",
+                                                ansi::Fg::BrightRed,
+                                                e,
+                                                ansi::Fg::Reset
+                                            );
+                                        }
                                     }
                                 }
-                            }
-                        };
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "{}Error{}: {}: {}",
-                            ansi::Fg::Red,
-                            ansi::Fg::Reset,
-                            file_name,
-                            e
-                        );
-                        if let Err(e) = source_tx.send(None) {
-                            eprintln!("{}Error: {}{}", ansi::Fg::BrightRed, e, ansi::Fg::Reset);
+                            };
                         }
-                    }
-                };
-            }
-            Ok(None) => source_request_done = true,
-            Err(std::sync::mpsc::TryRecvError::Empty) => (),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) if source_request_done => (),
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                panic!("source_request_rx disconnected before sending end signal")
+                        Err(e) => {
+                            eprintln!(
+                                "{}Error{}: {}: {}",
+                                ansi::Fg::Red,
+                                ansi::Fg::Reset,
+                                file_name,
+                                e
+                            );
+                            if let Err(e) = source_tx.send(None) {
+                                eprintln!("{}Error: {}{}", ansi::Fg::BrightRed, e, ansi::Fg::Reset);
+                            }
+                        }
+                    };
+                }
+                Ok(None) => source_request_done = true,
+                Err(std::sync::mpsc::TryRecvError::Empty) => (),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) if source_request_done => (),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    panic!("source_request_rx disconnected before sending end signal")
+                }
             }
         }
-    }
+    };
 
-    parser.join().expect("Error joining parser thread");
-    analyzer.join().expect("Error joining analyzer thread");
+    let multiplex = async {
+        futures::join!(parser_task, analyzer_task, driver_task);
+    };
 
-    println!("\n{}", tir);
+    futures::executor::block_on(multiplex);
+    // futures::executor::block_on(parser_task);
+    // futures::executor::block_on(analyzer_task);
+    // futures::executor::block_on(driver_task);
+
+    // println!("\n{}", tir);
 }
 
 fn report_notice<'a>(
