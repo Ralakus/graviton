@@ -1,7 +1,7 @@
 [package]
 name = "graviton"
 version = "0.7.0"
-authors = ["Ralakus <12schneide@gmail.com>"]
+authors = ["Ralakus <mikhail@licas.dev>"]
 edition = "2018"
 
 repository = "https://github.com/Ralakus/graviton"
@@ -24,4 +24,5 @@ graviton_core     = { path = "core",     version = "0.7.0" }
 graviton_frontend = { path = "frontend", version = "0.7.0" }
 graviton_backend  = { path = "backend",  version = "0.7.0" }
 
+clap = "*"
 memmap = "*"

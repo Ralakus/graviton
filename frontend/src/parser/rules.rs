@@ -285,6 +285,6 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
 
 /// A wrapper function to get a rule from the loopup table
 #[inline]
-pub(crate) fn get_rule(type_: TokenType) -> &'static ParseRule {
+pub(crate) const fn get_rule(type_: TokenType) -> &'static ParseRule {
     &PARSER_RULE_TABLE[type_ as usize]
 }

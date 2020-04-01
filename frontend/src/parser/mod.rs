@@ -135,19 +135,19 @@ impl<'a> Parser<'a> {
 
     /// Returns the lookahead token
     #[inline]
-    pub(crate) fn lookahead(&self) -> &Token<'a> {
+    pub(crate) const fn lookahead(&self) -> &Token<'a> {
         &self.tokens[2]
     }
 
     /// Returns the current token the parser is on
     #[inline]
-    pub(crate) fn current(&self) -> &Token<'a> {
+    pub(crate) const fn current(&self) -> &Token<'a> {
         &self.tokens[CURRENT]
     }
 
     /// Returns the previous token that was already passed
     #[inline]
-    pub(crate) fn previous(&self) -> &Token<'a> {
+    pub(crate) const fn previous(&self) -> &Token<'a> {
         &self.tokens[PREVIOUS]
     }
 
@@ -289,7 +289,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn send_end_signal(
+    fn send_end_signal(
         notice_tx: Sender<Option<Notice>>,
         ir_tx: Sender<Option<ChannelIr>>,
         source_request_tx: Sender<Option<String>>,
@@ -322,9 +322,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn recieve_source(
-        source_rx: &'a Receiver<Option<Arc<str>>>,
-    ) -> Result<Arc<str>, ()> {
+    fn recieve_source(source_rx: &'a Receiver<Option<Arc<str>>>) -> Result<Arc<str>, ()> {
         match source_rx.recv_timeout(std::time::Duration::from_secs(
             PARSER_SOURCE_REQUEST_TIMEOUT,
         )) {
@@ -343,7 +341,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn request_source(&self, name: String) -> Result<Arc<str>, ()> {
+    fn request_source(&self, name: String) -> Result<Arc<str>, ()> {
         if let Err(e) = self.source_request_tx.send(Some(name)) {
             eprintln!(
                 "{}Parser failed to send source request: {}{}",
@@ -369,9 +367,8 @@ impl<'a> Parser<'a> {
         );
 
         // Fill the look ahead with tokens
-        while p.check(TokenType::Eof) {
-            p.advance();
-        }
+        p.advance();
+        p.advance();
 
         functions::module(&mut p)
     }
@@ -405,9 +402,8 @@ impl<'a> Parser<'a> {
             );
 
             // Fill the look ahead with tokens
-            while p.check(TokenType::Eof) {
-                p.advance();
-            }
+            p.advance();
+            p.advance();
 
             if functions::module(&mut p).is_ok() {}
 

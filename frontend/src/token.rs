@@ -86,8 +86,8 @@ pub struct Token<'a> {
 
 impl<'a> Token<'a> {
     /// Creates a new token
-    pub fn new(type_: TokenType, data: TokenData<'a>, pos: Position) -> Self {
-        Token { type_, data, pos }
+    pub const fn new(type_: TokenType, data: TokenData<'a>, pos: Position) -> Self {
+        Self { type_, data, pos }
     }
 }
 

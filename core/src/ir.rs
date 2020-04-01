@@ -81,6 +81,9 @@ pub enum Instruction {
     /// Break expression
     Break,
 
+    /// Break expression
+    BreakExpression,
+
     /// Continue expression
     Continue,
 
@@ -322,6 +325,19 @@ impl std::fmt::Display for Module {
                         f,
                         "{}break{} {}{}",
                         ansi::Fg::Cyan,
+                        ansi::Fg::Red,
+                        sig,
+                        ansi::Fg::Reset
+                    )?;
+                }
+
+                BreakExpression => {
+                    fmt_tab(f, depth)?;
+                    writeln!(
+                        f,
+                        "{}break{} expression {}{}{}",
+                        ansi::Fg::Cyan,
+                        ansi::Fg::Yellow,
                         ansi::Fg::Red,
                         sig,
                         ansi::Fg::Reset

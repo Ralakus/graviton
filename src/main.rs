@@ -1,13 +1,37 @@
+#![warn(clippy::nursery)]
+use clap::{App, Arg};
 use graviton::{
-    core::{ansi, ir, notice::Notice},
+    core::{ansi, ir, notice::Notice, semantic::Analyzer},
     frontend::parser::Parser,
 };
 use std::{collections::HashMap, sync::mpsc};
 
-fn main() {
-    let file_name = std::env::args().nth(1).expect("Expected one file argument");
+const PROGRAM_NAME: &str = env!("CARGO_PKG_NAME");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
+const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 
-    let top_file = match std::fs::File::open(file_name.as_str()) {
+fn main() {
+    let args = App::new(PROGRAM_NAME)
+        .version(VERSION)
+        .about(DESCRIPTION)
+        .author(AUTHOR)
+        .arg(
+            Arg::with_name("Input")
+                .help("The input file to process")
+                .required(true)
+                .index(1),
+        )
+        .get_matches();
+
+    let file_name = if let Some(input) = args.value_of("Input") {
+        input
+    } else {
+        eprintln!("{}Expected an input file{}", ansi::Fg::Red, ansi::Fg::Reset,);
+        std::process::exit(1);
+    };
+
+    let top_file = match std::fs::File::open(file_name) {
         Ok(f) => f,
         Err(e) => {
             eprintln!(
@@ -57,7 +81,8 @@ fn main() {
 
     let mut tir = ir::Module::new();
 
-    let (ir_tx, ir_rx) = mpsc::channel();
+    let (parser_ir_tx, analyzer_ir_rx) = mpsc::channel();
+    let (analyzer_ir_tx, ir_rx) = mpsc::channel();
 
     let (notice_tx, notice_rx) = mpsc::channel();
 
@@ -70,12 +95,14 @@ fn main() {
     }
 
     let parser = Parser::create(
-        file_name.clone(),
+        file_name.to_string(),
         source_rx,
         source_request_tx,
-        notice_tx,
-        ir_tx,
+        notice_tx.clone(),
+        parser_ir_tx,
     );
+
+    let analyzer = Analyzer::create(notice_tx, analyzer_ir_tx, analyzer_ir_rx);
 
     let (mut ir_done, mut notice_done, mut source_request_done) = (false, false, false);
 
@@ -91,7 +118,7 @@ fn main() {
         }
 
         match notice_rx.try_recv() {
-            Ok(Some(notice)) => report_notice(notice, &mapped_files_map, &file_name, top_source),
+            Ok(Some(notice)) => report_notice(notice, &mapped_files_map, file_name, top_source),
             Ok(None) => notice_done = true,
             Err(std::sync::mpsc::TryRecvError::Empty) => (),
             Err(std::sync::mpsc::TryRecvError::Disconnected) if notice_done => (),
@@ -184,6 +211,7 @@ fn main() {
     }
 
     parser.join().expect("Error joining parser thread");
+    analyzer.join().expect("Error joining analyzer thread");
 
     println!("\n{}", tir);
 }

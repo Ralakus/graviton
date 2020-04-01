@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Stores the type information of any data in Graviton
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TypeSignature {
     /// Here as a replacement to having Option<TypeSignature>, same as Option::None
     None,
@@ -16,7 +16,7 @@ pub enum TypeSignature {
 }
 
 /// Primtive types built into Graviton by default
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PrimitiveType {
     /// C's `void` equivalent in Graviton
     Nil,
@@ -39,40 +39,40 @@ impl PrimitiveType {
     /// Parses a string into a primitive type
     pub fn new(type_string: &str) -> Self {
         match type_string {
-            s if s.starts_with('I') => PrimitiveType::SignedInteger {
+            s if s.starts_with('I') => Self::SignedInteger {
                 bitsize: match s[1..].parse::<u8>() {
                     Ok(size) => size,
-                    Err(_) => return PrimitiveType::Nil,
+                    Err(_) => return Self::Nil,
                 },
             },
-            s if s.starts_with('U') => PrimitiveType::UnsignedInteger {
+            s if s.starts_with('U') => Self::UnsignedInteger {
                 bitsize: match s[1..].parse::<u8>() {
                     Ok(size) => size,
-                    Err(_) => return PrimitiveType::Nil,
+                    Err(_) => return Self::Nil,
                 },
             },
-            s if s.starts_with('F') => PrimitiveType::FloatingPoint {
+            s if s.starts_with('F') => Self::FloatingPoint {
                 bitsize: match s[1..].parse::<u8>() {
                     Ok(size) => size,
-                    Err(_) => return PrimitiveType::Nil,
+                    Err(_) => return Self::Nil,
                 },
             },
-            "Bool" => PrimitiveType::Boolean,
-            "Str" => PrimitiveType::Str,
-            _ => PrimitiveType::Nil,
+            "Bool" => Self::Boolean,
+            "Str" => Self::Str,
+            _ => Self::Nil,
         }
     }
 }
 
 /// Stores any data for a struct type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StructSignature {
     /// Publicity (bool) and type signature of each struct field
     pub fields: Vec<(bool, TypeSignature)>,
 }
 
 /// Stores a functions name, parameters, and return type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FunctionSignature {
     ///Type signature of each parameter
     pub parameters: Vec<TypeSignature>,
@@ -86,11 +86,11 @@ use std::fmt;
 impl Display for TypeSignature {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            TypeSignature::None => write!(f, "None"),
-            TypeSignature::Untyped => write!(f, "Untyped"),
-            TypeSignature::Primitive(p) => write!(f, "{}", p),
-            TypeSignature::Struct(s) => write!(f, "{}", s),
-            TypeSignature::Function(func) => write!(f, "{}", func),
+            Self::None => write!(f, "None"),
+            Self::Untyped => write!(f, "Untyped"),
+            Self::Primitive(p) => write!(f, "{}", p),
+            Self::Struct(s) => write!(f, "{}", s),
+            Self::Function(func) => write!(f, "{}", func),
         }
     }
 }
@@ -98,12 +98,12 @@ impl Display for TypeSignature {
 impl Display for PrimitiveType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self {
-            PrimitiveType::Nil => write!(f, "Nil"),
-            PrimitiveType::Boolean => write!(f, "Bool"),
-            PrimitiveType::SignedInteger { bitsize } => write!(f, "I{}", bitsize),
-            PrimitiveType::UnsignedInteger { bitsize } => write!(f, "U{}", bitsize),
-            PrimitiveType::FloatingPoint { bitsize } => write!(f, "F{}", bitsize),
-            PrimitiveType::Str => write!(f, "Str"),
+            Self::Nil => write!(f, "Nil"),
+            Self::Boolean => write!(f, "Bool"),
+            Self::SignedInteger { bitsize } => write!(f, "I{}", bitsize),
+            Self::UnsignedInteger { bitsize } => write!(f, "U{}", bitsize),
+            Self::FloatingPoint { bitsize } => write!(f, "F{}", bitsize),
+            Self::Str => write!(f, "Str"),
         }
     }
 }

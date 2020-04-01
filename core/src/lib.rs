@@ -1,3 +1,5 @@
+#![warn(clippy::nursery)]
+
 use serde::{Deserialize, Serialize};
 
 /// Coloured printing using ansi color commands
@@ -6,6 +8,8 @@ pub mod ansi;
 pub mod ir;
 /// Notice data type
 pub mod notice;
+/// The semantic analyzer
+pub mod semantic;
 /// Type signature data types
 pub mod signature;
 
@@ -22,8 +26,8 @@ pub struct Position {
 
 impl Position {
     /// Crates a position from a line an column
-    pub fn new(line: u32, col: u32) -> Self {
-        Position { line, col }
+    pub const fn new(line: u32, col: u32) -> Self {
+        Self { line, col }
     }
 
     /// Returns a tuple with the second element being the 3 lines before and after position and the third element being the little squiggly line (~~~^~~) under the line pointing to the column.

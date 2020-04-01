@@ -235,6 +235,7 @@ pub(crate) fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 pub(crate) fn expression_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     expression(p)?;
     p.consume(TokenType::Semicolon, "Expected closing `;`")?;
+    p.emit_ir_previous(TypeSignature::None, Instruction::Statement);
     Ok(())
 }
 
@@ -814,8 +815,15 @@ pub(crate) fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     )?;
 
     if let Some(LoopType::Loop) = p.loop_stack.last() {
-        expression(p)?;
-        p.emit_ir_previous(TypeSignature::Untyped, Instruction::Break);
+        if p.check(TokenType::Semicolon) {
+            p.emit_ir_previous(
+                TypeSignature::Primitive(PrimitiveType::new("Nil")),
+                Instruction::Break,
+            );
+        } else {
+            expression(p)?;
+            p.emit_ir_previous(TypeSignature::Untyped, Instruction::BreakExpression);
+        }
     } else {
         if !p.check(TokenType::Semicolon) {
             p.emit_notice_previous(

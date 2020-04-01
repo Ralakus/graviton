@@ -26,8 +26,14 @@ pub struct Notice {
 
 impl Notice {
     /// Creates a new notice
-    pub fn new(from: String, msg: String, pos: Position, file: String, level: NoticeLevel) -> Self {
-        Notice {
+    pub const fn new(
+        from: String,
+        msg: String,
+        pos: Position,
+        file: String,
+        level: NoticeLevel,
+    ) -> Self {
+        Self {
             from,
             msg,
             pos,

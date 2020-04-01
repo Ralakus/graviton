@@ -1,8 +1,22 @@
 
-let add = (x: I32, y: I32) -> I32 {
-    x + y
+// let add = (x: I32, y: I32) -> I32 {
+//     x + y
+// };
+// 
+// let z = add(14, 48);
+// 
+// let extern_fn = extern (x: I32, y: I32) -> I32;
+
+while true {
+    5;
 };
 
-let z = add(14, 48);
+if true {
+    14
+} else {
+    48
+};
 
-let extern_fn = extern (x: I32, y: I32) -> I32;
+loop {
+    break 5;
+};

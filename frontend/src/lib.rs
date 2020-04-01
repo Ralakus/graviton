@@ -1,3 +1,5 @@
+#![warn(clippy::all, clippy::nursery)]
+
 extern crate graviton_core as core;
 
 use core::{
