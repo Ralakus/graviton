@@ -15,6 +15,42 @@ pub enum TypeSignature {
     Function(FunctionSignature),
 }
 
+impl TypeSignature {
+    #[inline]
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::SignedInteger {..}) | Self::Primitive(PrimitiveType::UnsignedInteger {..}))
+    }
+    #[inline]
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::FloatingPoint { .. }))
+    }
+
+    #[inline]
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::Boolean))
+    }
+
+    #[inline]
+    pub fn is_str(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::Str))
+    }
+
+    #[inline]
+    pub fn is_nil(&self) -> bool {
+        matches!(self, Self::Primitive(PrimitiveType::Nil))
+    }
+
+    #[inline]
+    pub fn is_struct(&self) -> bool {
+        matches!(self, Self::Struct(_))
+    }
+
+    #[inline]
+    pub fn is_function(&self) -> bool {
+        matches!(self, Self::Function(_))
+    }
+}
+
 /// Primtive types built into Graviton by default
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PrimitiveType {
