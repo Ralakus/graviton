@@ -643,12 +643,15 @@ impl Analyzer {
 
                 Identifier(name) => {
                     if let Some(var) = a.get_variable(name.clone()) {
-                        match var {
+                        let sig = match var {
                             Variable::General(_, sig) => sig.clone(),
                             Variable::Struct(_, sig) => sig.clone(),
-                        }
+                        };
+                        a.stack.push((Value::sig(sig.clone()), ir.pos));
+                        sig
                     } else {
                         a.emit_notice(ir.pos, NoticeLevel::Error, format!("{} not defined", name));
+                        a.stack.push((Value::sig(PRIMITIVE_NIL), ir.pos));
                         TypeSignature::None
                     }
                 }
@@ -673,11 +676,11 @@ impl Analyzer {
                     let (a_sig, a_pos) = a.stack.last().unwrap();
 
                     if !a_sig.unwrap().clone().is_integer() {
-                        a.emit_notice(*a_pos, NoticeLevel::Error, "Expression doesn't evaluate to integer; binary arithmetic requires integers".to_string());
+                        a.emit_notice(*a_pos, NoticeLevel::Error, format!("Expression doesn't evaluate to integer; binary arithmetic requires integers; found {}", a_sig));
                     }
 
                     if !b_sig.unwrap().is_integer() {
-                        a.emit_notice(b_pos, NoticeLevel::Error, "Expression doesn't evaluate to integer; binary arithmetic requires integers".to_string());
+                        a.emit_notice(b_pos, NoticeLevel::Error, format!("Expression doesn't evaluate to integer; binary arithmetic requires integers; found {}", b_sig));
                     }
 
                     a_sig.unwrap().clone()
