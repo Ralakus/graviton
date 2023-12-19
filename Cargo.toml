@@ -2,7 +2,7 @@
 name = "graviton"
 version = "0.7.0"
 authors = ["Ralakus <mikhail@licas.dev>"]
-edition = "2018"
+edition = "2021"
 
 repository = "https://github.com/Ralakus/graviton"
 homepage = "https://github.com/Ralakus/graviton"
