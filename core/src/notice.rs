@@ -91,36 +91,41 @@ impl Notice {
 
 #[cfg(test)]
 mod test {
+    use crate::{
+        notice::{Notice, NoticeLevel},
+        Position,
+    };
+
     #[test]
     fn notice() {
         let source = "// code\n//code 2\n//code 3\n// some code 4\n// some more code 5\nlet a = 14;\n// yet more code 7\n// code 8\n// code 9\n// code 10";
 
         let from = String::from("Letter analyzer");
         let msg = String::from("The letter \"a\" is a letter");
-        let pos = core::Position::new(6, 5);
+        let pos = Position::new(6, 5);
         let file = String::from("main.grav");
 
-        let notice = core::Notice::new(
+        let notice = Notice::new(
             from.clone(),
             msg.clone(),
             pos,
             file.clone(),
-            core::NoticeLevel::Notice,
+            NoticeLevel::Notice,
         );
 
         notice.report(Some(source));
 
-        let notice = core::Notice::new(
+        let notice = Notice::new(
             from.clone(),
             msg.clone(),
             pos,
             file.clone(),
-            core::NoticeLevel::Warning,
+            NoticeLevel::Warning,
         );
 
         notice.report(Some(source));
 
-        let notice = core::Notice::new(from, msg, pos, file, core::NoticeLevel::Error);
+        let notice = Notice::new(from, msg, pos, file, NoticeLevel::Error);
 
         notice.report(Some(source));
     }

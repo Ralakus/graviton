@@ -205,9 +205,9 @@ impl<'a> Parser<'a> {
         if let Err(e) = self.ir_tx.send(Some(ir)) {
             eprintln!(
                 "{}Parser ir send error: {}{}",
-                core::ansi::Fg::BrightRed,
+                common::ansi::Fg::BrightRed,
                 e,
-                core::ansi::Fg::Reset
+                common::ansi::Fg::Reset
             );
         }
     }
@@ -235,9 +235,9 @@ impl<'a> Parser<'a> {
             })) {
                 eprintln!(
                     "{}Parser notice send error: {}{}",
-                    core::ansi::Fg::BrightRed,
+                    common::ansi::Fg::BrightRed,
                     e,
-                    core::ansi::Fg::Reset
+                    common::ansi::Fg::Reset
                 );
             }
         }
@@ -247,9 +247,9 @@ impl<'a> Parser<'a> {
         if let Err(e) = self.notice_tx.send(Some(notice)) {
             eprintln!(
                 "{}Parser notice send error: {}{}",
-                core::ansi::Fg::BrightRed,
+                common::ansi::Fg::BrightRed,
                 e,
-                core::ansi::Fg::Reset
+                common::ansi::Fg::Reset
             );
         }
     }
@@ -294,27 +294,27 @@ impl<'a> Parser<'a> {
         if let Err(e) = ir_tx.send(None) {
             eprintln!(
                 "{}Parser ir send error: {}{}",
-                core::ansi::Fg::BrightRed,
+                common::ansi::Fg::BrightRed,
                 e,
-                core::ansi::Fg::Reset
+                common::ansi::Fg::Reset
             );
         }
 
         if let Err(e) = notice_tx.send(None) {
             eprintln!(
                 "{}Parser notice send error: {}{}",
-                core::ansi::Fg::BrightRed,
+                common::ansi::Fg::BrightRed,
                 e,
-                core::ansi::Fg::Reset
+                common::ansi::Fg::Reset
             );
         }
 
         if let Err(e) = source_request_tx.send(None) {
             eprintln!(
                 "{}Parser source request send error: {}{}",
-                core::ansi::Fg::BrightRed,
+                common::ansi::Fg::BrightRed,
                 e,
-                core::ansi::Fg::Reset
+                common::ansi::Fg::Reset
             );
         }
     }
@@ -328,10 +328,10 @@ impl<'a> Parser<'a> {
             Err(e) => {
                 eprintln!(
                     "{}Parser failed to receive source data within {} seconds: {}{}",
-                    core::ansi::Fg::BrightRed,
+                    common::ansi::Fg::BrightRed,
                     PARSER_SOURCE_REQUEST_TIMEOUT,
                     e,
-                    core::ansi::Fg::Reset
+                    common::ansi::Fg::Reset
                 );
                 Err(())
             }
@@ -342,9 +342,9 @@ impl<'a> Parser<'a> {
         if let Err(e) = self.source_request_tx.send(Some(name)) {
             eprintln!(
                 "{}Parser failed to send source request: {}{}",
-                core::ansi::Fg::BrightRed,
+                common::ansi::Fg::BrightRed,
                 e,
-                core::ansi::Fg::Reset
+                common::ansi::Fg::Reset
             );
         }
 

@@ -1,8 +1,8 @@
 #![warn(clippy::all, clippy::nursery)]
 
-extern crate graviton_core as core;
+extern crate graviton_core as common;
 
-use core::{
+use common::{
     ir,
     notice::{Notice, NoticeLevel},
     signature, Position,

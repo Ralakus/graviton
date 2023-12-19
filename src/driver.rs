@@ -1,5 +1,5 @@
 use graviton::{
-    core::{ansi, ir, notice::Notice, semantic::Analyzer},
+    common::{ansi, ir, notice::Notice, semantic::Analyzer},
     frontend::parser::Parser,
 };
 use std::{collections::HashMap, sync::mpsc};
