@@ -11,4 +11,4 @@ license = "MIT"
 readme = "readme.md"
 
 [dependencies]
-serde = { version = "*", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
