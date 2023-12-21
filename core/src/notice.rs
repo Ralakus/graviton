@@ -26,6 +26,7 @@ pub struct Notice {
 
 impl Notice {
     /// Creates a new notice
+    #[must_use]
     pub const fn new(
         from: String,
         msg: String,
@@ -62,28 +63,25 @@ impl Notice {
         println!("\tat [{}:{}:{}]\n", self.file, self.pos.line, self.pos.col,);
 
         if self.pos.line != 0 && self.pos.col != 0 {
-            if let Some(src) = source {
-                if let Some((start_line, lines, squiggly)) = self.pos.locate_in_source(src) {
-                    lines.iter().enumerate().for_each(|(i, line)| {
-                        println!(
-                            "\t{}{:4}{} | {}",
-                            colour,
-                            start_line + i,
-                            ansi::Fg::Reset,
-                            line
-                        );
+            if let Some((start_line, lines, squiggly)) =
+                source.and_then(|src| self.pos.locate_in_source(src))
+            {
+                for (i, line) in lines.iter().enumerate() {
+                    println!(
+                        "\t{}{:4}{} | {}",
+                        colour,
+                        start_line + i,
+                        ansi::Fg::Reset,
+                        line
+                    );
 
-                        if i == if self.pos.line > 3 {
-                            3
-                        } else {
-                            self.pos.line as usize - 1
-                        } {
-                            println!("\t{}---- | {}{}", colour, squiggly, ansi::Fg::Reset);
-                        }
-                    });
 
-                    println!();
+                    if i == std::cmp::min(3, self.pos.line as usize - 1) {
+                        println!("\t{}---- | {}{}", colour, squiggly, ansi::Fg::Reset);
+                    }
                 }
+
+                println!();
             }
         }
     }

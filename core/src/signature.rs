@@ -17,36 +17,49 @@ pub enum TypeSignature {
 
 impl TypeSignature {
     #[inline]
-    pub fn is_integer(&self) -> bool {
-        matches!(self, Self::Primitive(PrimitiveType::SignedInteger {..}) | Self::Primitive(PrimitiveType::UnsignedInteger {..}))
+    #[must_use]
+    pub const fn is_integer(&self) -> bool {
+        matches!(
+            self,
+            Self::Primitive(
+                PrimitiveType::SignedInteger { .. } | PrimitiveType::UnsignedInteger { .. }
+            )
+        )
     }
+
     #[inline]
-    pub fn is_float(&self) -> bool {
+    #[must_use]
+    pub const fn is_float(&self) -> bool {
         matches!(self, Self::Primitive(PrimitiveType::FloatingPoint { .. }))
     }
 
     #[inline]
-    pub fn is_bool(&self) -> bool {
+    #[must_use]
+    pub const fn is_bool(&self) -> bool {
         matches!(self, Self::Primitive(PrimitiveType::Boolean))
     }
 
     #[inline]
-    pub fn is_str(&self) -> bool {
+    #[must_use]
+    pub const fn is_str(&self) -> bool {
         matches!(self, Self::Primitive(PrimitiveType::Str))
     }
 
     #[inline]
-    pub fn is_nil(&self) -> bool {
+    #[must_use]
+    pub const fn is_nil(&self) -> bool {
         matches!(self, Self::Primitive(PrimitiveType::Nil))
     }
 
     #[inline]
-    pub fn is_struct(&self) -> bool {
+    #[must_use]
+    pub const fn is_struct(&self) -> bool {
         matches!(self, Self::Struct(_))
     }
 
     #[inline]
-    pub fn is_function(&self) -> bool {
+    #[must_use]
+    pub const fn is_function(&self) -> bool {
         matches!(self, Self::Function(_))
     }
 }
@@ -73,6 +86,7 @@ pub enum PrimitiveType {
 
 impl PrimitiveType {
     /// Parses a string into a primitive type
+    #[must_use]
     pub fn new(type_string: &str) -> Self {
         match type_string {
             s if s.starts_with('I') => Self::SignedInteger {
@@ -124,9 +138,9 @@ impl Display for TypeSignature {
         match self {
             Self::None => write!(f, "None"),
             Self::Untyped => write!(f, "Untyped"),
-            Self::Primitive(p) => write!(f, "{}", p),
-            Self::Struct(s) => write!(f, "{}", s),
-            Self::Function(func) => write!(f, "{}", func),
+            Self::Primitive(p) => write!(f, "{p}"),
+            Self::Struct(s) => write!(f, "{s}"),
+            Self::Function(func) => write!(f, "{func}"),
         }
     }
 }
@@ -136,9 +150,9 @@ impl Display for PrimitiveType {
         match &self {
             Self::Nil => write!(f, "Nil"),
             Self::Boolean => write!(f, "Bool"),
-            Self::SignedInteger { bitsize } => write!(f, "I{}", bitsize),
-            Self::UnsignedInteger { bitsize } => write!(f, "U{}", bitsize),
-            Self::FloatingPoint { bitsize } => write!(f, "F{}", bitsize),
+            Self::SignedInteger { bitsize } => write!(f, "I{bitsize}"),
+            Self::UnsignedInteger { bitsize } => write!(f, "U{bitsize}"),
+            Self::FloatingPoint { bitsize } => write!(f, "F{bitsize}"),
             Self::Str => write!(f, "Str"),
         }
     }
@@ -158,7 +172,7 @@ impl Display for FunctionSignature {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "fn ( ")?;
         for parameter in &self.parameters {
-            write!(f, "{}, ", parameter)?;
+            write!(f, "{parameter}, ")?;
         }
         write!(f, ") -> {}", self.return_type_signature)
     }

@@ -28,6 +28,7 @@ enum Scope {
     Global {
         module: Module,
     },
+    #[allow(dead_code)]
     Function {
         variables: HashMap<String, Variable>,
         identifier: String,
@@ -53,14 +54,14 @@ impl Value {
     fn unwrap(&self) -> &TypeSignature {
         match self {
             Self::Signature(sig) => sig,
-            _ => panic!("Value not of signature"),
+            Self::Struct(..) => panic!("Value not of signature"),
         }
     }
 
     fn unwrap_struct(&mut self) -> (&mut Vec<String>, &mut TypeSignature) {
         match self {
             Self::Struct(params, sig) => (params, sig),
-            _ => panic!("Value not of type struct"),
+            Self::Signature(_) => panic!("Value not of type struct"),
         }
     }
 }
@@ -68,8 +69,8 @@ impl Value {
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Signature(sig) => write!(f, "{}", sig),
-            Self::Struct(params, sig) => write!(f, "{}: {:?}", sig, params),
+            Self::Signature(sig) => write!(f, "{sig}"),
+            Self::Struct(params, sig) => write!(f, "{sig}: {params:?}"),
         }
     }
 }
@@ -158,7 +159,7 @@ impl Analyzer {
         println!();
     }
 
-    fn send_end_signal(notice_tx: Sender<Option<Notice>>, ir_tx: Sender<Option<ChannelIr>>) {
+    fn send_end_signal(notice_tx: &Sender<Option<Notice>>, ir_tx: &Sender<Option<ChannelIr>>) {
         if let Err(e) = ir_tx.send(None) {
             eprintln!(
                 "{}Analyzer ir send error: {}{}",
@@ -233,30 +234,22 @@ impl Analyzer {
             Scope::Global { module } => {
                 module.variables.insert(name, var);
             }
-            Scope::Function { variables, .. } => {
-                variables.insert(name, var);
-            }
-            Scope::General { variables } => {
+            Scope::Function { variables, .. } | Scope::General { variables } => {
                 variables.insert(name, var);
             }
         }
     }
 
-    fn get_variable(&mut self, name: String) -> Option<&Variable> {
+    fn get_variable(&mut self, name: &str) -> Option<&Variable> {
         for scope in self.scopes.iter().rev() {
             match scope {
                 Scope::Global { module } => {
-                    if let Some(var) = module.variables.get(&name) {
+                    if let Some(var) = module.variables.get(name) {
                         return Some(var);
                     }
                 }
-                Scope::Function { variables, .. } => {
-                    if let Some(var) = variables.get(&name) {
-                        return Some(var);
-                    }
-                }
-                Scope::General { variables, .. } => {
-                    if let Some(var) = variables.get(&name) {
+                Scope::Function { variables, .. } | Scope::General { variables, .. } => {
+                    if let Some(var) = variables.get(name) {
                         return Some(var);
                     }
                 }
@@ -265,7 +258,7 @@ impl Analyzer {
         None
     }
 
-    fn check_if_branch(&mut self, last_ir: ChannelIr) {
+    fn check_if_branch(&mut self, last_ir: &ChannelIr) {
         let (idx, branches, _) = self.if_data.last().unwrap();
 
         if last_ir.ins == Instruction::BlockEndExpression {
@@ -276,10 +269,7 @@ impl Analyzer {
                     self.emit_notice(
                         pos,
                         NoticeLevel::Error,
-                        format!(
-                            "If branch expression expected no return expression, found {}",
-                            sig
-                        ),
+                        format!("If branch expression expected no return expression, found {sig}"),
                     );
                 }
                 if sig.unwrap() != first_sig.unwrap() {
@@ -287,8 +277,7 @@ impl Analyzer {
                         pos,
                         NoticeLevel::Error,
                         format!(
-                            "If branch expression returned a different type, found {}, expected {}",
-                            sig, first_sig
+                            "If branch expression returned a different type, found {sig}, expected {first_sig}"
                         ),
                     );
                 }
@@ -298,16 +287,24 @@ impl Analyzer {
             self.emit_notice(
                 last_ir.pos,
                 NoticeLevel::Error,
-                format!("If branch lacks a return expression of type {}", first_sig),
+                format!("If branch lacks a return expression of type {first_sig}"),
             );
         }
     }
 
+    /// Creates a new semantic analyzer instance to go after parser
+    ///
+    /// # Panics
+    /// The code will panic if it fails to pop or push from the evaluation stack
+    #[allow(clippy::unused_async)]
     pub async fn create(
         notice_tx: Sender<Option<Notice>>,
         ir_tx: Sender<Option<ChannelIr>>,
         ir_rx: Receiver<Option<ChannelIr>>,
     ) {
+        #[allow(clippy::enum_glob_use)]
+        use Instruction::*;
+
         let mut a = Self::new(notice_tx.clone(), ir_tx.clone(), ir_rx);
 
         let mut last_ir = ChannelIr {
@@ -324,10 +321,9 @@ impl Analyzer {
                 ir.ins,
                 ansi::Fg::Reset
             );
-            use Instruction::*;
             let sig = match &ir.ins {
                 Halt => {
-                    Self::send_end_signal(notice_tx.clone(), ir_tx.clone());
+                    Self::send_end_signal(&notice_tx, &ir_tx);
                     TypeSignature::None
                 }
                 Module(name) => {
@@ -349,8 +345,7 @@ impl Analyzer {
                                 name,
                                 match top_scope {
                                     Scope::Global { module } => module,
-                                    Scope::Function { .. } => break,
-                                    Scope::General { .. } => break,
+                                    Scope::Function { .. } | Scope::General { .. } => break,
                                 },
                             );
                             break;
@@ -380,7 +375,7 @@ impl Analyzer {
                     let (_, branches, _) = a.if_data.last_mut().unwrap();
                     *branches += 1;
 
-                    a.check_if_branch(last_ir);
+                    a.check_if_branch(&last_ir);
 
                     TypeSignature::None
                 }
@@ -402,7 +397,7 @@ impl Analyzer {
                     *branches += 1;
                     *has_else = true;
 
-                    a.check_if_branch(last_ir);
+                    a.check_if_branch(&last_ir);
 
                     TypeSignature::None
                 }
@@ -423,10 +418,10 @@ impl Analyzer {
                         if branches > 0 {
                             let (sig, pos) = a.stack.pop().unwrap();
                             if a.stack.len() == idx {
-                                a.emit_notice(pos, NoticeLevel::Error, format!("If branch expression expected no return expression, found {}", sig));
+                                a.emit_notice(pos, NoticeLevel::Error, format!("If branch expression expected no return expression, found {sig}"));
                             }
                             if sig.unwrap() != first_sig.unwrap() {
-                                a.emit_notice(pos, NoticeLevel::Error, format!("If branch expression returned a different type, found {}, expected {}", sig, first_sig));
+                                a.emit_notice(pos, NoticeLevel::Error, format!("If branch expression returned a different type, found {sig}, expected {first_sig}"));
                             }
                         }
                         first_sig.unwrap().clone()
@@ -435,7 +430,7 @@ impl Analyzer {
                         a.emit_notice(
                             last_ir.pos,
                             NoticeLevel::Error,
-                            format!("If branch lacks a return expression of type {}", first_sig),
+                            format!("If branch lacks a return expression of type {first_sig}"),
                         );
                         first_sig.unwrap().clone()
                     } else {
@@ -489,11 +484,11 @@ impl Analyzer {
                         );
                         a.stack.pop();
                     }
-                    if stack_idx != a.stack.len() {
-                        a.stack.last().unwrap().0.unwrap().clone()
-                    } else {
+                    if stack_idx == a.stack.len() {
                         a.stack.push((Value::sig(PRIMITIVE_NIL), ir.pos));
                         PRIMITIVE_NIL
+                    } else {
+                        a.stack.last().unwrap().0.unwrap().clone()
                     }
                 }
 
@@ -642,7 +637,7 @@ impl Analyzer {
                 FieldAccess(_) => TypeSignature::Untyped,
 
                 Identifier(name) => {
-                    if let Some(var) = a.get_variable(name.clone()) {
+                    if let Some(var) = a.get_variable(name) {
                         let sig = match var {
                             Variable::General(_, sig) => sig.clone(),
                             Variable::Struct(_, sig) => sig.clone(),
@@ -650,7 +645,7 @@ impl Analyzer {
                         a.stack.push((Value::sig(sig.clone()), ir.pos));
                         sig
                     } else {
-                        a.emit_notice(ir.pos, NoticeLevel::Error, format!("{} not defined", name));
+                        a.emit_notice(ir.pos, NoticeLevel::Error, format!("{name} not defined"));
                         a.stack.push((Value::sig(PRIMITIVE_NIL), ir.pos));
                         TypeSignature::None
                     }
@@ -676,11 +671,11 @@ impl Analyzer {
                     let (a_sig, a_pos) = a.stack.last().unwrap();
 
                     if !a_sig.unwrap().clone().is_integer() {
-                        a.emit_notice(*a_pos, NoticeLevel::Error, format!("Expression doesn't evaluate to integer; binary arithmetic requires integers; found {}", a_sig));
+                        a.emit_notice(*a_pos, NoticeLevel::Error, format!("Expression doesn't evaluate to integer; binary arithmetic requires integers; found {a_sig}"));
                     }
 
                     if !b_sig.unwrap().is_integer() {
-                        a.emit_notice(b_pos, NoticeLevel::Error, format!("Expression doesn't evaluate to integer; binary arithmetic requires integers; found {}", b_sig));
+                        a.emit_notice(b_pos, NoticeLevel::Error, format!("Expression doesn't evaluate to integer; binary arithmetic requires integers; found {b_sig}"));
                     }
 
                     a_sig.unwrap().clone()
@@ -747,6 +742,6 @@ impl Analyzer {
 
         a.print_stacks();
 
-        Self::send_end_signal(notice_tx, ir_tx);
+        Self::send_end_signal(&notice_tx, &ir_tx);
     }
 }

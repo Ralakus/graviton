@@ -1,4 +1,5 @@
-#![warn(clippy::nursery)]
+#![warn(clippy::pedantic, clippy::nursery)]
+#![allow(clippy::too_many_lines, clippy::module_name_repetitions)]
 
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +27,7 @@ pub struct Position {
 
 impl Position {
     /// Crates a position from a line an column
+    #[must_use]
     pub const fn new(line: u32, col: u32) -> Self {
         Self { line, col }
     }
@@ -33,19 +35,18 @@ impl Position {
     /// Returns a tuple with the second element being the 3 lines before and after position and the third element being the little squiggly line (~~~^~~) under the line pointing to the column.
     /// The forth (index 3) element of lines is always the line with the error and the one that the squiggly is pointing to.
     /// It will only return none if the line is not found
+    #[must_use]
     pub fn locate_in_source(self, source: &str) -> Option<(usize, Vec<&str>, String)> {
         let start_line = if self.line > 3 { self.line - 3 } else { 1 };
+
+        // Take 3 lines before and 3 lines after line position
         let lines: Vec<&str> = source
             .lines()
             .skip(start_line as usize - 1)
             .take(7)
             .collect::<Vec<&str>>();
 
-        let error_line = if lines.len() > 3 {
-            lines[3]
-        } else {
-            lines[self.line as usize - 1]
-        };
+        let error_line = lines[std::cmp::min(3, self.line as usize - 1)];
 
         // Gets the amount of tabs before the column position for proper squiggly length
         let tab_count = error_line

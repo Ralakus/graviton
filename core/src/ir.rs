@@ -17,6 +17,7 @@ pub struct Module {
 
 impl Module {
     /// Creates an empty module
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -213,15 +214,15 @@ fn fmt_tab(f: &mut std::fmt::Formatter<'_>, depth: usize) -> std::fmt::Result {
         for _ in 0..depth {
             write!(f, "|{}", repeat_char(' ', super::TAB_WITDH))?;
         }
-        Ok(())
-    } else {
-        Ok(())
     }
+    Ok(())
 }
 
 impl std::fmt::Display for Module {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[allow(clippy::enum_glob_use)]
         use Instruction::*;
+
         let mut depth = 0;
         for (ins, sig) in self.instructions.iter().zip(self.signatures.iter()) {
             match ins {
