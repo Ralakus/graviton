@@ -19,13 +19,13 @@
 Graviton is a fast programming language that is minimal and simplistic with a simple and easy to read compiler. (Almost) Everything is an expression unless a semicolon is used `;` then it becomes a statement which gives a clear distinction between expressions and statements.
 
 #### Notice
-Graviton is still under heavy development so it is bound to have breaking changes
+Graviton is still under heavy development so it is bound to have breaking changes.
 
 ## Current status
-The compiler is currently going through a rebuild to make each stage of the compiler asynchronous to improve speed and efficiency
+I've picked back up the project as of December 2023 to work on in my free time between semesters. I'm still evaluating the whole asynchronous compiler stages rebuild to see if I bit off more than I can chew in that aspect. I'm currently relearning the codebase and cleaning it up as I go to see if it's worth saving the current architecture or scrapping it in favor of a new one.
 
 ## Compiler design
-Graviton's compiler is designed to be extremely efficient and asynchronous. Each stage runs in parallel rather than serial which speeds the compiler up greatly on multhreaded systems.
+Graviton's compiler is designed to be extremely efficient (TBD) and asynchronous (TBD). Each stage runs in parallel (TBD) rather than serial which speeds the compiler up greatly on multhreaded systems.
 
 ## How can follow the progress?
 * There is a [Trello](https://trello.com/b/Z2PQHhgy/graviton) board set up for this project
