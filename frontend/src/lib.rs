@@ -1,4 +1,5 @@
-#![warn(clippy::all, clippy::nursery)]
+#![warn(clippy::pedantic, clippy::nursery)]
+#![allow(clippy::too_many_lines, clippy::module_name_repetitions, clippy::wildcard_imports)]
 
 extern crate graviton_core as common;
 

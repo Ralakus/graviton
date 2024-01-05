@@ -9,12 +9,12 @@ use crate::{
 };
 
 /// A funciton that should never be called that serves as a null pointer in the lookup table
-pub(crate) fn nil_func<'a>(_p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn nil_func(_p: &mut Parser<'_>) -> Result<(), ()> {
     unreachable!("Somehow `nil_func` was called, this shouldn't happen");
 }
 
 /// Parse a module
-pub(crate) fn module<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn module(p: &mut Parser<'_>) -> Result<(), ()> {
     p.emit_ir_previous(TypeSignature::None, Instruction::Module(p.name.clone()));
     let mut was_error = false;
     while !p.check(TokenType::Eof) {
@@ -31,7 +31,7 @@ pub(crate) fn module<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Checks to see if the token is a declaration or statement starter and parses
-pub(crate) fn declaration_or_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn declaration_or_statement(p: &mut Parser<'_>) -> Result<(), ()> {
     match p.current().type_ {
         TokenType::KwModule => declaration(p),
         _ => statement(p),
@@ -39,86 +39,81 @@ pub(crate) fn declaration_or_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()>
 }
 
 /// Parses a declaration
-pub(crate) fn declaration<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
-    match p.current().type_ {
-        TokenType::KwModule => {
-            p.consume(
-                TokenType::KwModule,
-                "Expected keyword `module` for opening a module declaration",
-            )?;
+pub fn declaration(p: &mut Parser<'_>) -> Result<(), ()> {
+    if p.current().type_ == TokenType::KwModule {
+        p.consume(
+            TokenType::KwModule,
+            "Expected keyword `module` for opening a module declaration",
+        )?;
 
-            let module_pos = p.current().pos;
+        let module_pos = p.current().pos;
 
-            let mut segments = Vec::new();
+        let mut segments = Vec::new();
 
-            if let Ok(s) = p.consume(TokenType::Identifier, "Expected identifer ") {
-                match s {
-                    TokenData::Str(s) => segments.push((*s).to_string()),
-                    _ => {
-                        p.emit_notice_previous(
-                            NoticeLevel::Error,
-                            "Failed to extract string data from string token".to_string(),
-                        );
-                        p.synchronize(&[]);
-                        return Err(());
-                    }
-                }
+        if let Ok(s) = p.consume(TokenType::Identifier, "Expected identifer ") {
+            if let TokenData::Str(s) = s {
+                segments.push((*s).to_string());
             } else {
-                return Err(());
-            }
-
-            while !p.check_consume(TokenType::Semicolon) {
-                p.consume(TokenType::Dot, "Expected `.` or `;` after identifier")?;
-
-                if let Ok(s) = p.consume(
-                    TokenType::Identifier,
-                    "Expected identifer for module statement",
-                ) {
-                    match s {
-                        TokenData::Str(s) => segments.push((*s).to_string()),
-                        _ => {
-                            p.emit_notice_previous(
-                                NoticeLevel::Error,
-                                "Failed to extract string data from string token".to_string(),
-                            );
-                            p.synchronize(&[]);
-                            return Err(());
-                        }
-                    }
-                } else {
-                    return Err(());
-                }
-            }
-
-            let module_name = if segments[0] == "std" {
-                let environment = std::env::current_dir().unwrap();
-                format!("{}/{}", environment.to_str().unwrap(), segments.join("/"))
-            } else {
-                segments.join("/")
-            };
-
-            if p.parse_imported_module(format!("{}.grav", module_name))
-                .is_err()
-            {
-                p.emit_notice(
-                    module_pos,
+                p.emit_notice_previous(
                     NoticeLevel::Error,
-                    format!("Failed to load module {}", segments.join(".")),
+                    "Failed to extract string data from string token".to_string(),
                 );
+                p.synchronize(&[]);
                 return Err(());
             }
-        }
-        _ => {
-            p.emit_notice_current(NoticeLevel::Error, "Expected a declaration".to_string());
-            p.synchronize(&[]);
+        } else {
             return Err(());
         }
+
+        while !p.check_consume(TokenType::Semicolon) {
+            p.consume(TokenType::Dot, "Expected `.` or `;` after identifier")?;
+
+            if let Ok(s) = p.consume(
+                TokenType::Identifier,
+                "Expected identifer for module statement",
+            ) {
+                if let TokenData::Str(s) = s {
+                    segments.push((*s).to_string());
+                } else {
+                    p.emit_notice_previous(
+                        NoticeLevel::Error,
+                        "Failed to extract string data from string token".to_string(),
+                    );
+                    p.synchronize(&[]);
+                    return Err(());
+                }
+            } else {
+                return Err(());
+            }
+        }
+
+        let module_name = if segments[0] == "std" {
+            let environment = std::env::current_dir().unwrap();
+            format!("{}/{}", environment.to_str().unwrap(), segments.join("/"))
+        } else {
+            segments.join("/")
+        };
+
+        if p.parse_imported_module(format!("{module_name}.grav"))
+            .is_err()
+        {
+            p.emit_notice(
+                module_pos,
+                NoticeLevel::Error,
+                format!("Failed to load module {}", segments.join(".")),
+            );
+            return Err(());
+        }
+    } else {
+        p.emit_notice_current(NoticeLevel::Error, "Expected a declaration".to_string());
+        p.synchronize(&[]);
+        return Err(());
     }
     Ok(())
 }
 
 /// Parses a statement
-pub(crate) fn statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn statement(p: &mut Parser<'_>) -> Result<(), ()> {
     match p.current().type_ {
         TokenType::KwLet => let_statement(p)?,
         _ => expression_statement(p)?,
@@ -127,7 +122,7 @@ pub(crate) fn statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a let statement
-pub(crate) fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn let_statement(p: &mut Parser<'_>) -> Result<(), ()> {
     let mut was_error = p
         .consume(
             TokenType::KwLet,
@@ -140,20 +135,19 @@ pub(crate) fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     } else {
         Position::new(0, 0)
     };
-    let name = match p.consume(
+    let name = if let TokenData::Str(s) = p.consume(
         TokenType::Identifier,
         "Expected identifier for let statement",
     )? {
-        TokenData::Str(s) => (*s).to_string(),
-        _ => {
-            p.emit_notice_previous(
-                NoticeLevel::Error,
-                "Failed to extract string data from identifier token".to_string(),
-            );
-            p.synchronize(&[]);
-            was_error = true;
-            String::from("ERROR")
-        }
+        (*s).to_string()
+    } else {
+        p.emit_notice_previous(
+            NoticeLevel::Error,
+            "Failed to extract string data from identifier token".to_string(),
+        );
+        p.synchronize(&[]);
+        was_error = true;
+        String::from("ERROR")
     };
 
     let (signature, is_untyped) = if p.check_consume(TokenType::Colon) {
@@ -232,7 +226,7 @@ pub(crate) fn let_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses an expression statement
-pub(crate) fn expression_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn expression_statement(p: &mut Parser<'_>) -> Result<(), ()> {
     expression(p)?;
     p.consume(TokenType::Semicolon, "Expected closing `;`")?;
     p.emit_ir_previous(TypeSignature::None, Instruction::Statement);
@@ -240,7 +234,7 @@ pub(crate) fn expression_statement<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parse an expression with a precedence greater than or equal to `precedence`
-pub(crate) fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: rules::Prec) -> Result<(), ()> {
+pub fn parse_precedence(p: &mut Parser<'_>, precedence: rules::Prec) -> Result<(), ()> {
     let prefix_rule = rules::get_rule(p.current().type_).prefix;
     if prefix_rule as usize == nil_func as usize {
         p.emit_notice_current(NoticeLevel::Error, "Expected prefix expression".to_string());
@@ -272,12 +266,12 @@ pub(crate) fn parse_precedence<'a>(p: &mut Parser<'a>, precedence: rules::Prec) 
 
 /// Parse an expression with a precedence greater than Assignment
 #[inline]
-pub(crate) fn expression<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn expression(p: &mut Parser<'_>) -> Result<(), ()> {
     parse_precedence(p, rules::Prec::Assignment)
 }
 
 /// Parse a literal expression
-pub(crate) fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn literal(p: &mut Parser<'_>) -> Result<(), ()> {
     p.advance();
     match (p.previous().type_, p.previous().data.clone()) {
         (TokenType::Number, TokenData::Integer(n)) => p.emit_ir_previous(
@@ -330,7 +324,7 @@ pub(crate) fn literal<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parse a unary expression
-pub(crate) fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn unary(p: &mut Parser<'_>) -> Result<(), ()> {
     p.advance();
     let start_pos = p.previous().pos;
     let op_tok = p.previous().type_;
@@ -355,7 +349,7 @@ pub(crate) fn unary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parse a binary expression
-pub(crate) fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn binary(p: &mut Parser<'_>) -> Result<(), ()> {
     p.advance();
     let start_pos = p.previous().pos;
     let op_tok = p.previous().type_;
@@ -418,7 +412,7 @@ pub(crate) fn binary<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parse a grouping or function
-pub(crate) fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn grouping_or_fn(p: &mut Parser<'_>) -> Result<(), ()> {
     let start_pos = p.current().pos;
     let mut was_error = p
         .consume(
@@ -435,20 +429,19 @@ pub(crate) fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             (Vec::new(), Vec::new());
         while !p.check_consume(TokenType::RParen) {
             let param_pos = p.current().pos;
-            let name = match p.consume(
+            let name = if let TokenData::Str(s) = p.consume(
                 TokenType::Identifier,
                 "Expected identifier for function parameter",
-            ) {
-                Ok(TokenData::Str(s)) => (*s).to_string(),
-                _ => {
-                    p.emit_notice_previous(
-                        NoticeLevel::Error,
-                        "Failed to extract string data from identifier token".to_string(),
-                    );
-                    was_error = true;
-                    p.synchronize(&[TokenType::LCurly, TokenType::RArrow]);
-                    break;
-                }
+            )? {
+                (*s).to_string()
+            } else {
+                p.emit_notice_previous(
+                    NoticeLevel::Error,
+                    "Failed to extract string data from identifier token".to_string(),
+                );
+                was_error = true;
+                p.synchronize(&[TokenType::LCurly, TokenType::RArrow]);
+                break;
             };
 
             param_names.push(name);
@@ -480,12 +473,13 @@ pub(crate) fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             was_error = true;
         }
 
-        let return_type = if let Ok(t) = type_(p) {
-            t
-        } else {
-            p.synchronize(&[TokenType::LCurly]);
-            TypeSignature::None
-        };
+        let return_type = type_(p).map_or_else(
+            |()| {
+                p.synchronize(&[TokenType::LCurly]);
+                TypeSignature::None
+            },
+            |t| t,
+        );
 
         p.emit_ir(
             start_pos,
@@ -496,13 +490,13 @@ pub(crate) fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
             Instruction::Function,
         );
 
-        param_names.iter().for_each(|name| {
+        for name in &param_names {
             p.emit_ir(
                 start_pos,
                 TypeSignature::Untyped,
                 Instruction::FunctionParameter(name.clone()),
-            )
-        });
+            );
+        }
 
         p.nested_fn_count += 1;
         if block(p).is_err() {
@@ -524,7 +518,7 @@ pub(crate) fn grouping_or_fn<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a block expression
-pub(crate) fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn block(p: &mut Parser<'_>) -> Result<(), ()> {
     p.consume(
         TokenType::LCurly,
         "Expected opening `{` for block expression",
@@ -573,7 +567,7 @@ pub(crate) fn block<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a struct expression
-pub(crate) fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn struct_(p: &mut Parser<'_>) -> Result<(), ()> {
     p.consume(
         TokenType::KwStruct,
         "Expected keyword `struct` for struct expression",
@@ -590,16 +584,17 @@ pub(crate) fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
     while !p.check_consume(TokenType::RCurly) {
         let element_pos = p.current().pos;
         let is_public = p.check_consume(TokenType::KwPub);
-        let name = match p.consume(TokenType::Identifier, "Expected a struct field name")? {
-            TokenData::Str(s) => (*s).to_string(),
-            _ => {
-                p.emit_notice_previous(
-                    NoticeLevel::Error,
-                    "Failed to extract string value from identifier token".to_string(),
-                );
-                p.synchronize(&[]);
-                return Err(());
-            }
+        let name = if let TokenData::Str(s) =
+            p.consume(TokenType::Identifier, "Expected a struct field name")?
+        {
+            (*s).to_string()
+        } else {
+            p.emit_notice_previous(
+                NoticeLevel::Error,
+                "Failed to extract string value from identifier token".to_string(),
+            );
+            p.synchronize(&[]);
+            return Err(());
         };
 
         p.consume(TokenType::Colon, "Expected `:` then type afterwards")?;
@@ -632,7 +627,7 @@ pub(crate) fn struct_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a call expression
-pub(crate) fn call<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn call(p: &mut Parser<'_>) -> Result<(), ()> {
     let mut was_error = p
         .consume(
             TokenType::LParen,
@@ -669,7 +664,7 @@ pub(crate) fn call<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses an if expression
-pub(crate) fn if_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn if_(p: &mut Parser<'_>) -> Result<(), ()> {
     p.consume(
         TokenType::KwIf,
         "Expected keyword `if` for opening an if expression",
@@ -705,21 +700,20 @@ pub(crate) fn if_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a field access expression
-pub(crate) fn field_access<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn field_access(p: &mut Parser<'_>) -> Result<(), ()> {
     p.consume(TokenType::Dot, "Expected `.` for field access expression")?;
-    let name = match p.consume(
+    let name = if let TokenData::Str(s) = p.consume(
         TokenType::Identifier,
         "Expected identifier after field access",
     )? {
-        TokenData::Str(s) => (*s).to_string(),
-        _ => {
-            p.emit_notice_previous(
-                NoticeLevel::Error,
-                "Failed to extract string data from identifier token".to_string(),
-            );
-            p.synchronize(&[]);
-            return Err(());
-        }
+        (*s).to_string()
+    } else {
+        p.emit_notice_previous(
+            NoticeLevel::Error,
+            "Failed to extract string data from identifier token".to_string(),
+        );
+        p.synchronize(&[]);
+        return Err(());
     };
 
     p.emit_ir_previous(TypeSignature::Untyped, Instruction::FieldAccess(name));
@@ -728,7 +722,7 @@ pub(crate) fn field_access<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses an as expression
-pub(crate) fn as_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn as_(p: &mut Parser<'_>) -> Result<(), ()> {
     p.consume(TokenType::KwAs, "Expected keyword `as` for as expression")?;
     let pos = p.current().pos;
     let type_ = type_(p)?;
@@ -739,7 +733,7 @@ pub(crate) fn as_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a while expression
-pub(crate) fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn while_(p: &mut Parser<'_>) -> Result<(), ()> {
     let mut was_error = p
         .consume(
             TokenType::KwWhile,
@@ -776,7 +770,7 @@ pub(crate) fn while_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a loop expression
-pub(crate) fn loop_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn loop_(p: &mut Parser<'_>) -> Result<(), ()> {
     let mut was_error = p
         .consume(
             TokenType::KwLoop,
@@ -799,7 +793,7 @@ pub(crate) fn loop_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a break expression
-pub(crate) fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn break_(p: &mut Parser<'_>) -> Result<(), ()> {
     if p.loop_stack.is_empty() {
         p.emit_notice_current(
             NoticeLevel::Error,
@@ -814,7 +808,7 @@ pub(crate) fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
         "Expected keyword `break` for break expression",
     )?;
 
-    if let Some(LoopType::Loop) = p.loop_stack.last() {
+    if p.loop_stack.last() == Some(&LoopType::Loop) {
         if p.check(TokenType::Semicolon) {
             p.emit_ir_previous(
                 TypeSignature::Primitive(PrimitiveType::Nil),
@@ -843,7 +837,7 @@ pub(crate) fn break_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a continue expression
-pub(crate) fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn continue_(p: &mut Parser<'_>) -> Result<(), ()> {
     if p.loop_stack.is_empty() {
         p.emit_notice_current(
             NoticeLevel::Error,
@@ -864,7 +858,7 @@ pub(crate) fn continue_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses an extern expression
-pub(crate) fn extern_function<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn extern_function(p: &mut Parser<'_>) -> Result<(), ()> {
     p.consume(
         TokenType::KwExtern,
         "Expected keyword `extern` for extern function",
@@ -928,7 +922,7 @@ pub(crate) fn extern_function<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a return expression
-pub(crate) fn return_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
+pub fn return_(p: &mut Parser<'_>) -> Result<(), ()> {
     if p.nested_fn_count > 0 {
         let start_pos = p.current().pos;
         p.consume(
@@ -948,15 +942,14 @@ pub(crate) fn return_<'a>(p: &mut Parser<'a>) -> Result<(), ()> {
 }
 
 /// Parses a type signature
-fn type_<'a>(p: &mut Parser<'a>) -> Result<TypeSignature, ()> {
-    let ret = match (&p.current().type_, &p.current().data) {
-        (TokenType::Identifier, TokenData::Str(s)) => {
-            Ok(TypeSignature::Primitive(PrimitiveType::new(s)))
-        }
-        _ => {
-            p.emit_notice_current(NoticeLevel::Error, "Expected a valid type".to_string());
-            Err(())
-        }
+fn type_(p: &mut Parser<'_>) -> Result<TypeSignature, ()> {
+    let ret = if let (TokenType::Identifier, TokenData::Str(s)) =
+        (&p.current().type_, &p.current().data)
+    {
+        Ok(TypeSignature::Primitive(PrimitiveType::new(s)))
+    } else {
+        p.emit_notice_current(NoticeLevel::Error, "Expected a valid type".to_string());
+        Err(())
     };
 
     if ret.is_ok() {

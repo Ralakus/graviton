@@ -215,13 +215,13 @@ impl<'a> Parser<'a> {
     /// Makes an IR instruction and sends it through the channel
     #[inline]
     pub(crate) fn emit_ir_previous(&mut self, sig: TypeSignature, ins: Instruction) {
-        self.emit_ir(self.previous().pos, sig, ins)
+        self.emit_ir(self.previous().pos, sig, ins);
     }
 
     /// Makes an IR instruction and sends it through the channel
     #[inline]
     pub(crate) fn emit_ir_current(&mut self, sig: TypeSignature, ins: Instruction) {
-        self.emit_ir(self.current().pos, sig, ins)
+        self.emit_ir(self.current().pos, sig, ins);
     }
 
     /// Makes a notice at a position
@@ -257,13 +257,13 @@ impl<'a> Parser<'a> {
     /// Makes a notice at previous position
     #[inline]
     pub(crate) fn emit_notice_previous(&mut self, level: NoticeLevel, msg: String) {
-        self.emit_notice(self.previous().pos, level, msg)
+        self.emit_notice(self.previous().pos, level, msg);
     }
 
     /// Makes a notice at current position
     #[inline]
     pub(crate) fn emit_notice_current(&mut self, level: NoticeLevel, msg: String) {
-        self.emit_notice(self.current().pos, level, msg)
+        self.emit_notice(self.current().pos, level, msg);
     }
 
     /// For errror recovery, skips until the next generally 'safe' token and any other tokens specified
@@ -287,9 +287,9 @@ impl<'a> Parser<'a> {
     }
 
     fn send_end_signal(
-        notice_tx: Sender<Option<Notice>>,
-        ir_tx: Sender<Option<ChannelIr>>,
-        source_request_tx: Sender<Option<String>>,
+        notice_tx: &Sender<Option<Notice>>,
+        ir_tx: &Sender<Option<ChannelIr>>,
+        source_request_tx: &Sender<Option<String>>,
     ) {
         if let Err(e) = ir_tx.send(None) {
             eprintln!(
@@ -371,6 +371,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Creates the parser thread from source data
+    #[allow(clippy::unused_async)]
     pub async fn create(
         name: String,
         source_rx: Receiver<Option<Arc<str>>>,
@@ -380,12 +381,9 @@ impl<'a> Parser<'a> {
     ) {
         let source_rx = source_rx;
 
-        let source = match Parser::recieve_source(&source_rx) {
-            Ok(s) => s,
-            Err(_) => {
-                Parser::send_end_signal(notice_tx, ir_tx, source_request_tx);
-                return;
-            }
+        let Ok(source) = Parser::recieve_source(&source_rx) else {
+            Parser::send_end_signal(&notice_tx, &ir_tx, &source_request_tx);
+            return;
         };
 
         let mut p = Parser::new(
@@ -401,8 +399,8 @@ impl<'a> Parser<'a> {
         p.advance();
         p.advance();
 
-        if functions::module(&mut p).is_ok() {}
+        let _ = functions::module(&mut p);
 
-        Parser::send_end_signal(notice_tx, ir_tx, source_request_tx);
+        Parser::send_end_signal(&notice_tx, &ir_tx, &source_request_tx);
     }
 }

@@ -60,7 +60,8 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Creates a new lexer
-    pub fn new(source: &'a str) -> Self {
+    #[must_use]
+    pub const fn new(source: &'a str) -> Self {
         Lexer {
             full_source: source,
             source: Some(source),
@@ -90,17 +91,14 @@ impl<'a> Lexer<'a> {
     /// Peeks at the next chracter without advancing
     #[inline]
     fn peek(&self) -> Option<char> {
-        match self.source {
-            Some(src) => src.chars().next(),
-            None => None,
-        }
+        self.source.and_then(|src| src.chars().next())
     }
 
     /// Advances past all whitespace
     #[inline]
     fn skip_white_space(&mut self) {
         while match self.peek() {
-            Some(c) if c == '\n' => {
+            Some('\n') => {
                 self.pos.line += 1;
                 self.pos.col = 0;
                 true
@@ -116,82 +114,66 @@ impl<'a> Lexer<'a> {
     /// Checks if an identifier is a reserved identifier, if it is, it returns the keyword token
     #[inline]
     fn check_ident(ident: &str) -> TokenType {
-        match IDENT_MAP.get(ident) {
-            Some(token_type) => *token_type,
-            None => TokenType::Identifier,
-        }
+        IDENT_MAP
+            .get(ident)
+            .map_or(TokenType::Identifier, |token_type| *token_type)
     }
 
     /// Lexes a string
     #[inline]
-    fn string(&mut self) -> Option<Token<'a>> {
+    fn string(&mut self) -> Token<'a> {
         let start_idx = self.idx;
         while let Some(c) = self.peek() {
-            if c != '\"' {
-                self.advance();
-            } else {
+            if c == '\"' {
                 break;
             }
+            self.advance();
         }
         self.advance();
 
         if self.peek().is_none() {
-            return Some(Token::new(
+            return Token::new(
                 TokenType::Err,
                 TokenData::Str("Unterminated string"),
                 self.start_pos,
-            ));
+            );
         }
 
-        let slice = match self.full_source.get(start_idx..self.idx - 1) {
-            Some(s) => s,
-            None => {
-                return Some(Token::new(
-                    TokenType::Err,
-                    TokenData::Str("Failed to index into source"),
-                    self.start_pos,
-                ))
-            }
+        let Some(slice) = self.full_source.get(start_idx..self.idx - 1) else {
+            return Token::new(
+                TokenType::Err,
+                TokenData::Str("Failed to index into source"),
+                self.start_pos,
+            );
         };
 
-        Some(Token::new(
-            TokenType::String,
-            TokenData::Str(slice),
-            self.start_pos,
-        ))
+        Token::new(TokenType::String, TokenData::Str(slice), self.start_pos)
     }
 
     /// Lexes an identifier
     #[inline]
-    fn identifier(&mut self) -> Option<Token<'a>> {
+    fn identifier(&mut self) -> Token<'a> {
         let start_idx = self.idx;
         while let Some(c) = self.peek() {
-            if c.is_alphabetic() || c.is_digit(10) || c == '_' {
+            if c.is_alphabetic() || c.is_ascii_digit() || c == '_' {
                 self.advance();
             } else {
                 break;
             }
         }
-        let slice = match self.full_source.get(start_idx - 1..self.idx) {
-            Some(s) => s,
-            None => {
-                return Some(Token::new(
-                    TokenType::Err,
-                    TokenData::String("Failed to index into source".to_string()),
-                    self.start_pos,
-                ))
-            }
+        let Some(slice) = self.full_source.get(start_idx - 1..self.idx) else {
+            return Token::new(
+                TokenType::Err,
+                TokenData::String("Failed to index into source".to_string()),
+                self.start_pos,
+            );
         };
 
         let ident_type = Lexer::check_ident(slice);
         if ident_type == TokenType::Identifier {
-            Some(Token::new(
-                TokenType::Identifier,
-                TokenData::Str(slice),
-                self.start_pos,
-            ))
+            Token::new(TokenType::Identifier, TokenData::Str(slice), self.start_pos)
         } else {
-            Some(Token::new(ident_type, TokenData::None, self.start_pos))
+            Token::new(ident_type, TokenData::None, self.start_pos)
         }
     }
 
@@ -204,21 +186,18 @@ impl<'a> Lexer<'a> {
             if c == '.' {
                 is_float = true;
                 self.advance();
-            } else if c.is_digit(10) {
+            } else if c.is_ascii_digit() {
                 self.advance();
             } else {
                 break;
             }
         }
-        let slice = match self.full_source.get(start_idx - 1..self.idx) {
-            Some(s) => s,
-            None => {
-                return Some(Token::new(
-                    TokenType::Err,
-                    TokenData::String("Failed to index into source".to_string()),
-                    self.start_pos,
-                ))
-            }
+        let Some(slice) = self.full_source.get(start_idx - 1..self.idx) else {
+            return Some(Token::new(
+                TokenType::Err,
+                TokenData::String("Failed to index into source".to_string()),
+                self.start_pos,
+            ));
         };
         Some(Token::new(
             TokenType::Number,
@@ -228,7 +207,7 @@ impl<'a> Lexer<'a> {
                     Err(e) => {
                         return Some(Token::new(
                             TokenType::Err,
-                            TokenData::String(format!("Failed parse float form source: {}", e)),
+                            TokenData::String(format!("Failed parse float form source: {e}")),
                             self.start_pos,
                         ))
                     }
@@ -239,7 +218,7 @@ impl<'a> Lexer<'a> {
                     Err(e) => {
                         return Some(Token::new(
                             TokenType::Err,
-                            TokenData::String(format!("Failed parse integer form source: {}", e)),
+                            TokenData::String(format!("Failed parse integer form source: {e}")),
                             self.start_pos,
                         ))
                     }
@@ -325,9 +304,8 @@ impl<'a> Lexer<'a> {
                         while let Some(c) = self.peek() {
                             if c == '\n' {
                                 break;
-                            } else {
-                                self.advance();
                             }
+                            self.advance();
                         }
                         self.get_tok()
                     }
@@ -391,11 +369,11 @@ impl<'a> Lexer<'a> {
                     )),
                 },
 
-                '\"' => self.string(),
+                '\"' => Some(self.string()),
 
-                l if l.is_alphabetic() || l == '_' => self.identifier(),
+                l if l.is_alphabetic() || l == '_' => Some(self.identifier()),
 
-                d if d.is_digit(10) => self.number(),
+                d if d.is_ascii_digit() => self.number(),
 
                 _ => Some(Token::new(
                     TokenType::Err,

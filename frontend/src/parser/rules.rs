@@ -6,7 +6,7 @@ use crate::{
 /// Precedence used in Pratt parsing
 #[repr(u8)]
 #[derive(Clone, Copy, Eq, PartialEq, PartialOrd)]
-pub(crate) enum Prec {
+pub enum Prec {
     None,
     Assignment, // =
     Or,         // or
@@ -21,17 +21,17 @@ pub(crate) enum Prec {
 }
 
 /// A grammatical parse function
-pub(crate) type ParseFn = fn(&mut Parser) -> Result<(), ()>;
+pub type ParseFn = fn(&mut Parser) -> Result<(), ()>;
 
 /// A parse rule for a token
 #[derive(Clone)]
-pub(crate) struct ParseRule {
+pub struct ParseRule {
     /// When it's found as a prefix expression
-    pub(crate) prefix: ParseFn,
+    pub prefix: ParseFn,
     /// When it's found an infix expression
-    pub(crate) infix: ParseFn,
+    pub infix: ParseFn,
     /// It's precedence
-    pub(crate) precedence: Prec,
+    pub precedence: Prec,
 }
 
 /// A lookup table for the expression rules for each token when encountered as an expression
@@ -285,6 +285,6 @@ const PARSER_RULE_TABLE: [ParseRule; TokenType::Eof as usize + 1] = [
 
 /// A wrapper function to get a rule from the loopup table
 #[inline]
-pub(crate) const fn get_rule(type_: TokenType) -> &'static ParseRule {
+pub const fn get_rule(type_: TokenType) -> &'static ParseRule {
     &PARSER_RULE_TABLE[type_ as usize]
 }
